@@ -3,7 +3,7 @@
 > **Status**: Phases 0-5.5, 7 Complete ✅ | Implementation: In Progress  
 > **Started**: 2025-12-17  
 > **Estimated Duration**: 4-6 weeks
-> **Tests**: 125 passing
+> **Tests**: 129 passing
 
 ---
 
@@ -175,12 +175,12 @@
 
 ---
 
-## Phase 7: Configuration ✅ PARTIAL
+## Phase 7: Configuration ✅ COMPLETE
 
 - [x] Configuration file loading (TOML)
   - [x] User config: `~/.config/calvin/config.toml`
   - [x] Project config: `.promptpack/config.toml`
-- [ ] Environment variable support (`CALVIN_*` prefix)
+- [x] Environment variable support (`CALVIN_*` prefix) - 4 tests
 - [x] Security mode config (`[security] mode = "yolo"`)
 - [x] Target enable/disable config
 - [x] `--json` for all commands

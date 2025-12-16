@@ -146,7 +146,7 @@ impl Config {
             let project_config = root.join(".promptpack/config.toml");
             if project_config.exists() {
                 if let Ok(config) = Self::load(&project_config) {
-                    return config;
+                    return config.with_env_overrides();
                 }
             }
         }
@@ -156,13 +156,60 @@ impl Config {
             let user_config = user_config_dir.join("calvin/config.toml");
             if user_config.exists() {
                 if let Ok(config) = Self::load(&user_config) {
-                    return config;
+                    return config.with_env_overrides();
                 }
             }
         }
         
-        // Return defaults
-        Self::default()
+        // Return defaults with env overrides
+        Self::default().with_env_overrides()
+    }
+    
+    /// Apply environment variable overrides (CALVIN_* prefix)
+    pub fn with_env_overrides(mut self) -> Self {
+        // CALVIN_SECURITY_MODE
+        if let Ok(mode) = std::env::var("CALVIN_SECURITY_MODE") {
+            self.security.mode = match mode.to_lowercase().as_str() {
+                "yolo" => SecurityMode::Yolo,
+                "strict" => SecurityMode::Strict,
+                _ => SecurityMode::Balanced,
+            };
+        }
+
+        // CALVIN_TARGETS (comma-separated)
+        if let Ok(targets) = std::env::var("CALVIN_TARGETS") {
+            let parsed: Vec<Target> = targets
+                .split(',')
+                .filter_map(|s| match s.trim().to_lowercase().as_str() {
+                    "claude-code" | "claudecode" => Some(Target::ClaudeCode),
+                    "cursor" => Some(Target::Cursor),
+                    "vscode" | "vs-code" => Some(Target::VSCode),
+                    "antigravity" => Some(Target::Antigravity),
+                    "codex" => Some(Target::Codex),
+                    _ => None,
+                })
+                .collect();
+            if !parsed.is_empty() {
+                self.targets.enabled = parsed;
+            }
+        }
+
+        // CALVIN_VERBOSITY
+        if let Ok(verbosity) = std::env::var("CALVIN_VERBOSITY") {
+            self.output.verbosity = match verbosity.to_lowercase().as_str() {
+                "quiet" => Verbosity::Quiet,
+                "verbose" => Verbosity::Verbose,
+                "debug" => Verbosity::Debug,
+                _ => Verbosity::Normal,
+            };
+        }
+
+        // CALVIN_ATOMIC_WRITES
+        if let Ok(val) = std::env::var("CALVIN_ATOMIC_WRITES") {
+            self.sync.atomic_writes = val.to_lowercase() != "false" && val != "0";
+        }
+
+        self
     }
     
     /// Get enabled targets (all if empty)
@@ -274,5 +321,43 @@ verbosity = "normal"
         let yaml = "verbose";
         let v: Verbosity = serde_yaml::from_str(yaml).unwrap();
         assert_eq!(v, Verbosity::Verbose);
+    }
+
+    #[test]
+    fn test_env_override_security_mode() {
+        // SAFETY: Single-threaded test, no concurrent access to env vars
+        unsafe { std::env::set_var("CALVIN_SECURITY_MODE", "strict") };
+        let config = Config::default().with_env_overrides();
+        assert_eq!(config.security.mode, SecurityMode::Strict);
+        unsafe { std::env::remove_var("CALVIN_SECURITY_MODE") };
+    }
+
+    #[test]
+    fn test_env_override_targets() {
+        // SAFETY: Single-threaded test, no concurrent access to env vars
+        unsafe { std::env::set_var("CALVIN_TARGETS", "claude-code,cursor") };
+        let config = Config::default().with_env_overrides();
+        assert_eq!(config.targets.enabled.len(), 2);
+        assert!(config.targets.enabled.contains(&Target::ClaudeCode));
+        assert!(config.targets.enabled.contains(&Target::Cursor));
+        unsafe { std::env::remove_var("CALVIN_TARGETS") };
+    }
+
+    #[test]
+    fn test_env_override_verbosity() {
+        // SAFETY: Single-threaded test, no concurrent access to env vars
+        unsafe { std::env::set_var("CALVIN_VERBOSITY", "debug") };
+        let config = Config::default().with_env_overrides();
+        assert_eq!(config.output.verbosity, Verbosity::Debug);
+        unsafe { std::env::remove_var("CALVIN_VERBOSITY") };
+    }
+
+    #[test]
+    fn test_env_override_atomic_writes() {
+        // SAFETY: Single-threaded test, no concurrent access to env vars
+        unsafe { std::env::set_var("CALVIN_ATOMIC_WRITES", "false") };
+        let config = Config::default().with_env_overrides();
+        assert!(!config.sync.atomic_writes);
+        unsafe { std::env::remove_var("CALVIN_ATOMIC_WRITES") };
     }
 }

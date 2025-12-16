@@ -58,6 +58,13 @@ pub enum CalvinError {
         kind: String,
         file: PathBuf,
     },
+
+    /// Path escapes project boundary (security issue)
+    #[error("path '{path}' escapes project boundary '{root}'")]
+    PathEscape {
+        path: PathBuf,
+        root: PathBuf,
+    },
 }
 
 #[cfg(test)]
