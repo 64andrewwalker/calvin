@@ -72,10 +72,12 @@ impl TargetAdapter for CodexAdapter {
         let mut outputs = Vec::new();
 
         // Codex prompts are typically user-level
-        // Project-level would need a different approach
+        // User-level paths are prefixed with "~/" and resolved during sync
+        // Project-level uses local .codex directory
         let base_path = if asset.frontmatter.scope == Scope::User {
-            // This will be resolved to ~/.codex/prompts/ during sync
-            PathBuf::from("~/.codex/prompts")
+            // Use HOME_DIR marker that will be resolved during sync
+            // The sync engine should expand ~ to the actual home directory
+            PathBuf::from("~").join(".codex").join("prompts")
         } else {
             // For project scope, use a local prompts directory
             PathBuf::from(".codex/prompts")

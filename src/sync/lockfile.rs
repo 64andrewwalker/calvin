@@ -123,16 +123,70 @@ impl Lockfile {
 
 /// Get current timestamp in ISO 8601 format
 fn chrono_now() -> String {
-    // Simple timestamp without chrono dependency
-    // Format: YYYY-MM-DDTHH:MM:SSZ
+    // Format: YYYY-MM-DDTHH:MM:SSZ (UTC)
     use std::time::SystemTime;
     
     let now = SystemTime::now();
     let duration = now.duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default();
     let secs = duration.as_secs();
     
-    // Convert to human-readable (simplified)
-    format!("{}", secs)
+    // Convert Unix timestamp to ISO 8601
+    // Days since epoch, accounting for leap years
+    const SECS_PER_MIN: u64 = 60;
+    const SECS_PER_HOUR: u64 = 60 * SECS_PER_MIN;
+    const SECS_PER_DAY: u64 = 24 * SECS_PER_HOUR;
+    
+    // Simple conversion - not accounting for leap seconds
+    let days = secs / SECS_PER_DAY;
+    let remaining = secs % SECS_PER_DAY;
+    let hours = remaining / SECS_PER_HOUR;
+    let remaining = remaining % SECS_PER_HOUR;
+    let minutes = remaining / SECS_PER_MIN;
+    let seconds = remaining % SECS_PER_MIN;
+    
+    // Calculate year, month, day from days since 1970-01-01
+    let (year, month, day) = days_to_ymd(days);
+    
+    format!(
+        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
+        year, month, day, hours, minutes, seconds
+    )
+}
+
+/// Convert days since Unix epoch to year/month/day
+fn days_to_ymd(days: u64) -> (u32, u32, u32) {
+    // Days per month (non-leap year)
+    const DAYS_IN_MONTH: [u32; 12] = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    
+    let mut remaining_days = days as i64;
+    let mut year = 1970u32;
+    
+    loop {
+        let days_in_year = if is_leap_year(year) { 366 } else { 365 };
+        if remaining_days < days_in_year {
+            break;
+        }
+        remaining_days -= days_in_year;
+        year += 1;
+    }
+    
+    let mut month = 1u32;
+    for (i, &days) in DAYS_IN_MONTH.iter().enumerate() {
+        let days_this_month = if i == 1 && is_leap_year(year) { 29 } else { days } as i64;
+        if remaining_days < days_this_month {
+            break;
+        }
+        remaining_days -= days_this_month;
+        month += 1;
+    }
+    
+    let day = (remaining_days + 1) as u32;
+    
+    (year, month, day)
+}
+
+fn is_leap_year(year: u32) -> bool {
+    (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
 }
 
 #[cfg(test)]
@@ -222,5 +276,23 @@ mod tests {
         assert!(toml.contains("version = 1"));
         assert!(toml.contains("[files.\"test.txt\"]"));
         assert!(toml.contains("hash = \"sha256:abc\""));
+    }
+
+    #[test]
+    fn test_timestamp_iso8601_format() {
+        let timestamp = super::chrono_now();
+        
+        // Should match YYYY-MM-DDTHH:MM:SSZ format
+        assert_eq!(timestamp.len(), 20, "Timestamp should be 20 chars: {}", timestamp);
+        assert_eq!(&timestamp[4..5], "-");
+        assert_eq!(&timestamp[7..8], "-");
+        assert_eq!(&timestamp[10..11], "T");
+        assert_eq!(&timestamp[13..14], ":");
+        assert_eq!(&timestamp[16..17], ":");
+        assert_eq!(&timestamp[19..20], "Z");
+        
+        // Should be a valid year (2020+)
+        let year: u32 = timestamp[0..4].parse().unwrap();
+        assert!(year >= 2020, "Year should be 2020+: {}", year);
     }
 }

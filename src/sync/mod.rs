@@ -7,15 +7,69 @@
 pub mod writer;
 pub mod lockfile;
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::adapters::{all_adapters, OutputFile};
-use crate::error::CalvinResult;
+use crate::error::{CalvinError, CalvinResult};
 use crate::models::{PromptAsset, Target};
 use crate::parser::parse_directory;
 
 pub use lockfile::Lockfile;
 pub use writer::atomic_write;
+
+/// Expand ~/ prefix to user home directory
+pub fn expand_home_dir(path: &Path) -> PathBuf {
+    let path_str = path.to_string_lossy();
+    if path_str.starts_with("~/") || path_str == "~" {
+        if let Some(home) = dirs_home() {
+            return home.join(path_str.strip_prefix("~/").unwrap_or(""));
+        }
+    }
+    path.to_path_buf()
+}
+
+/// Get home directory (platform-independent)
+fn dirs_home() -> Option<PathBuf> {
+    std::env::var("HOME")
+        .ok()
+        .map(PathBuf::from)
+        .or_else(|| std::env::var("USERPROFILE").ok().map(PathBuf::from))
+}
+
+/// Check if a path is safe (doesn't escape project root)
+/// 
+/// Protects against path traversal attacks like `../../etc/passwd`
+pub fn validate_path_safety(path: &Path, project_root: &Path) -> CalvinResult<()> {
+    // Skip paths starting with ~ (user-level paths are intentionally outside project)
+    let path_str = path.to_string_lossy();
+    if path_str.starts_with("~") {
+        return Ok(());
+    }
+    
+    // Check for path traversal attempts
+    if path_str.contains("..") {
+        // Resolve to canonical form and check
+        let resolved = project_root.join(path);
+        if let Ok(canonical) = resolved.canonicalize() {
+            let root_canonical = project_root.canonicalize().unwrap_or_else(|_| project_root.to_path_buf());
+            if !canonical.starts_with(&root_canonical) {
+                return Err(CalvinError::PathEscape {
+                    path: path.to_path_buf(),
+                    root: project_root.to_path_buf(),
+                });
+            }
+        }
+        // If we can't canonicalize, check for obvious escapes
+        else if path_str.starts_with("..") {
+            return Err(CalvinError::PathEscape {
+                path: path.to_path_buf(),
+                root: project_root.to_path_buf(),
+            });
+        }
+    }
+    
+    Ok(())
+}
 
 /// Options for sync operations
 #[derive(Debug, Clone)]
@@ -120,7 +174,16 @@ pub fn sync_outputs(
     let mut lockfile = Lockfile::load_or_new(&lockfile_path);
     
     for output in outputs {
-        let target_path = project_root.join(&output.path);
+        // Validate path safety (prevent path traversal attacks)
+        validate_path_safety(&output.path, project_root)?;
+        
+        // Expand home directory if needed
+        let output_path = expand_home_dir(&output.path);
+        let target_path = if output_path.starts_with("~") || output_path.is_absolute() {
+            output_path.clone()
+        } else {
+            project_root.join(&output_path)
+        };
         let path_str = output.path.display().to_string();
         
         // Check if file exists and was modified
@@ -233,5 +296,42 @@ mod tests {
         
         // Should only generate Claude Code output
         assert!(outputs.iter().all(|o| o.path.starts_with(".claude")));
+    }
+
+    #[test]
+    fn test_validate_path_safety_normal() {
+        let root = Path::new("/project");
+        assert!(validate_path_safety(Path::new(".claude/settings.json"), root).is_ok());
+        assert!(validate_path_safety(Path::new(".cursor/rules/test/RULE.md"), root).is_ok());
+    }
+
+    #[test]
+    fn test_validate_path_safety_user_paths() {
+        let root = Path::new("/project");
+        // User-level paths starting with ~ are always allowed
+        assert!(validate_path_safety(Path::new("~/.codex/prompts/test.md"), root).is_ok());
+        assert!(validate_path_safety(Path::new("~/.claude/commands/test.md"), root).is_ok());
+    }
+
+    #[test]
+    fn test_validate_path_safety_traversal() {
+        let root = Path::new("/project");
+        // Path traversal should be blocked
+        assert!(validate_path_safety(Path::new("../etc/passwd"), root).is_err());
+        assert!(validate_path_safety(Path::new("../../malicious"), root).is_err());
+    }
+
+    #[test]
+    fn test_expand_home_dir() {
+        // Test that ~ is expanded (if HOME is set)
+        if std::env::var("HOME").is_ok() {
+            let expanded = expand_home_dir(Path::new("~/.codex/prompts"));
+            assert!(!expanded.to_string_lossy().starts_with("~"));
+            assert!(expanded.to_string_lossy().contains(".codex/prompts"));
+        }
+        
+        // Non-home paths should pass through unchanged
+        let unchanged = expand_home_dir(Path::new(".claude/settings.json"));
+        assert_eq!(unchanged, Path::new(".claude/settings.json"));
     }
 }
