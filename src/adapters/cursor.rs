@@ -96,10 +96,20 @@ impl TargetAdapter for CursorAdapter {
         Vec::new()
     }
 
-    fn security_baseline(&self) -> Vec<OutputFile> {
-        // Cursor doesn't have a central security config like Claude
-        // MCP allowlist would go in .cursor/mcp.json
-        Vec::new()
+    fn security_baseline(&self, config: &crate::config::Config) -> Vec<OutputFile> {
+        let mut outputs = Vec::new();
+        
+        // Generate mcp.json from allowlist in config
+        // This enforces "whitelist only" policy
+        if !config.mcp.servers.is_empty() {
+             let mcp_json = serde_json::json!({
+                 "mcpServers": config.mcp.servers
+             });
+             let content = serde_json::to_string_pretty(&mcp_json).unwrap_or_default();
+             outputs.push(OutputFile::new(".cursor/mcp.json", content));
+        }
+        
+        outputs
     }
 }
 
@@ -191,7 +201,30 @@ mod tests {
     #[test]
     fn test_cursor_security_baseline_empty() {
         let adapter = CursorAdapter::new();
-        let baseline = adapter.security_baseline();
+        let config = crate::config::Config::default();
+        let baseline = adapter.security_baseline(&config);
         assert!(baseline.is_empty());
+    }
+
+    #[test]
+    fn test_cursor_security_baseline_mcp() {
+        let adapter = CursorAdapter::new();
+        let mut config = crate::config::Config::default();
+        
+        // Add a mock MCP server
+        config.mcp.servers.insert(
+            "test-server".to_string(), 
+            crate::config::McpServerConfig {
+                command: "node".to_string(),
+                args: vec!["server.js".to_string()],
+            }
+        );
+        
+        let baseline = adapter.security_baseline(&config);
+        
+        assert_eq!(baseline.len(), 1);
+        assert_eq!(baseline[0].path, PathBuf::from(".cursor/mcp.json"));
+        assert!(baseline[0].content.contains("test-server"));
+        assert!(baseline[0].content.contains("node"));
     }
 }

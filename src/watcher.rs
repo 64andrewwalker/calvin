@@ -32,6 +32,8 @@ pub struct WatchOptions {
     pub project_root: PathBuf,
     /// Enabled targets
     pub targets: Vec<Target>,
+    /// Config
+    pub config: crate::config::Config,
     /// Output as NDJSON
     pub json: bool,
 }
@@ -195,7 +197,7 @@ fn do_sync(options: &WatchOptions, callback: &impl Fn(WatchEvent)) -> CalvinResu
 
 fn perform_sync(options: &WatchOptions) -> CalvinResult<SyncResult> {
     let assets = parse_directory(&options.source)?;
-    let outputs = compile_assets(&assets, &options.targets)?;
+    let outputs = compile_assets(&assets, &options.targets, &options.config)?;
     
     let sync_options = SyncOptions {
         force: false,
@@ -331,6 +333,7 @@ mod tests {
             source: source.clone(),
             project_root: dir.path().to_path_buf(),
             targets: vec![],
+            config: crate::config::Config::default(),
             json: false,
         };
         

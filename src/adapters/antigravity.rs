@@ -98,7 +98,7 @@ impl TargetAdapter for AntigravityAdapter {
         Vec::new()
     }
 
-    fn security_baseline(&self) -> Vec<OutputFile> {
+    fn security_baseline(&self, _config: &crate::config::Config) -> Vec<OutputFile> {
         // Antigravity security is configured via:
         // - Terminal mode (Auto vs Turbo)
         // - allowlist/denylist files
@@ -196,7 +196,8 @@ mod tests {
     #[test]
     fn test_antigravity_security_baseline_empty() {
         let adapter = AntigravityAdapter::new();
-        let baseline = adapter.security_baseline();
+        let config = crate::config::Config::default();
+        let baseline = adapter.security_baseline(&config);
         assert!(baseline.is_empty());
     }
 }

@@ -74,11 +74,16 @@ impl TargetAdapter for ClaudeCodeAdapter {
         Vec::new()
     }
 
-    fn security_baseline(&self) -> Vec<OutputFile> {
+    fn security_baseline(&self, _config: &crate::config::Config) -> Vec<OutputFile> {
         let settings = ClaudeSettings::with_deny(&[]);
         let content = serde_json::to_string_pretty(&settings).unwrap_or_default();
         
-        vec![OutputFile::new(".claude/settings.json", content)]
+        vec![
+            OutputFile::new(".claude/settings.json", content),
+            // Generate basic local settings file if it doesn't exist
+            // This file is intended for local overrides and should be gitignored
+            OutputFile::new(".claude/settings.local.json", "{}"),
+        ]
     }
 }
 
@@ -179,10 +184,12 @@ mod tests {
     #[test]
     fn test_claude_security_baseline() {
         let adapter = ClaudeCodeAdapter::new();
-        let baseline = adapter.security_baseline();
+        let config = crate::config::Config::default();
+        let baseline = adapter.security_baseline(&config);
         
-        assert_eq!(baseline.len(), 1);
+        assert_eq!(baseline.len(), 2);
         assert_eq!(baseline[0].path, PathBuf::from(".claude/settings.json"));
+        assert_eq!(baseline[1].path, PathBuf::from(".claude/settings.local.json"));
         assert!(baseline[0].content.contains("deny"));
     }
 

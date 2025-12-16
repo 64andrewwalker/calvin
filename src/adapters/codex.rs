@@ -135,7 +135,7 @@ impl TargetAdapter for CodexAdapter {
         diagnostics
     }
 
-    fn security_baseline(&self) -> Vec<OutputFile> {
+    fn security_baseline(&self, _config: &crate::config::Config) -> Vec<OutputFile> {
         // Codex doesn't have project-level security config
         Vec::new()
     }
@@ -246,7 +246,8 @@ mod tests {
     #[test]
     fn test_codex_security_baseline_empty() {
         let adapter = CodexAdapter::new();
-        let baseline = adapter.security_baseline();
+        let config = crate::config::Config::default();
+        let baseline = adapter.security_baseline(&config);
         assert!(baseline.is_empty());
     }
 }
