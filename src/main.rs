@@ -68,6 +68,17 @@ enum Commands {
         mode: String,
     },
 
+    /// Security audit for CI (exits non-zero on violations)
+    Audit {
+        /// Security mode (strict recommended for CI)
+        #[arg(long, default_value = "strict")]
+        mode: String,
+
+        /// Fail on warnings too
+        #[arg(long)]
+        strict_warnings: bool,
+    },
+
     /// Parse and display PromptPack files (debugging)
     Parse {
         /// Path to .promptpack directory
@@ -91,6 +102,9 @@ fn main() -> Result<()> {
         }
         Commands::Doctor { mode } => {
             cmd_doctor(&mode, cli.json)
+        }
+        Commands::Audit { mode, strict_warnings } => {
+            cmd_audit(&mode, strict_warnings, cli.json)
         }
         Commands::Parse { source } => {
             cmd_parse(&source, cli.json)
@@ -174,15 +188,152 @@ fn cmd_sync(source: &PathBuf, force: bool, dry_run: bool, json: bool) -> Result<
     Ok(())
 }
 
-fn cmd_watch(source: &PathBuf, _json: bool) -> Result<()> {
-    println!("👀 Watch mode not yet implemented");
-    println!("Would watch: {}", source.display());
+fn cmd_watch(source: &PathBuf, json: bool) -> Result<()> {
+    use calvin::watcher::{watch, WatchOptions, WatchEvent};
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
+
+    // Determine project root
+    let project_root = source.parent()
+        .map(|p| p.to_path_buf())
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+
+    let options = WatchOptions {
+        source: source.clone(),
+        project_root,
+        targets: vec![],
+        json,
+    };
+
+    // Set up Ctrl+C handler
+    let running = Arc::new(AtomicBool::new(true));
+    let running_clone = running.clone();
+    
+    ctrlc::set_handler(move || {
+        running_clone.store(false, Ordering::SeqCst);
+    }).expect("Error setting Ctrl+C handler");
+
+    if !json {
+        println!("👀 Calvin Watch");
+        println!("Source: {}", source.display());
+        println!("Press Ctrl+C to stop\n");
+    }
+
+    // Start watching
+    watch(options, running, |event| {
+        if json {
+            println!("{}", event.to_json());
+        } else {
+            match event {
+                WatchEvent::Started { source } => {
+                    println!("📂 Watching: {}", source);
+                }
+                WatchEvent::FileChanged { path } => {
+                    println!("📝 Changed: {}", path);
+                }
+                WatchEvent::SyncStarted => {
+                    println!("🔄 Syncing...");
+                }
+                WatchEvent::SyncComplete { written, skipped, errors } => {
+                    if errors > 0 {
+                        println!("⚠ Sync: {} written, {} skipped, {} errors", 
+                            written, skipped, errors);
+                    } else {
+                        println!("✓ Sync: {} written, {} skipped", written, skipped);
+                    }
+                }
+                WatchEvent::Error { message } => {
+                    eprintln!("✗ Error: {}", message);
+                }
+                WatchEvent::Shutdown => {
+                    println!("\n👋 Shutting down...");
+                }
+            }
+        }
+    })?;
+
     Ok(())
 }
 
-fn cmd_diff(source: &PathBuf, _json: bool) -> Result<()> {
-    println!("📊 Diff mode not yet implemented");
-    println!("Would compare: {}", source.display());
+fn cmd_diff(source: &PathBuf, json: bool) -> Result<()> {
+    use calvin::sync::compile_assets;
+    use std::fs;
+
+    if !json {
+        println!("📊 Calvin Diff");
+        println!("Source: {}", source.display());
+        println!();
+    }
+
+    // Parse source directory
+    let assets = calvin::parser::parse_directory(source)?;
+    
+    // Compile to get expected outputs
+    let outputs = compile_assets(&assets, &[])?;
+
+    // Determine project root
+    let project_root = source.parent()
+        .map(|p| p.to_path_buf())
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+
+    let mut new_files = Vec::new();
+    let mut modified_files = Vec::new();
+    let mut unchanged_files = Vec::new();
+
+    for output in &outputs {
+        let target_path = project_root.join(&output.path);
+        let path_str = output.path.display().to_string();
+
+        if target_path.exists() {
+            // Compare content
+            let existing = fs::read_to_string(&target_path).unwrap_or_default();
+            if existing == output.content {
+                unchanged_files.push(path_str);
+            } else {
+                modified_files.push(path_str);
+            }
+        } else {
+            new_files.push(path_str);
+        }
+    }
+
+    if json {
+        let output = serde_json::json!({
+            "event": "diff",
+            "new": new_files.len(),
+            "modified": modified_files.len(),
+            "unchanged": unchanged_files.len()
+        });
+        println!("{}", serde_json::to_string(&output)?);
+    } else {
+        if !new_files.is_empty() {
+            println!("📁 New files ({}):", new_files.len());
+            for path in &new_files {
+                println!("  + {}", path);
+            }
+            println!();
+        }
+
+        if !modified_files.is_empty() {
+            println!("📝 Modified files ({}):", modified_files.len());
+            for path in &modified_files {
+                println!("  ~ {}", path);
+            }
+            println!();
+        }
+
+        if !unchanged_files.is_empty() {
+            println!("✓ Unchanged files: {}", unchanged_files.len());
+        }
+
+        println!();
+        println!("Summary: {} new, {} modified, {} unchanged",
+            new_files.len(),
+            modified_files.len(),
+            unchanged_files.len()
+        );
+    }
+
     Ok(())
 }
 
@@ -259,6 +410,80 @@ fn cmd_doctor(mode: &str, json: bool) -> Result<()> {
         } else {
             println!();
             println!("🟢 All checks passed!");
+        }
+    }
+
+    Ok(())
+}
+
+fn cmd_audit(mode: &str, strict_warnings: bool, json: bool) -> Result<()> {
+    use calvin::config::SecurityMode;
+    use calvin::security::{run_doctor, CheckStatus};
+
+    let security_mode = match mode {
+        "yolo" => SecurityMode::Yolo,
+        "balanced" => SecurityMode::Balanced,
+        _ => SecurityMode::Strict, // Default to strict for CI
+    };
+
+    let project_root = std::env::current_dir()?;
+
+    if !json {
+        println!("🔒 Calvin Security Audit");
+        println!("Mode: {:?}", security_mode);
+        if strict_warnings {
+            println!("Strict: failing on warnings");
+        }
+        println!();
+    }
+
+    let report = run_doctor(&project_root, security_mode);
+
+    // Determine exit status
+    let has_issues = if strict_warnings {
+        report.errors() > 0 || report.warnings() > 0
+    } else {
+        report.errors() > 0
+    };
+
+    if json {
+        let output = serde_json::json!({
+            "event": "audit",
+            "mode": format!("{:?}", security_mode),
+            "passes": report.passes(),
+            "warnings": report.warnings(),
+            "errors": report.errors(),
+            "success": !has_issues
+        });
+        println!("{}", serde_json::to_string(&output)?);
+    } else {
+        for check in &report.checks {
+            let icon = match check.status {
+                CheckStatus::Pass => "✓",
+                CheckStatus::Warning => "⚠",
+                CheckStatus::Error => "✗",
+            };
+            println!("{} [{}] {}: {}", icon, check.platform, check.name, check.message);
+        }
+        
+        println!();
+        println!("Result: {} passed, {} warnings, {} errors",
+            report.passes(),
+            report.warnings(),
+            report.errors()
+        );
+    }
+
+    if has_issues {
+        if !json {
+            println!();
+            println!("🔴 Audit FAILED - security issues detected");
+        }
+        std::process::exit(1);
+    } else {
+        if !json {
+            println!();
+            println!("🟢 Audit PASSED");
         }
     }
 
@@ -354,5 +579,51 @@ mod tests {
     fn test_cli_verbose_flag() {
         let cli = Cli::try_parse_from(["calvin", "-vvv", "sync"]).unwrap();
         assert_eq!(cli.verbose, 3);
+    }
+
+    #[test]
+    fn test_cli_parse_audit() {
+        let cli = Cli::try_parse_from(["calvin", "audit"]).unwrap();
+        if let Commands::Audit { mode, strict_warnings } = cli.command {
+            assert_eq!(mode, "strict"); // Default
+            assert!(!strict_warnings);
+        } else {
+            panic!("Expected Audit command");
+        }
+    }
+
+    #[test]
+    fn test_cli_parse_audit_with_options() {
+        let cli = Cli::try_parse_from([
+            "calvin", "audit", 
+            "--mode", "balanced",
+            "--strict-warnings"
+        ]).unwrap();
+        if let Commands::Audit { mode, strict_warnings } = cli.command {
+            assert_eq!(mode, "balanced");
+            assert!(strict_warnings);
+        } else {
+            panic!("Expected Audit command");
+        }
+    }
+
+    #[test]
+    fn test_cli_parse_diff() {
+        let cli = Cli::try_parse_from(["calvin", "diff", "--source", "my-pack"]).unwrap();
+        if let Commands::Diff { source } = cli.command {
+            assert_eq!(source, PathBuf::from("my-pack"));
+        } else {
+            panic!("Expected Diff command");
+        }
+    }
+
+    #[test]
+    fn test_cli_parse_watch() {
+        let cli = Cli::try_parse_from(["calvin", "watch", "--source", ".promptpack"]).unwrap();
+        if let Commands::Watch { source } = cli.command {
+            assert_eq!(source, PathBuf::from(".promptpack"));
+        } else {
+            panic!("Expected Watch command");
+        }
     }
 }
