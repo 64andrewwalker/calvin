@@ -181,23 +181,34 @@ pub fn compile_assets(
 }
 
 /// Sync compiled outputs to the filesystem
+/// Sync compiled outputs to the filesystem
 pub fn sync_outputs(
     project_root: &Path,
     outputs: &[OutputFile],
     options: &SyncOptions,
 ) -> CalvinResult<SyncResult> {
+    sync_with_fs(project_root, outputs, options, &crate::fs::LocalFileSystem)
+}
+
+/// Sync compiled outputs using provided file system
+pub fn sync_with_fs<FS: crate::fs::FileSystem + ?Sized>(
+    project_root: &Path,
+    outputs: &[OutputFile],
+    options: &SyncOptions,
+    fs: &FS,
+) -> CalvinResult<SyncResult> {
     let mut result = SyncResult::new();
     
     // Load or create lockfile
     let lockfile_path = project_root.join(".promptpack/.calvin.lock");
-    let mut lockfile = Lockfile::load_or_new(&lockfile_path);
+    let mut lockfile = Lockfile::load_or_new(&lockfile_path, fs);
     
     for output in outputs {
         // Validate path safety (prevent path traversal attacks)
         validate_path_safety(&output.path, project_root)?;
         
         // Expand home directory if needed
-        let output_path = expand_home_dir(&output.path);
+        let output_path = fs.expand_home(&output.path);
         let target_path = if output_path.starts_with("~") || output_path.is_absolute() {
             output_path.clone()
         } else {
@@ -206,10 +217,10 @@ pub fn sync_outputs(
         let path_str = output.path.display().to_string();
         
         // Check if file exists and was modified
-        if target_path.exists() {
+        if fs.exists(&target_path) {
             if let Some(recorded_hash) = lockfile.get_hash(&path_str) {
-                // Check current file hash
-                let current_hash = writer::hash_file(&target_path)?;
+                // Check current file hash (via fs)
+                let current_hash = fs.hash_file(&target_path)?;
                 
                 if current_hash != recorded_hash && !options.force {
                     // File was modified by user, skip
@@ -232,13 +243,16 @@ pub fn sync_outputs(
         
         // Create parent directories
         if let Some(parent) = target_path.parent() {
-            std::fs::create_dir_all(parent)?;
+            fs.create_dir_all(parent)?;
         }
         
-        // Write file atomically
-        match writer::atomic_write(&target_path, output.content.as_bytes()) {
+        // Write file atomically (using string content)
+        match fs.write_atomic(&target_path, &output.content) {
             Ok(()) => {
                 // Update lockfile with new hash
+                // We use standard hash which matches fs.hash_file impl usually, 
+                // but fs.hash_file might differ on remote? 
+                // We should rely on standard hash for consistency.
                 let new_hash = writer::hash_content(output.content.as_bytes());
                 lockfile.set_hash(&path_str, &new_hash);
                 result.written.push(path_str);
@@ -251,7 +265,7 @@ pub fn sync_outputs(
     
     // Save lockfile (unless dry run)
     if !options.dry_run {
-        lockfile.save(&lockfile_path)?;
+        lockfile.save(&lockfile_path, fs)?;
     }
     
     Ok(result)
@@ -355,5 +369,70 @@ mod tests {
         // Non-home paths should pass through unchanged
         let unchanged = expand_home_dir(Path::new(".claude/settings.json"));
         assert_eq!(unchanged, Path::new(".claude/settings.json"));
+    }
+    #[test]
+    fn test_sync_user_scope() {
+        use crate::models::{Scope, Frontmatter};
+        
+        // Setup
+        let temp = tempfile::tempdir().unwrap();
+        let home = temp.path().to_path_buf();
+        let config = crate::config::Config::default();
+        
+        let mut fm_user = Frontmatter::new("User action");
+        fm_user.scope = Scope::User;
+        let asset_user = PromptAsset::new("user-cmd", "user.md", fm_user, "content");
+
+        let mut fm_proj = Frontmatter::new("Project action");
+        fm_proj.scope = Scope::Project;
+        let asset_proj = PromptAsset::new("proj-cmd", "proj.md", fm_proj, "content");
+        
+        // Emulate install --user: Filter for user scope
+        let assets = vec![asset_user, asset_proj];
+        let user_assets: Vec<_> = assets.into_iter()
+            .filter(|a| a.frontmatter.scope == Scope::User)
+            .collect();
+            
+        assert_eq!(user_assets.len(), 1);
+        
+        // Compile
+        let outputs = compile_assets(&user_assets, &[], &config).unwrap();
+        
+        // Sync to "home"
+        let options = SyncOptions { force: true, dry_run: false, targets: vec![] };
+        let result = sync_outputs(&home, &outputs, &options).unwrap();
+        
+        assert!(result.is_success());
+        // User asset should be installed
+        if cfg!(feature = "claude") { 
+             // Logic depends on adapter. Assuming Claude is default enabled.
+        }
+        
+        // Check for generated files (adapters generate based on kind)
+        assert!(home.join(".claude/commands/user-cmd.md").exists());
+        assert!(!home.join(".claude/commands/proj-cmd.md").exists());
+        
+        // Lockfile should exist in .promptpack relative to home
+        assert!(home.join(".promptpack/.calvin.lock").exists());
+    }
+
+    #[test]
+    fn test_sync_with_mock_fs() {
+        use crate::fs::{MockFileSystem, FileSystem};
+        
+        let mock_fs = MockFileSystem::new();
+        // Setup outputs
+        let outputs = vec![
+            OutputFile::new(".claude/test.md", "content")
+        ];
+        let options = SyncOptions { force: true, dry_run: false, targets: vec![] };
+        let root = Path::new("/mock/root");
+        
+        sync_with_fs(root, &outputs, &options, &mock_fs).unwrap();
+        
+        // Assert file exists in mock_fs
+        assert!(mock_fs.exists(Path::new("/mock/root/.claude/test.md")));
+        // Assert lockfile exists
+        assert!(mock_fs.exists(Path::new("/mock/root/.promptpack/.calvin.lock")));
     }
 }

@@ -12,6 +12,7 @@ pub mod sync;
 pub mod config;
 pub mod security;
 pub mod watcher;
+pub mod fs;
 
 // Re-exports for convenience
 pub use error::{CalvinError, CalvinResult};

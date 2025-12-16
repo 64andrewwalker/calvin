@@ -32,11 +32,34 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
+    /// Install PromptPack assets to system/user scope
+    Install {
+        /// Path to .promptpack directory
+        #[arg(short, long, default_value = ".promptpack")]
+        source: PathBuf,
+
+        /// Install to user scope (home directory)
+        #[arg(long)]
+        user: bool,
+
+        /// Force overwrite of modified files
+        #[arg(short, long)]
+        force: bool,
+
+        /// Dry run - show what would be done
+        #[arg(long)]
+        dry_run: bool,
+    },
+
     /// Compile and sync PromptPack to target platforms
     Sync {
         /// Path to .promptpack directory
         #[arg(short, long, default_value = ".promptpack")]
         source: PathBuf,
+
+        /// Remote destination (user@host:/path)
+        #[arg(long)]
+        remote: Option<String>,
 
         /// Force overwrite of modified files
         #[arg(short, long)]
@@ -91,8 +114,8 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Sync { source, force, dry_run } => {
-            cmd_sync(&source, force, dry_run, cli.json)
+        Commands::Sync { source, remote, force, dry_run } => {
+            cmd_sync(&source, remote, force, dry_run, cli.json)
         }
         Commands::Watch { source } => {
             cmd_watch(&source, cli.json)
@@ -109,15 +132,118 @@ fn main() -> Result<()> {
         Commands::Parse { source } => {
             cmd_parse(&source, cli.json)
         }
+        Commands::Install { source, user, force, dry_run } => {
+            cmd_install(&source, user, force, dry_run, cli.json)
+        }
     }
 }
 
-fn cmd_sync(source: &PathBuf, force: bool, dry_run: bool, json: bool) -> Result<()> {
+fn cmd_install(source: &PathBuf, user: bool, force: bool, dry_run: bool, json: bool) -> Result<()> {
     use calvin::sync::{compile_assets, sync_outputs, SyncOptions};
+    use calvin::models::Scope;
+
+    if !json {
+        println!("📦 Calvin Install");
+        println!("Source: {}", source.display());
+    }
+
+    if !user {
+        anyhow::bail!("Install currently only supports --user flag to install to home directory. Use 'sync' for project synchronization.");
+    }
+
+    if !json {
+        println!("Mode: User scope (Home directory)");
+        if force {
+            println!("Option: Force overwrite");
+        }
+        if dry_run {
+            println!("Option: Dry run");
+        }
+    }
+
+    // Load configuration
+    let config_path = source.join("config.toml");
+    let config = calvin::config::Config::load(&config_path).unwrap_or_default();
+
+    // Parse source directory
+    let assets = calvin::parser::parse_directory(source)?;
+    let total_assets = assets.len();
+    
+    // Filter for user scope assets only
+    let user_assets: Vec<_> = assets.into_iter()
+        .filter(|a| a.frontmatter.scope == Scope::User)
+        .collect();
+
+    if !json {
+        println!("\n✓ Found {} user-scoped assets (of {} total)", user_assets.len(), total_assets);
+    }
+    
+    if user_assets.is_empty() {
+        if !json {
+            println!("Nothing to install.");
+        }
+        return Ok(());
+    }
+
+    // Compile to all targets
+    let outputs = compile_assets(&user_assets, &[], &config)?;
+    
+    if !json {
+        println!("✓ Compiled to {} output files", outputs.len());
+    }
+
+    // Set up sync options
+    let options = SyncOptions {
+        force,
+        dry_run,
+        targets: Vec::new(),
+    };
+
+    // Determine target root (Home directory)
+    let dist_root = dirs::home_dir()
+        .ok_or_else(|| anyhow::anyhow!("Could not determine user home directory"))?;
+
+    // Sync outputs to filesystem
+    let result = sync_outputs(&dist_root, &outputs, &options)?;
+
+    if json {
+        let output = serde_json::json!({
+            "event": "install",
+            "status": if result.is_success() { "success" } else { "partial" },
+            "written": result.written.len(),
+            "skipped": result.skipped.len(),
+            "errors": result.errors.len()
+        });
+        println!("{}", serde_json::to_string(&output)?);
+    } else {
+        println!("\n📊 Install Results:");
+        if !result.written.is_empty() {
+            println!("  ✓ Written: {} files", result.written.len());
+            for path in &result.written {
+                println!("    - {}", path);
+            }
+        }
+        if !result.skipped.is_empty() {
+            println!("  ⚠ Skipped: {} files", result.skipped.len());
+        }
+        if !result.errors.is_empty() {
+            println!("  ✗ Errors: {}", result.errors.len());
+        }
+        println!();
+    }
+
+    Ok(())
+}
+
+fn cmd_sync(source: &PathBuf, remote: Option<String>, force: bool, dry_run: bool, json: bool) -> Result<()> {
+    use calvin::sync::{compile_assets, sync_outputs, sync_with_fs, SyncOptions};
 
     if !json {
         println!("📦 Calvin Sync");
         println!("Source: {}", source.display());
+        if let Some(r) = &remote {
+             println!("Remote: {}", r);
+        }
         if force {
             println!("Mode: Force overwrite");
         }
@@ -151,11 +277,21 @@ fn cmd_sync(source: &PathBuf, force: bool, dry_run: bool, json: bool) -> Result<
         targets: Vec::new(),
     };
 
-    // Determine project root (parent of source directory)
-    let project_root = source.parent().unwrap_or(std::path::Path::new("."));
-
-    // Sync outputs to filesystem
-    let result = sync_outputs(project_root, &outputs, &options)?;
+    let result = if let Some(remote_str) = remote {
+         let (host, path) = if let Some((h, p)) = remote_str.split_once(':') {
+            (h, p)
+        } else {
+            (remote_str.as_str(), ".")
+        };
+        
+        let fs = calvin::fs::RemoteFileSystem::new(host);
+        let dist_root = std::path::PathBuf::from(path);
+        sync_with_fs(&dist_root, &outputs, &options, &fs)?
+    } else {
+        // Determine project root (parent of source directory)
+        let project_root = source.parent().unwrap_or(std::path::Path::new("."));
+        sync_outputs(project_root, &outputs, &options)?
+    };
 
     if json {
         let output = serde_json::json!({
@@ -563,7 +699,7 @@ mod tests {
             "--dry-run"
         ]).unwrap();
         
-        if let Commands::Sync { source, force, dry_run } = cli.command {
+        if let Commands::Sync { source, force, dry_run, .. } = cli.command {
             assert_eq!(source, PathBuf::from("my-pack"));
             assert!(force);
             assert!(dry_run);
@@ -637,6 +773,26 @@ mod tests {
             assert_eq!(source, PathBuf::from(".promptpack"));
         } else {
             panic!("Expected Watch command");
+        }
+    }
+
+    #[test]
+    fn test_cli_parse_install() {
+        let cli = Cli::try_parse_from(["calvin", "install", "--user"]).unwrap();
+        if let Commands::Install { user, .. } = cli.command {
+            assert!(user);
+        } else {
+            panic!("Expected Install command");
+        }
+    }
+
+    #[test]
+    fn test_cli_parse_sync_remote() {
+        let cli = Cli::try_parse_from(["calvin", "sync", "--remote", "user@host"]).unwrap();
+        if let Commands::Sync { remote, .. } = cli.command {
+            assert_eq!(remote, Some("user@host".to_string()));
+        } else {
+            panic!("Expected Sync command");
         }
     }
 }
