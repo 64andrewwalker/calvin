@@ -1,0 +1,32 @@
+# Build artifacts
+/target/
+/dist/
+
+# IDE & Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Rust
+*.pdb
+**/*.rs.bk
+# Note: Cargo.lock IS committed for binary crates (reproducible builds)
+
+# Test artifacts
+/test-output/
+
+# Environment & Secrets (never commit)
+.env
+.env.*
+*.pem
+*.key
+secrets/
+
+# Generated files (managed by calvin itself)
+# Note: Generated platform outputs should be committed, but we mark them
