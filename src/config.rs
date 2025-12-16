@@ -9,6 +9,7 @@
 
 use std::path::{Path, PathBuf};
 use std::fs;
+use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
@@ -108,6 +109,21 @@ pub enum Verbosity {
     Debug,
 }
 
+/// MCP Server configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct McpServerConfig {
+    pub command: String,
+    #[serde(default)]
+    pub args: Vec<String>,
+}
+
+/// MCP configuration
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct McpConfig {
+    #[serde(default)]
+    pub servers: HashMap<String, McpServerConfig>,
+}
+
 /// Main configuration structure
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Config {
@@ -125,6 +141,9 @@ pub struct Config {
     
     #[serde(default)]
     pub output: OutputConfig,
+
+    #[serde(default)]
+    pub mcp: McpConfig,
 }
 
 impl Config {

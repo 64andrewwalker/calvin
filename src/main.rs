@@ -126,6 +126,10 @@ fn cmd_sync(source: &PathBuf, force: bool, dry_run: bool, json: bool) -> Result<
         }
     }
 
+    // Load configuration
+    let config_path = source.join("config.toml");
+    let config = calvin::config::Config::load(&config_path).unwrap_or_default();
+
     // Parse source directory
     let assets = calvin::parser::parse_directory(source)?;
     
@@ -134,7 +138,7 @@ fn cmd_sync(source: &PathBuf, force: bool, dry_run: bool, json: bool) -> Result<
     }
 
     // Compile to all targets
-    let outputs = compile_assets(&assets, &[])?;
+    let outputs = compile_assets(&assets, &[], &config)?;
     
     if !json {
         println!("✓ Compiled to {} output files", outputs.len());
@@ -198,11 +202,16 @@ fn cmd_watch(source: &PathBuf, json: bool) -> Result<()> {
         .map(|p| p.to_path_buf())
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
 
+    // Load configuration
+    let config_path = source.join("config.toml");
+    let config = calvin::config::Config::load(&config_path).unwrap_or_default();
+
     let options = WatchOptions {
         source: source.clone(),
         project_root,
         targets: vec![],
         json,
+        config, 
     };
 
     // Set up Ctrl+C handler
@@ -265,11 +274,15 @@ fn cmd_diff(source: &PathBuf, json: bool) -> Result<()> {
         println!();
     }
 
+    // Load configuration
+    let config_path = source.join("config.toml");
+    let config = calvin::config::Config::load(&config_path).unwrap_or_default();
+
     // Parse source directory
     let assets = calvin::parser::parse_directory(source)?;
     
     // Compile to get expected outputs
-    let outputs = compile_assets(&assets, &[])?;
+    let outputs = compile_assets(&assets, &[], &config)?;
 
     // Determine project root
     let project_root = source.parent()

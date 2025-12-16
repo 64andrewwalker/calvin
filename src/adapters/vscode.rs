@@ -109,10 +109,15 @@ impl TargetAdapter for VSCodeAdapter {
         Vec::new()
     }
 
-    fn security_baseline(&self) -> Vec<OutputFile> {
+    fn security_baseline(&self, _config: &crate::config::Config) -> Vec<OutputFile> {
         // VS Code doesn't have a central security config
         // Security is handled via settings.json in the IDE
         Vec::new()
+    }
+
+    fn post_compile(&self, assets: &[PromptAsset]) -> CalvinResult<Vec<OutputFile>> {
+        let content = generate_agents_md(assets);
+        Ok(vec![OutputFile::new("AGENTS.md", content)])
     }
 }
 
@@ -267,7 +272,8 @@ mod tests {
     #[test]
     fn test_vscode_security_baseline_empty() {
         let adapter = VSCodeAdapter::new();
-        let baseline = adapter.security_baseline();
+        let config = crate::config::Config::default();
+        let baseline = adapter.security_baseline(&config);
         assert!(baseline.is_empty());
     }
 }

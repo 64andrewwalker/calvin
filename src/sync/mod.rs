@@ -127,6 +127,7 @@ impl Default for SyncResult {
 pub fn compile_assets(
     assets: &[PromptAsset],
     targets: &[Target],
+    config: &crate::config::Config,
 ) -> CalvinResult<Vec<OutputFile>> {
     let mut outputs = Vec::new();
     
@@ -153,6 +154,24 @@ pub fn compile_assets(
             let files = adapter.compile(asset)?;
             outputs.extend(files);
         }
+    }
+    
+    // Run post-compilation steps and security baselines
+    for adapter in &adapters {
+        let adapter_target = adapter.target();
+        
+        // Skip if not in requested targets list (if specified)
+        if !targets.is_empty() && !targets.contains(&adapter_target) {
+            continue;
+        }
+
+        // Post-compile (e.g. AGENTS.md)
+        let post_outputs = adapter.post_compile(assets)?;
+        outputs.extend(post_outputs);
+        
+        // Security baseline (e.g. settings.json, mcp.json)
+        let baseline = adapter.security_baseline(config);
+        outputs.extend(baseline);
     }
     
     // Sort for deterministic output
@@ -243,12 +262,13 @@ pub fn sync(
     source_dir: &Path,
     project_root: &Path,
     options: &SyncOptions,
+    config: &crate::config::Config,
 ) -> CalvinResult<SyncResult> {
     // Parse source directory
     let assets = parse_directory(source_dir)?;
     
     // Compile to all targets
-    let outputs = compile_assets(&assets, &options.targets)?;
+    let outputs = compile_assets(&assets, &options.targets, config)?;
     
     // Write outputs
     sync_outputs(project_root, &outputs, options)
@@ -280,8 +300,9 @@ mod tests {
     fn test_compile_assets_single() {
         let fm = Frontmatter::new("Test asset");
         let asset = PromptAsset::new("test", "test.md", fm, "Content");
+        let config = crate::config::Config::default();
         
-        let outputs = compile_assets(&[asset], &[]).unwrap();
+        let outputs = compile_assets(&[asset], &[], &config).unwrap();
         
         // Should generate output for all 5 adapters
         assert!(!outputs.is_empty());
@@ -291,8 +312,9 @@ mod tests {
     fn test_compile_assets_target_filter() {
         let fm = Frontmatter::new("Test asset");
         let asset = PromptAsset::new("test", "test.md", fm, "Content");
+        let config = crate::config::Config::default();
         
-        let outputs = compile_assets(&[asset], &[Target::ClaudeCode]).unwrap();
+        let outputs = compile_assets(&[asset], &[Target::ClaudeCode], &config).unwrap();
         
         // Should only generate Claude Code output
         assert!(outputs.iter().all(|o| o.path.starts_with(".claude")));
