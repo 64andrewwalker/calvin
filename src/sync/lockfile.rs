@@ -3,7 +3,6 @@
 //! Implements TD-15: Lockfile system (.promptpack/.calvin.lock)
 
 use std::collections::HashMap;
-use std::fs;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
@@ -49,17 +48,17 @@ impl Lockfile {
     }
 
     /// Load lockfile from path, or create new if doesn't exist
-    pub fn load_or_new(path: &Path) -> Self {
-        if path.exists() {
-            Self::load(path).unwrap_or_default()
+    pub fn load_or_new<FS: crate::fs::FileSystem + ?Sized>(path: &Path, fs: &FS) -> Self {
+        if fs.exists(path) {
+            Self::load(path, fs).unwrap_or_default()
         } else {
             Self::new()
         }
     }
 
     /// Load lockfile from path
-    pub fn load(path: &Path) -> CalvinResult<Self> {
-        let content = fs::read_to_string(path)?;
+    pub fn load<FS: crate::fs::FileSystem + ?Sized>(path: &Path, fs: &FS) -> CalvinResult<Self> {
+        let content = fs.read_to_string(path)?;
         let lockfile: Self = toml::from_str(&content)
             .map_err(|e| crate::error::CalvinError::InvalidFrontmatter {
                 file: path.to_path_buf(),
@@ -69,7 +68,7 @@ impl Lockfile {
     }
 
     /// Save lockfile to path
-    pub fn save(&self, path: &Path) -> CalvinResult<()> {
+    pub fn save<FS: crate::fs::FileSystem + ?Sized>(&self, path: &Path, fs: &FS) -> CalvinResult<()> {
         let content = toml::to_string_pretty(self)
             .map_err(|e| crate::error::CalvinError::InvalidFrontmatter {
                 file: path.to_path_buf(),
@@ -84,11 +83,11 @@ impl Lockfile {
         
         // Ensure parent directory exists
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)?;
+            fs.create_dir_all(parent)?;
         }
         
-        // Use atomic write
-        crate::sync::writer::atomic_write(path, full_content.as_bytes())
+        // Use atomic write via FileSystem
+        fs.write_atomic(path, full_content.as_str())
     }
 
     /// Get hash for a file path
@@ -232,16 +231,17 @@ mod tests {
     fn test_lockfile_save_load() {
         let dir = tempdir().unwrap();
         let path = dir.path().join(".calvin.lock");
+        let fs = crate::fs::LocalFileSystem;
         
         let mut lf = Lockfile::new();
         lf.set_hash(".claude/settings.json", "sha256:abc123");
         lf.set_hash(".cursor/rules/test/RULE.md", "sha256:def456");
         
-        lf.save(&path).unwrap();
+        lf.save(&path, &fs).unwrap();
         
         assert!(path.exists());
         
-        let loaded = Lockfile::load(&path).unwrap();
+        let loaded = Lockfile::load(&path, &fs).unwrap();
         assert_eq!(loaded.get_hash(".claude/settings.json"), Some("sha256:abc123"));
         assert_eq!(loaded.get_hash(".cursor/rules/test/RULE.md"), Some("sha256:def456"));
     }
@@ -250,8 +250,9 @@ mod tests {
     fn test_lockfile_load_or_new_missing() {
         let dir = tempdir().unwrap();
         let path = dir.path().join("missing.lock");
+        let fs = crate::fs::LocalFileSystem;
         
-        let lf = Lockfile::load_or_new(&path);
+        let lf = Lockfile::load_or_new(&path, &fs);
         assert!(lf.files.is_empty());
     }
 
