@@ -6,7 +6,7 @@
 
 use std::path::PathBuf;
 
-use crate::adapters::{Diagnostic, OutputFile, TargetAdapter};
+use crate::adapters::{Diagnostic, DiagnosticSeverity, OutputFile, TargetAdapter};
 use crate::error::CalvinResult;
 use crate::models::{AssetKind, PromptAsset, Target};
 
@@ -91,11 +91,18 @@ impl TargetAdapter for AntigravityAdapter {
         Ok(outputs)
     }
 
-    fn validate(&self, _output: &OutputFile) -> Vec<Diagnostic> {
-        // TODO: Validate against Antigravity best practices
-        // - Check for Turbo mode indicators
-        // - Validate allowlist references
-        Vec::new()
+    fn validate(&self, output: &OutputFile) -> Vec<Diagnostic> {
+        let mut diagnostics = Vec::new();
+        
+        if output.content.trim().is_empty() {
+            diagnostics.push(Diagnostic {
+                severity: DiagnosticSeverity::Warning,
+                message: "Generated output is empty".to_string(),
+                file: Some(output.path.clone()),
+            });
+        }
+        
+        diagnostics
     }
 
     fn security_baseline(&self, _config: &crate::config::Config) -> Vec<OutputFile> {
