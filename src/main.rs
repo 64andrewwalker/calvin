@@ -102,6 +102,28 @@ enum Commands {
         strict_warnings: bool,
     },
 
+    /// Migrate assets or adapters to newer versions
+    Migrate {
+        /// Target format version (e.g., "1.0")
+        #[arg(long)]
+        format: Option<String>,
+
+        /// Target adapter to migrate (e.g., "cursor")
+        #[arg(long)]
+        adapter: Option<String>,
+
+        /// Dry run - preview changes
+        #[arg(long)]
+        dry_run: bool,
+    },
+
+    /// Show version information including adapters
+    Version {
+        /// Output in JSON format
+        #[arg(long)]
+        json: bool,
+    },
+
     /// Parse and display PromptPack files (debugging)
     Parse {
         /// Path to .promptpack directory
@@ -135,7 +157,72 @@ fn main() -> Result<()> {
         Commands::Install { source, user, force, dry_run } => {
             cmd_install(&source, user, force, dry_run, cli.json)
         }
+        Commands::Migrate { format, adapter, dry_run } => {
+            cmd_migrate(format, adapter, dry_run, cli.json)
+        }
+        Commands::Version { json } => {
+            cmd_version(json)
+        }
     }
+}
+
+fn cmd_version(json: bool) -> Result<()> {
+    let adapters = calvin::adapters::all_adapters();
+    
+    if json {
+        let adapter_info: Vec<_> = adapters.iter().map(|a| {
+            serde_json::json!({
+                "target": format!("{:?}", a.target()).to_lowercase(),
+                "version": a.version(),
+            })
+        }).collect();
+
+        let output = serde_json::json!({
+            "calvin": env!("CARGO_PKG_VERSION"),
+            "source_format": "1.0",
+            "adapters": adapter_info
+        });
+        println!("{}", serde_json::to_string_pretty(&output)?);
+    } else {
+        println!("Calvin v{}", env!("CARGO_PKG_VERSION"));
+        println!("Source Format: 1.0\n");
+        println!("Adapters:");
+        for adapter in adapters {
+            println!("  - {:<12} v{}", format!("{:?}", adapter.target()), adapter.version());
+        }
+    }
+    Ok(())
+}
+
+fn cmd_migrate(format: Option<String>, adapter: Option<String>, dry_run: bool, json: bool) -> Result<()> {
+    if !json {
+        println!("🔄 Calvin Migrate");
+        if let Some(f) = &format {
+            println!("Target Format: {}", f);
+        }
+        if let Some(a) = &adapter {
+            println!("Target Adapter: {}", a);
+        }
+        if dry_run {
+            println!("Mode: Dry run");
+        }
+    }
+
+    // Placeholder for future migration logic
+    // Currently only version 1.0 exists.
+    
+    if json {
+        let output = serde_json::json!({
+            "status": "success",
+            "message": "Already at latest version (1.0). No migration needed.",
+            "changes": []
+        });
+        println!("{}", serde_json::to_string(&output)?);
+    } else {
+        println!("\n✅ Already at latest version (1.0). No migration needed.");
+    }
+
+    Ok(())
 }
 
 fn cmd_install(source: &PathBuf, user: bool, force: bool, dry_run: bool, json: bool) -> Result<()> {
@@ -793,6 +880,26 @@ mod tests {
             assert_eq!(remote, Some("user@host".to_string()));
         } else {
             panic!("Expected Sync command");
+        }
+    }
+
+    #[test]
+    fn test_cli_parse_migrate() {
+        let cli = Cli::try_parse_from(["calvin", "migrate", "--dry-run"]).unwrap();
+        if let Commands::Migrate { dry_run, .. } = cli.command {
+            assert!(dry_run);
+        } else {
+            panic!("Expected Migrate command");
+        }
+    }
+
+    #[test]
+    fn test_cli_parse_version() {
+        let cli = Cli::try_parse_from(["calvin", "version", "--json"]).unwrap();
+        if let Commands::Version { json } = cli.command {
+            assert!(json);
+        } else {
+            panic!("Expected Version command");
         }
     }
 }
