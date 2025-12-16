@@ -1,9 +1,9 @@
 # Calvin - Implementation Checklist
 
-> **Status**: Phases 0-5.5, 7 Complete ✅ | Implementation: In Progress  
+> **Status**: Phases 0-5.5, 7 Complete ✅ | P0 Security Fixes ✅  
 > **Started**: 2025-12-17  
 > **Estimated Duration**: 4-6 weeks
-> **Tests**: 129 passing
+> **Tests**: 134 passing
 
 ---
 
@@ -257,12 +257,12 @@
 | 5: Doctor | ✅ Complete | Validation, security checks |
 | 5.5: Audit | ✅ Complete | CI security check with exit codes |
 | 6: Remote | 🔲 Not Started | User scope, SSH sync |
-| 7: Config | ✅ Partial | TOML config, security mode |
+| 7: Config | ✅ Complete | TOML config, env vars, security mode |
 | 7.5: Migrate | 🔲 Not Started | Format/adapter migration |
-| 8: Testing | 🔲 In Progress | 125 tests passing |
+| 8: Testing | 🔲 In Progress | 134 tests passing |
 | 9: Distribution | 🔲 Not Started | CI, binaries, package managers |
 
-**Total**: 125 tests passing, 7 phases complete, working CLI
+**Total**: 134 tests passing, 8 phases complete, P0 security fixes applied
 
 
 
