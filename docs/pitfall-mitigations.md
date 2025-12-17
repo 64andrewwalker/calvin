@@ -28,18 +28,25 @@ pub trait TargetAdapter {
 }
 ```
 
-### Mitigation: Doctor Version Detection
+### Mitigation: Version Detection
+
+Calvin does not currently detect installed IDE/app versions. Today you can check Calvin + adapter versions via:
 
 ```bash
-$ calvin doctor
+$ calvin version
 
-Cursor v0.45.0 detected
-  ⚠ WARNING: Calvin tested up to v0.42.x
-  ⚠ Output format may have changed - verify manually
+Calvin v0.2.0
+Source Format: 1.0
 
-Claude Code v1.2.0 detected
-  ✓ Version supported
+Adapters:
+  - ClaudeCode   v1
+  - Cursor       v1
+  - VSCode       v1
+  - Antigravity  v1
+  - Codex        v1
 ```
+
+Future work (planned): surface compatibility checks via `calvin check`.
 
 **Detection Methods**:
 | IDE | Detection |
@@ -217,16 +224,16 @@ For each target file:
      NO  → User modified it!
            → Default: SKIP + WARNING
            → --force: Overwrite + WARNING
-           → --merge: Attempt structural merge (JSON/YAML only)
+           → --yes: Non-interactive overwrite
 ```
 
 **Output Example**:
 ```
-$ calvin sync
+$ calvin deploy
 
 ⚠ SKIPPED .claude/settings.json
-  File was modified since last sync (hash mismatch)
-  Use --force to overwrite or --merge to attempt merge
+  File was modified since last deploy (hash mismatch)
+  Use --force (or --yes) to overwrite
 
 ✓ Updated .cursor/rules/security/RULE.md
 ✓ Updated .agent/workflows/pr-review.md
@@ -320,7 +327,7 @@ fn generate_deny_list(mode: SecurityMode, custom: &[String]) -> Vec<String> {
 ### Mitigation: Audit Command for CI
 
 ```bash
-$ calvin audit --ci
+$ calvin check --mode strict --strict-warnings
 
 Checking security posture...
   ✗ FAIL: .claude/settings.json missing permissions.deny
@@ -333,7 +340,7 @@ Exit code: 1 (security violations found)
 **CI Integration** (`.github/workflows/security.yml`):
 ```yaml
 - name: Calvin Security Audit
-  run: calvin audit --ci --mode strict
+  run: calvin check --mode strict --strict-warnings
   # Blocks PR if security violations exist
 ```
 

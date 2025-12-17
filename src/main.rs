@@ -53,8 +53,8 @@ fn dispatch(command: Commands, json: bool, verbose: u8) -> Result<()> {
             home,
             remote,
             &targets,
-            force,
-            !yes,
+            force || yes,
+            is_interactive_run(json, yes),
             dry_run,
             json,
             verbose,
@@ -79,8 +79,8 @@ fn dispatch(command: Commands, json: bool, verbose: u8) -> Result<()> {
                 &source,
                 remote,
                 &targets,
-                force,
-                !yes,
+                force || yes,
+                is_interactive_run(json, yes),
                 dry_run,
                 json,
                 verbose,
@@ -121,8 +121,8 @@ fn dispatch(command: Commands, json: bool, verbose: u8) -> Result<()> {
                 user,
                 global,
                 &targets,
-                force,
-                !yes,
+                force || yes,
+                is_interactive_run(json, yes),
                 dry_run,
                 json,
             )
@@ -134,4 +134,8 @@ fn dispatch(command: Commands, json: bool, verbose: u8) -> Result<()> {
         } => commands::debug::cmd_migrate(format, adapter, dry_run, json),
         Commands::Version => commands::debug::cmd_version(json),
     }
+}
+
+fn is_interactive_run(json: bool, yes: bool) -> bool {
+    !json && !yes && atty::is(atty::Stream::Stdin)
 }

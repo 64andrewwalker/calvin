@@ -87,16 +87,18 @@ All notable changes to Calvin's formats and interfaces.
 
 - Initial implementation
 
-### Planned Commands
+### Commands (v0.2.0+)
 
 | Command | Description |
 |---------|-------------|
-| `calvin sync` | Compile and sync to all targets |
-| `calvin watch` | Watch mode with incremental compile |
+| `calvin deploy` | Deploy PromptPack assets (replaces `sync` + `install`) |
+| `calvin check` | Check configuration and security (replaces `doctor` + `audit`) |
+| `calvin explain` | Explain usage (human/AI assistants) |
+| `calvin watch` | Watch mode (continuous deploy) |
 | `calvin diff` | Preview changes without writing |
-| `calvin doctor` | Validate configuration |
-| `calvin audit` | Security audit for CI |
-| `calvin migrate` | Migrate between format versions |
+| `calvin version` | Show Calvin + adapter versions |
+
+Deprecated (hidden) commands retained for compatibility: `calvin sync`, `calvin install`, `calvin doctor`, `calvin audit`.
 
 ---
 

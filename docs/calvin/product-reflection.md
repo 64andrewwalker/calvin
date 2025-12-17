@@ -311,7 +311,7 @@ $ calvin explain --json
 
 {
   "name": "calvin",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "purpose": "PromptOps compiler for AI coding assistants",
   "directory": ".promptpack/",
   "structure": {

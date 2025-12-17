@@ -7,6 +7,7 @@ use clap::{Parser, Subcommand};
 #[derive(Parser, Debug)]
 #[command(name = "calvin")]
 #[command(author, version, about, long_about = None)]
+#[command(after_help = "Run 'calvin' without arguments for interactive setup.")]
 pub struct Cli {
     /// Output format for CI
     #[arg(long, global = true)]

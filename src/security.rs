@@ -133,6 +133,9 @@ pub fn run_doctor(project_root: &Path, mode: SecurityMode) -> DoctorReport {
     // Antigravity checks
     check_antigravity(project_root, mode, &mut report);
 
+    // Codex checks
+    check_codex(project_root, mode, &mut report);
+
     report
 }
 
@@ -444,6 +447,53 @@ fn check_antigravity(root: &Path, mode: SecurityMode, report: &mut DoctorReport)
         report.add_warning(platform, "terminal_mode",
             "Cannot detect terminal mode from project",
             Some("Ensure Terminal mode is set to 'Auto' (not 'Turbo') in Antigravity settings"));
+    }
+}
+
+fn check_codex(root: &Path, _mode: SecurityMode, report: &mut DoctorReport) {
+    let platform = "Codex";
+
+    // Project-scope prompts
+    let project_prompts = root.join(".codex/prompts");
+    if project_prompts.exists() {
+        let count = std::fs::read_dir(&project_prompts)
+            .map(|rd| {
+                rd.filter_map(Result::ok)
+                    .filter(|e| e.path().extension().is_some_and(|ext| ext == "md"))
+                    .count()
+            })
+            .unwrap_or(0);
+        report.add_pass(platform, "prompts", &format!("{} prompts synced", count));
+        return;
+    }
+
+    // User-scope prompts (most common for Codex CLI)
+    if let Some(home) = dirs::home_dir() {
+        let user_prompts = home.join(".codex/prompts");
+        if user_prompts.exists() {
+            let count = std::fs::read_dir(&user_prompts)
+                .map(|rd| {
+                    rd.filter_map(Result::ok)
+                        .filter(|e| e.path().extension().is_some_and(|ext| ext == "md"))
+                        .count()
+                })
+                .unwrap_or(0);
+            report.add_pass(platform, "prompts", &format!("User prompts installed ({} prompts)", count));
+        } else {
+            report.add_warning(
+                platform,
+                "prompts",
+                "No prompts directory found",
+                Some("Run `calvin deploy --home --targets codex` to install prompts"),
+            );
+        }
+    } else {
+        report.add_warning(
+            platform,
+            "prompts",
+            "Cannot determine home directory for Codex prompts",
+            Some("Run `calvin deploy --home --targets codex` to install prompts"),
+        );
     }
 }
 

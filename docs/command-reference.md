@@ -1,79 +1,119 @@
 # Calvin Command Reference
 
-> Complete reference for all Calvin CLI commands
+> Reference for Calvin CLI commands (v0.2.0+)
 
 ## Synopsis
 
 ```bash
-calvin [OPTIONS] <COMMAND>
+calvin [OPTIONS] [COMMAND]
 ```
+
+**No command**:
+- TTY: opens an interactive menu
+- `--json`: prints detected project state as JSON
 
 ## Global Options
 
 | Option | Short | Description |
 |--------|-------|-------------|
-| `--verbose` | `-v` | Enable verbose output |
-| `--json` | `-j` | Output in JSON format (machine-readable) |
+| `--json` | - | Output machine-readable JSON |
+| `--verbose` | `-v` | Verbosity level (`-v`, `-vv`, `-vvv`) |
 | `--help` | `-h` | Print help information |
 | `--version` | `-V` | Print version information |
 
 ---
 
-## Commands
+## Core Commands
 
-### `calvin sync`
+### `calvin deploy`
 
-Compile PromptPack sources and sync to all target platforms.
+Deploy PromptPack assets (replaces `sync` + `install`).
 
 ```bash
-calvin sync [OPTIONS] [SOURCE]
+calvin deploy [OPTIONS]
 ```
 
-**Arguments:**
-- `SOURCE` - Path to `.promptpack` directory (default: `.promptpack`)
+**Options:**
+| Option | Short | Description |
+|--------|-------|-------------|
+| `--source <PATH>` | `-s` | Path to `.promptpack` directory (default: `.promptpack`) |
+| `--targets <LIST>` | `-t` | Comma-separated targets (e.g. `claude-code,cursor`) |
+| `--home` | - | Deploy to user home directory |
+| `--remote <DEST>` | - | Deploy to remote destination (`user@host:/path`) |
+| `--force` | `-f` | Force overwrite of modified files |
+| `--yes` | `-y` | Non-interactive; auto-confirm overwrites |
+| `--dry-run` | - | Preview changes without writing |
+
+**Examples:**
+```bash
+calvin deploy
+calvin deploy --targets claude-code,cursor
+calvin deploy --home --yes
+calvin deploy --remote user@server:/home/user/project --yes
+calvin deploy --dry-run
+```
+
+---
+
+### `calvin check`
+
+Check configuration and security (replaces `doctor` + `audit`).
+
+```bash
+calvin check [OPTIONS]
+```
 
 **Options:**
 | Option | Description |
 |--------|-------------|
-| `--force`, `-f` | Overwrite files even if user-modified |
-| `--dry-run`, `-n` | Preview changes without writing |
-| `--targets`, `-t` | Comma-separated list of targets to sync |
-| `--remote` | Sync to remote host via SSH (format: `user@host:/path`) |
+| `--mode <MODE>` | Security mode: `balanced` (default), `strict`, `yolo` |
+| `--strict-warnings` | Fail on warnings too (CI mode) |
 
 **Examples:**
 ```bash
-# Basic sync
-calvin sync
+calvin check
+calvin check --mode strict
+calvin check --strict-warnings
+```
 
-# Preview changes
-calvin sync --dry-run
+---
 
-# Only sync to Claude and Cursor
-calvin sync --targets claude-code,cursor
+### `calvin explain`
 
-# Sync to remote server
-calvin sync --remote user@server:/home/user/project
+Explain Calvin's usage (for humans / AI assistants).
+
+```bash
+calvin explain [OPTIONS]
+```
+
+**Options:**
+| Option | Description |
+|--------|-------------|
+| `--brief` | Short version (just the essentials) |
+
+**Examples:**
+```bash
+calvin explain
+calvin explain --brief
+calvin explain --json
 ```
 
 ---
 
 ### `calvin watch`
 
-Watch for file changes and auto-sync.
+Watch `.promptpack/` for changes and deploy continuously.
 
 ```bash
-calvin watch [OPTIONS] [SOURCE]
+calvin watch [OPTIONS]
 ```
 
-**Arguments:**
-- `SOURCE` - Path to `.promptpack` directory (default: `.promptpack`)
-
 **Options:**
-| Option | Description |
-|--------|-------------|
-| `--targets`, `-t` | Comma-separated list of targets to sync |
+| Option | Short | Description |
+|--------|-------|-------------|
+| `--source <PATH>` | `-s` | Path to `.promptpack` directory (default: `.promptpack`) |
 
-**Output Events (NDJSON mode):**
+**JSON output (NDJSON):**
 ```json
 {"event":"started","source":".promptpack"}
 {"event":"file_changed","path":"policies/security.md"}
@@ -82,206 +122,45 @@ calvin watch [OPTIONS] [SOURCE]
 {"event":"shutdown"}
 ```
 
-**Example:**
-```bash
-# Watch with JSON output for CI
-calvin watch --json
-```
-
 ---
 
 ### `calvin diff`
 
-Show differences between current files and what would be generated.
+Preview what would be generated, without writing.
 
 ```bash
-calvin diff [OPTIONS] [SOURCE]
-```
-
-**Arguments:**
-- `SOURCE` - Path to `.promptpack` directory (default: `.promptpack`)
-
-**Options:**
-| Option | Description |
-|--------|-------------|
-| `--targets`, `-t` | Comma-separated list of targets to check |
-
-**Example:**
-```bash
-calvin diff
-```
-
----
-
-### `calvin doctor`
-
-Validate configuration and security settings.
-
-```bash
-calvin doctor [OPTIONS]
+calvin diff [OPTIONS]
 ```
 
 **Options:**
-| Option | Description |
-|--------|-------------|
-| `--security-mode` | Security level: `strict`, `balanced`, `yolo` (default: `balanced`) |
-
-**Checks Performed:**
-- Claude Code: commands synced, settings.json exists, deny list complete
-- Cursor: rules synced, MCP servers validated
-- VS Code: copilot-instructions.md exists
-- Antigravity: rules synced, turbo mode detection
-
-**Example:**
-```bash
-calvin doctor --security-mode strict
-```
-
----
-
-### `calvin audit`
-
-Run security audit for CI/CD pipelines. Returns exit code 1 on violations.
-
-```bash
-calvin audit [OPTIONS]
-```
-
-**Options:**
-| Option | Description |
-|--------|-------------|
-| `--security-mode` | Security level: `strict`, `balanced`, `yolo` |
-| `--strict-warnings` | Treat warnings as errors (exit 1) |
-
-**Exit Codes:**
-- `0` - Audit passed
-- `1` - Audit failed (errors or warnings with `--strict-warnings`)
-
-**Example:**
-```bash
-# CI integration
-calvin audit --strict-warnings || exit 1
-```
-
----
-
-### `calvin install`
-
-Install prompts to user-level directories.
-
-```bash
-calvin install [OPTIONS] [SOURCE]
-```
-
-**Arguments:**
-- `SOURCE` - Path to `.promptpack` directory (default: `.promptpack`)
-
-**Options:**
-| Option | Description |
-|--------|-------------|
-| `--user` | Install to user directories (`~/.claude/`, `~/.codex/`, etc.) |
-| `--force`, `-f` | Overwrite existing files |
-
-**User Directories:**
-- Claude Code: `~/.claude/commands/`
-- Codex: `~/.codex/prompts/`
-- Antigravity: `~/.gemini/antigravity/`
-
-**Example:**
-```bash
-calvin install --user
-```
-
----
-
-### `calvin parse`
-
-Parse and validate PromptPack source files (debugging tool).
-
-```bash
-calvin parse [SOURCE]
-```
-
-**Arguments:**
-- `SOURCE` - Path to `.promptpack` directory (default: `.promptpack`)
-
-**Example:**
-```bash
-calvin parse --json
-```
-
----
-
-### `calvin migrate`
-
-Migrate source format or adapter outputs between versions.
-
-```bash
-calvin migrate [OPTIONS]
-```
-
-**Options:**
-| Option | Description |
-|--------|-------------|
-| `--format` | Target format version (e.g., `1.0`, `2.0`) |
-| `--adapter` | Migrate specific adapter output |
-| `--dry-run`, `-n` | Preview migration without changes |
-
-**Example:**
-```bash
-calvin migrate --format 2.0 --dry-run
-```
+| Option | Short | Description |
+|--------|-------|-------------|
+| `--source <PATH>` | `-s` | Path to `.promptpack` directory (default: `.promptpack`) |
 
 ---
 
 ### `calvin version`
 
-Display version information for Calvin and all supported adapters.
+Show Calvin + adapter version information.
 
 ```bash
-calvin version
-```
-
-**Output:**
-```
-Calvin v0.1.0
-
-Adapters:
-  claude-code  v1.0  (Claude Code 1.0.x)
-  cursor       v1.0  (Cursor 0.44+)
-  vscode       v1.0  (VS Code 1.96+)
-  antigravity  v1.0  (Gemini CLI)
-  codex        v1.0  (Codex CLI Experimental)
+calvin version [--json]
 ```
 
 ---
 
-## Configuration File
+## Deprecated / Hidden Commands
 
-Calvin can be configured via `.promptpack/config.toml`:
+These commands are kept for backward compatibility but are hidden from `--help` and print a deprecation warning (suppressed in `--json`).
 
-```toml
-[targets]
-enabled = ["claude-code", "cursor", "vscode"]
+| Deprecated | Replacement |
+|-----------:|-------------|
+| `calvin sync` | `calvin deploy` |
+| `calvin install` | `calvin deploy --home` |
+| `calvin doctor` | `calvin check` |
+| `calvin audit` | `calvin check --strict-warnings` |
 
-[security]
-mode = "balanced"  # strict, balanced, yolo
-deny = ["secrets/**", "*.credentials"]
-
-[sync]
-force = false
-dry_run = false
-atomic_writes = true
-```
-
-## Environment Variables
-
-| Variable | Description |
-|----------|-------------|
-| `CALVIN_TARGETS` | Override enabled targets |
-| `CALVIN_SECURITY_MODE` | Set security mode |
-| `CALVIN_VERBOSE` | Enable verbose output (`1` or `true`) |
-| `CALVIN_ATOMIC_WRITES` | Enable/disable atomic writes |
+Debug/placeholder commands (no stable API yet): `calvin parse`, `calvin migrate`.
 
 ---
 
@@ -290,13 +169,12 @@ atomic_writes = true
 | Code | Meaning |
 |------|---------|
 | `0` | Success |
-| `1` | Error (general failure, audit failure) |
+| `1` | Runtime error or failed check |
 | `2` | Invalid arguments |
 
 ---
 
 ## See Also
 
+- [Configuration](configuration.md) - Configuration file reference
 - [Architecture](architecture.md) - System design overview
-- [Configuration](configuration.md) - Full configuration reference
-- [Tech Decisions](tech-decisions.md) - Design rationale

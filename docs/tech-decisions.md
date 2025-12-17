@@ -357,15 +357,15 @@ The original spec mandated strict security (deny lists, MCP blocking). However:
 
 **Design Principle**: Provide the tools, don't force the religion.
 
-**Doctor Behavior**:
+**Check Behavior**:
 ```
-$ calvin doctor --mode yolo
+$ calvin check --mode yolo
 
 Claude Code
   ℹ Security checks disabled (yolo mode)
   ✓ 3 commands synced
 
-$ calvin doctor --mode strict  
+$ calvin check --mode strict  
 
 Claude Code
   ✗ ERROR: permissions.deny not configured
@@ -519,13 +519,15 @@ pub trait TargetAdapter {
 }
 ```
 
-**Doctor Integration**:
+**Check / Version Integration**:
 ```
-$ calvin doctor
+$ calvin version
 
-Cursor v0.45.0 detected
-  ⚠ WARNING: Calvin tested up to v0.42.x
-  ⚠ Output format may have changed
+Calvin v0.2.0
+Source Format: 1.0
+
+Adapters:
+  - Cursor  v1
 ```
 
 ---
