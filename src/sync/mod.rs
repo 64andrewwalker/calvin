@@ -6,6 +6,7 @@
 
 pub mod writer;
 pub mod lockfile;
+pub mod remote;
 mod compile;
 mod conflict;
 
