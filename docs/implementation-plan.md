@@ -163,13 +163,13 @@ This phase implements **project-scope** output only (files that go in the reposi
 
 ---
 
-## Phase 5: Doctor & Validation (Complexity: 4/10)
+## Phase 5: Check & Validation (Complexity: 4/10)
 
 **Duration**: 2-3 days
 
 ### Tasks
 
-- [ ] Implement `doctor` command
+- [ ] Implement `check` command
   - Check each platform's output exists
   - Validate security baselines (deny lists, turbo mode, etc.)
   - Report missing configurations
@@ -181,7 +181,7 @@ This phase implements **project-scope** output only (files that go in the reposi
 
 ### Example Output:
 ```
-$ calvin doctor
+$ calvin check
 
 Claude Code
   ✓ .claude/settings.json exists

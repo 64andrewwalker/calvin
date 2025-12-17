@@ -162,7 +162,7 @@ fn setup_wizard(cwd: &Path) -> Result<()> {
 
 fn select_targets() -> Result<Vec<calvin::Target>> {
     let config = calvin::config::Config::default();
-    crate::ui::menu::select_targets_interactive(&config, false)
+    crate::ui::menu::select_targets_interactive(&config, false, true)
         .ok_or_else(|| anyhow::anyhow!("Aborted"))
 }
 

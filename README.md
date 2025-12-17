@@ -114,9 +114,9 @@ calvin deploy --remote user@host:/path/to/project
 
 ## Project Status
 
-**Stage**: v0.1.0 Implementation Complete 🎉
+**Stage**: v0.2.0 Refactor in progress
 
-All 11 phases are complete with 164 tests passing. See [TODO.md](TODO.md) for details.
+Phases 0–4 are complete and documentation cleanup is ongoing. See [docs/calvin/TODO.md](docs/calvin/TODO.md) for the current status.
 
 ## Philosophy
 

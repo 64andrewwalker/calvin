@@ -82,14 +82,23 @@ pub fn cmd_explain(brief: bool, json: bool, verbose: u8) -> Result<()> {
 
     if verbose > 0 {
         println!("EXAMPLES:");
+        println!("  # Interactive setup (first run)");
+        println!("  calvin\n");
         println!("  # Deploy to this project");
         println!("  calvin deploy\n");
-        println!("  # Deploy everything to home directory targets");
-        println!("  calvin deploy --home\n");
+        println!("  # Deploy only to specific targets");
+        println!("  calvin deploy --targets claude-code,cursor\n");
+        println!("  # Non-interactive deploy (auto-confirm overwrites)");
+        println!("  calvin deploy --yes\n");
+        println!("  # Preview what would change");
+        println!("  calvin diff\n");
+        println!("  # Deploy everything to home directory targets (~/.claude/, ~/.codex/, ...)");
+        println!("  calvin deploy --home --yes\n");
+        println!("  # Deploy to remote destination via SSH");
+        println!("  calvin deploy --remote user@host:/path --yes\n");
         println!("  # CI-friendly check (strict mode, fail on warnings)");
         println!("  calvin check --mode strict --strict-warnings\n");
     }
 
     Ok(())
 }
-

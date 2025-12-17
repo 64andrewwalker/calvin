@@ -2,13 +2,11 @@
 
 ## Configuration Hierarchy
 
-Calvin loads configuration from multiple sources, with later sources overriding earlier ones:
+Calvin reads configuration from:
 
 1. **Built-in defaults** (lowest priority)
-2. **User config**: `~/.config/calvin/config.toml`
-3. **Project config**: `.promptpack/config.toml`
-4. **Environment variables**: `CALVIN_*` prefix
-5. **CLI arguments** (highest priority)
+2. **Project config**: `.promptpack/config.toml`
+3. **CLI arguments** (highest priority)
 
 ---
 
@@ -35,42 +33,18 @@ mode = "balanced"         # "yolo" | "balanced" | "strict"
 allow_naked = false       # true = disable even minimum protections (dangerous!)
 
 # Custom deny patterns (added to hardcoded minimum)
-deny = [
-    "*.secret",
-    "credentials/**",
-]
+deny = ["*.secret", "credentials/**"]
 
-# MCP server allowlist (required in strict mode)
+# MCP server allowlist helpers for Cursor MCP checks
 [security.mcp]
-allowlist = [
-    "filesystem",
-    "github",
-]
+allowlist = ["filesystem", "github"]
+additional_allowlist = ["my-internal-mcp"]
 
 #───────────────────────────────────────────────────────────────
 # TARGET ADAPTERS
 #───────────────────────────────────────────────────────────────
 [targets]
 enabled = ["claude-code", "cursor", "vscode", "antigravity"]  # default: all
-# disabled = ["codex"]  # alternative: disable specific targets
-
-[targets.claude-code]
-enabled = true
-# output_dir = ".claude"  # override default
-
-[targets.cursor]
-enabled = true
-# min_version = "2.0"  # require minimum IDE version
-
-[targets.vscode]
-enabled = true
-merge_mode = "single"     # "single" = one copilot-instructions.md, "split" = per-file
-
-[targets.antigravity]
-enabled = true
-
-[targets.codex]
-enabled = false           # user-scope only, disabled by default
 
 #───────────────────────────────────────────────────────────────
 # SYNC BEHAVIOR
@@ -78,51 +52,35 @@ enabled = false           # user-scope only, disabled by default
 [sync]
 atomic_writes = true      # Use temp file + rename (recommended)
 respect_lockfile = true   # Warn on user-modified files
-force = false             # Overwrite user-modified files without asking
-
-[sync.watch]
-debounce_ms = 100         # Debounce rapid file changes
-ignore = [                # Patterns to ignore in watch mode
-    "**/.git/**",
-    "**/node_modules/**",
-]
-
-#───────────────────────────────────────────────────────────────
-# REMOTE SYNC
-#───────────────────────────────────────────────────────────────
-[remote]
-# Default remote for `calvin sync --remote`
-# host = "user@server.example.com:/path/to/project"
-prefer_rsync = true       # Try rsync before scp
 
 #───────────────────────────────────────────────────────────────
 # OUTPUT
 #───────────────────────────────────────────────────────────────
 [output]
-json = false              # Machine-readable output
-color = "auto"            # "auto" | "always" | "never"
 verbosity = "normal"      # "quiet" | "normal" | "verbose" | "debug"
+
+#───────────────────────────────────────────────────────────────
+# MCP SERVERS (OPTIONAL)
+#───────────────────────────────────────────────────────────────
+[mcp.servers.github]
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-github"]
 ```
 
 ---
 
 ## Environment Variables
 
-All environment variables use the `CALVIN_` prefix.
+Calvin’s config module supports environment overrides (prefix `CALVIN_`), but not every CLI code path applies them yet.
 
-| Variable | Config Equivalent | Example |
-|----------|-------------------|---------|
-| `CALVIN_SECURITY_MODE` | `security.mode` | `yolo` |
-| `CALVIN_OUTPUT_JSON` | `output.json` | `true` |
-| `CALVIN_OUTPUT_VERBOSITY` | `output.verbosity` | `debug` |
-| `CALVIN_SYNC_FORCE` | `sync.force` | `true` |
-| `CALVIN_TARGETS_ENABLED` | `targets.enabled` | `claude-code,cursor` |
+Supported env vars:
 
-### Mapping Rules
-
-- Nested keys use `_` separator: `[security] mode` → `CALVIN_SECURITY_MODE`
-- Arrays use comma separation: `CALVIN_TARGETS_ENABLED=claude-code,cursor`
-- Booleans: `true`, `false`, `1`, `0`
+| Variable | Equivalent | Example |
+|----------|------------|---------|
+| `CALVIN_SECURITY_MODE` | `security.mode` | `strict` |
+| `CALVIN_TARGETS` | `targets.enabled` | `claude-code,cursor` |
+| `CALVIN_VERBOSITY` | `output.verbosity` | `debug` |
+| `CALVIN_ATOMIC_WRITES` | `sync.atomic_writes` | `false` |
 
 ---
 
@@ -132,21 +90,20 @@ CLI arguments override all other configuration sources.
 
 ```bash
 # Security mode
-calvin sync --security-mode yolo
+calvin check --mode strict
 
 # Target selection
-calvin sync --targets claude-code,cursor
-calvin sync --disable-target codex
+calvin deploy --targets claude-code,cursor
 
 # Output
-calvin sync --json
-calvin sync --verbose
-calvin sync --quiet
+calvin deploy --json
+calvin deploy -vv
 
-# Sync behavior
-calvin sync --force              # Overwrite user-modified files
-calvin sync --dry-run            # Preview changes
-calvin sync --remote user@host:/path
+# Deploy behavior
+calvin deploy --force            # Overwrite user-modified files
+calvin deploy --yes              # Non-interactive (auto-confirm overwrites)
+calvin deploy --dry-run          # Preview changes
+calvin deploy --remote user@host:/path
 ```
 
 ---
@@ -169,23 +126,13 @@ Always at `.promptpack/config.toml` relative to project root.
 
 ## Validation
 
-Calvin validates configuration on startup:
+Calvin validates source files and parses configuration during commands such as `deploy`/`diff`.
 
 ```bash
-$ calvin sync
+$ calvin deploy
 
-✗ ERROR: Invalid configuration
-  .promptpack/config.toml:5:1
-  Unknown field 'securty' - did you mean 'security'?
-
-$ calvin doctor --config
-
-Checking configuration...
-  ✓ User config: ~/.config/calvin/config.toml
-  ✓ Project config: .promptpack/config.toml
-  ✓ Format version: 1.0 (supported)
-  ⚠ Security mode: yolo (no enforcement)
-  ✓ Targets: 4 enabled
+⚠ Unknown config key 'securty' in .promptpack/config.toml:5
+   Did you mean 'security'?
 ```
 
 ---
@@ -208,10 +155,7 @@ enabled = ["claude-code", "cursor", "vscode", "antigravity"]
 [sync]
 atomic_writes = true
 respect_lockfile = true
-force = false
 
 [output]
-json = false
-color = "auto"
 verbosity = "normal"
 ```

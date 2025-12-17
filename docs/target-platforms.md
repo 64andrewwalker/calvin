@@ -256,14 +256,18 @@ Legend: ✅ Full support | ⚠️ Partial/experimental | ❌ Not supported
 
 ## Version Tracking
 
-Calvin will periodically update adapter implementations as platforms evolve. Use `calvin doctor --versions` to check compatibility:
+Calvin exposes Calvin + adapter versions via `calvin version`:
 
 ```bash
-$ calvin doctor --versions
+$ calvin version
 
-Target Platform Versions:
-  Claude Code: 2.0.70 detected ✓ (adapter v1.0 compatible)
-  Cursor: 2.2 detected ✓ (adapter v1.0 compatible)
-  Antigravity: 1.11.17 detected ⚠ (adapter v1.0 - beta)
-  Codex: 0.72.0 detected ⚠ (adapter v1.0 - experimental)
+Calvin v0.2.0
+Source Format: 1.0
+
+Adapters:
+  - ClaudeCode   v1
+  - Cursor       v1
+  - VSCode       v1
+  - Antigravity  v1
+  - Codex        v1
 ```

@@ -26,10 +26,11 @@ fn target_display_name(t: &Target) -> &'static str {
 pub fn select_targets_interactive(
     config: &calvin::config::Config,
     json: bool,
+    allow_prompt: bool,
 ) -> Option<Vec<Target>> {
     use dialoguer::MultiSelect;
 
-    if json || !atty::is(atty::Stream::Stdin) {
+    if json || !allow_prompt || !atty::is(atty::Stream::Stdin) {
         // Non-interactive mode: use config or all targets
         let targets = if config.targets.enabled.is_empty()
             || config.targets.enabled.contains(&Target::All)
@@ -65,4 +66,3 @@ pub fn select_targets_interactive(
     println!("Selected targets: {:?}", selected);
     Some(selected)
 }
-

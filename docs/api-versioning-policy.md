@@ -37,7 +37,7 @@ version = "1.0"
 When source format is newer than Calvin supports:
 
 ```bash
-$ calvin sync
+$ calvin deploy
 ✗ ERROR: Source format v2.0 requires Calvin 2.x
   Your version: 1.5.0
   Upgrade: brew upgrade calvin
@@ -46,7 +46,7 @@ $ calvin sync
 When source format is deprecated:
 
 ```bash
-$ calvin sync
+$ calvin deploy
 ⚠ WARNING: Source format v0.9 is deprecated
   Run: calvin migrate --format 1.0
 ```
@@ -130,20 +130,18 @@ v1.0 → v1.1 → v1.2 → v2.0
 
 ```bash
 $ calvin --version
-calvin 1.2.3
-  Source format: v1.0 (supports v1.0 - v1.x)
-  Adapters:
-    claude-code: v1.0 (tested: IDE v1.0.0 - v1.5.x)
-    cursor: v1.0 (tested: IDE v0.40.0 - v0.45.x)
-    vscode: v1.0 (stable)
-    antigravity: v1.0 (tested: IDE v24.12.x)
-    codex: v1.0 (experimental)
+calvin 0.2.0
 
-$ calvin doctor --versions
-Checking version compatibility...
-  ✓ Source format v1.0 - supported
-  ✓ Cursor v0.44.0 detected - within tested range
-  ⚠ Antigravity v25.01.0 detected - newer than tested (v24.12.x)
+$ calvin version
+Calvin v0.2.0
+Source Format: 1.0
+
+Adapters:
+  - ClaudeCode   v1
+  - Cursor       v1
+  - VSCode       v1
+  - Antigravity  v1
+  - Codex        v1
 ```
 
 ## Migration Commands

@@ -78,7 +78,7 @@ fn run_deploy(
         }
     } else {
         // Use interactive selection with config defaults
-        match select_targets_interactive(&config, json) {
+        match select_targets_interactive(&config, json, interactive) {
             Some(t) => t,
             None => return Ok(()),
         }
