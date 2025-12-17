@@ -121,10 +121,10 @@ mod snapshot_tests {
         let targets = vec![Target::VSCode];
         let outputs = compile_assets(&assets, &targets, &config).unwrap();
 
-        // VS Code generates a merged instructions file
+        // VS Code now generates individual .instructions.md files by default
         let instr_output = outputs.iter()
-            .find(|o| o.path.to_string_lossy().contains("copilot-instructions"))
-            .expect("Should have copilot-instructions output");
+            .find(|o| o.path.to_string_lossy().contains("code-style.instructions.md"))
+            .expect("Should have code-style.instructions.md output");
 
         assert_snapshot!("vscode_instructions", &instr_output.content);
     }
