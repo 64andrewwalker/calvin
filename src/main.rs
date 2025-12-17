@@ -225,7 +225,7 @@ fn cmd_migrate(format: Option<String>, adapter: Option<String>, dry_run: bool, j
     Ok(())
 }
 
-fn cmd_install(source: &PathBuf, user: bool, force: bool, dry_run: bool, json: bool) -> Result<()> {
+fn cmd_install(source: &std::path::Path, user: bool, force: bool, dry_run: bool, json: bool) -> Result<()> {
     use calvin::sync::{compile_assets, sync_outputs, SyncOptions};
     use calvin::models::Scope;
 
@@ -329,7 +329,7 @@ fn cmd_install(source: &PathBuf, user: bool, force: bool, dry_run: bool, json: b
 }
 
 fn cmd_sync(
-    source: &PathBuf,
+    source: &std::path::Path,
     remote: Option<String>,
     force: bool,
     interactive: bool,
@@ -438,7 +438,7 @@ fn cmd_sync(
     Ok(())
 }
 
-fn cmd_watch(source: &PathBuf, json: bool) -> Result<()> {
+fn cmd_watch(source: &std::path::Path, json: bool) -> Result<()> {
     use calvin::watcher::{watch, WatchOptions, WatchEvent};
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
@@ -453,7 +453,7 @@ fn cmd_watch(source: &PathBuf, json: bool) -> Result<()> {
     let config = calvin::config::Config::load(&config_path).unwrap_or_default();
 
     let options = WatchOptions {
-        source: source.clone(),
+        source: source.to_path_buf(),
         project_root,
         targets: vec![],
         json,
@@ -510,7 +510,7 @@ fn cmd_watch(source: &PathBuf, json: bool) -> Result<()> {
     Ok(())
 }
 
-fn cmd_diff(source: &PathBuf, json: bool) -> Result<()> {
+fn cmd_diff(source: &std::path::Path, json: bool) -> Result<()> {
     use calvin::sync::compile_assets;
     use std::fs;
 
@@ -749,17 +749,15 @@ fn cmd_audit(mode: &str, strict_warnings: bool, json: bool, _verbose: u8) -> Res
             println!("🔴 Audit FAILED - security issues detected");
         }
         std::process::exit(1);
-    } else {
-        if !json {
-            println!();
-            println!("🟢 Audit PASSED");
-        }
+    } else if !json {
+        println!();
+        println!("🟢 Audit PASSED");
     }
 
     Ok(())
 }
 
-fn cmd_parse(source: &PathBuf, json: bool) -> Result<()> {
+fn cmd_parse(source: &std::path::Path, json: bool) -> Result<()> {
     if !json {
         println!("🔍 Parsing PromptPack: {}", source.display());
     }
@@ -810,7 +808,7 @@ fn maybe_warn_allow_naked(config: &calvin::config::Config, json: bool) {
     eprintln!("  This is your responsibility.\n");
 }
 
-fn print_config_warnings(path: &PathBuf, warnings: &[calvin::config::ConfigWarning]) {
+fn print_config_warnings(path: &std::path::Path, warnings: &[calvin::config::ConfigWarning]) {
     for w in warnings {
         if let Some(line) = w.line {
             eprintln!("⚠ Unknown config key '{}' in {}:{}", w.key, path.display(), line);

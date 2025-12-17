@@ -238,7 +238,7 @@ impl Config {
             .map(|path_str| {
                 let key = path_str
                     .split('.')
-                    .last()
+                    .next_back()
                     .unwrap_or(path_str.as_str())
                     .to_string();
                 ConfigWarning {

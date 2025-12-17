@@ -263,11 +263,9 @@ fn check_claude_code(root: &Path, mode: SecurityMode, config: &Config, report: &
                 );
             }
         }
-    } else {
-        if mode != SecurityMode::Yolo {
-            report.add_warning(platform, "settings", "No settings.json found",
-                Some("Run `calvin sync` to generate security baseline"));
-        }
+    } else if mode != SecurityMode::Yolo {
+        report.add_warning(platform, "settings", "No settings.json found",
+            Some("Run `calvin sync` to generate security baseline"));
     }
 }
 

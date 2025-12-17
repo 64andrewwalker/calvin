@@ -73,6 +73,7 @@ pub fn validate_path_safety(path: &Path, project_root: &Path) -> CalvinResult<()
 
 /// Options for sync operations
 #[derive(Debug, Clone)]
+#[derive(Default)]
 pub struct SyncOptions {
     /// Force overwrite of modified files
     pub force: bool,
@@ -84,16 +85,6 @@ pub struct SyncOptions {
     pub targets: Vec<Target>,
 }
 
-impl Default for SyncOptions {
-    fn default() -> Self {
-        Self {
-            force: false,
-            dry_run: false,
-            interactive: false,
-            targets: Vec::new(),
-        }
-    }
-}
 
 /// Result of a sync operation
 #[derive(Debug, Clone)]
