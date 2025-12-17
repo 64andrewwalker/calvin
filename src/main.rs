@@ -12,14 +12,29 @@ mod ui;
 
 use cli::{Cli, Commands};
 
-fn main() -> Result<()> {
+fn main() {
     let cli = Cli::parse();
+    let json = cli.json;
+    let verbose = cli.verbose;
 
-    let cwd = std::env::current_dir()?;
+    let cwd = match std::env::current_dir() {
+        Ok(cwd) => cwd,
+        Err(err) => {
+            let err = anyhow::Error::from(err);
+            ui::error::print_error(&err, json);
+            std::process::exit(1);
+        }
+    };
 
-    match cli.command {
-        None => commands::interactive::cmd_interactive(&cwd, cli.json, cli.verbose),
-        Some(command) => dispatch(command, cli.json, cli.verbose),
+    let result = match cli.command {
+        None => commands::interactive::cmd_interactive(&cwd, json, verbose),
+        Some(command) => dispatch(command, json, verbose),
+    };
+
+    if let Err(err) = result {
+        ui::error::print_error(&err, json);
+        ui::error::offer_open_in_editor(&err, json);
+        std::process::exit(1);
     }
 }
 
