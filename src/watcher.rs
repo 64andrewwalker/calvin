@@ -244,8 +244,11 @@ pub fn watch(
         source: options.source.display().to_string(),
     });
     
-    // Do initial sync
-    do_sync(&options, &event_callback)?;
+    // Create incremental cache for efficient reparsing
+    let mut cache = IncrementalCache::new();
+    
+    // Do initial full sync (populates cache)
+    do_sync_incremental(&options, &[], &mut cache, &event_callback)?;
 
     // Set up file watcher
     let (tx, rx) = channel();
@@ -276,17 +279,22 @@ pub fn watch(
         if let Ok(path) = rx.recv_timeout(Duration::from_millis(50)) {
             // Only watch .md files
             if path.extension().map(|e| e == "md").unwrap_or(false) {
-                event_callback(WatchEvent::FileChanged {
-                    path: path.display().to_string(),
-                });
+                // Don't report yet - wait for debounce to dedupe multiple events
                 state.add_change(path);
             }
         }
 
         // Check if we should sync (debounced)
         if state.should_sync() {
-            let _changes = state.take_changes();
-            do_sync(&options, &event_callback)?;
+            let changes = state.take_changes();
+            // Report unique changed files after deduplication
+            for path in &changes {
+                event_callback(WatchEvent::FileChanged {
+                    path: path.display().to_string(),
+                });
+            }
+            // Incremental sync - only reparse changed files
+            do_sync_incremental(&options, &changes, &mut cache, &event_callback)?;
         }
     }
 
@@ -294,10 +302,15 @@ pub fn watch(
     Ok(())
 }
 
-fn do_sync(options: &WatchOptions, callback: &impl Fn(WatchEvent)) -> CalvinResult<()> {
+fn do_sync_incremental(
+    options: &WatchOptions,
+    changed_files: &[PathBuf],
+    cache: &mut IncrementalCache,
+    callback: &impl Fn(WatchEvent),
+) -> CalvinResult<()> {
     callback(WatchEvent::SyncStarted);
 
-    let result = match perform_sync(options) {
+    let result = match perform_sync_incremental(options, changed_files, cache) {
         Ok(result) => result,
         Err(e) => {
             callback(WatchEvent::Error {
@@ -316,8 +329,13 @@ fn do_sync(options: &WatchOptions, callback: &impl Fn(WatchEvent)) -> CalvinResu
     Ok(())
 }
 
-fn perform_sync(options: &WatchOptions) -> CalvinResult<SyncResult> {
-    let assets = parse_directory(&options.source)?;
+fn perform_sync_incremental(
+    options: &WatchOptions,
+    changed_files: &[PathBuf],
+    cache: &mut IncrementalCache,
+) -> CalvinResult<SyncResult> {
+    // Use incremental parsing - only reparse changed files
+    let assets = parse_incremental(&options.source, changed_files, cache)?;
     let outputs = compile_assets(&assets, &options.targets, &options.config)?;
     
     let sync_options = SyncOptions {

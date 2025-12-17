@@ -509,6 +509,8 @@ fn check_codex(root: &Path, _mode: SecurityMode, report: &mut DoctorReport) {
 }
 
 // === User-scope check functions ===
+// Expected number of prompts from Calvin (matches typical .promptpack count)
+const EXPECTED_PROMPT_COUNT: usize = 36;
 
 fn check_claude_code_user(home: &Path, _mode: SecurityMode, _config: &Config, report: &mut DoctorReport) {
     let platform = "Claude Code (User)";
@@ -520,7 +522,12 @@ fn check_claude_code_user(home: &Path, _mode: SecurityMode, _config: &Config, re
             .map(|rd| rd.filter_map(Result::ok).filter(|e| e.path().extension().is_some_and(|ext| ext == "md")).count())
             .unwrap_or(0);
         if count > 0 {
-            report.add_pass(platform, "commands", &format!("{} user commands installed", count));
+            let msg = if count > EXPECTED_PROMPT_COUNT {
+                format!("{} user commands installed ({} extra)", count, count - EXPECTED_PROMPT_COUNT)
+            } else {
+                format!("{} user commands installed", count)
+            };
+            report.add_pass(platform, "commands", &msg);
         }
     }
     // No warning for missing user dirs - they're optional
@@ -536,7 +543,12 @@ fn check_cursor_user(home: &Path, _mode: SecurityMode, report: &mut DoctorReport
             .map(|rd| rd.filter_map(Result::ok).filter(|e| e.path().extension().is_some_and(|ext| ext == "mdc" || ext == "md")).count())
             .unwrap_or(0);
         if count > 0 {
-            report.add_pass(platform, "rules", &format!("{} user rules installed", count));
+            let msg = if count > EXPECTED_PROMPT_COUNT {
+                format!("{} user rules installed ({} extra)", count, count - EXPECTED_PROMPT_COUNT)
+            } else {
+                format!("{} user rules installed", count)
+            };
+            report.add_pass(platform, "rules", &msg);
         }
     }
     // No warning for missing user dirs - they're optional
@@ -552,7 +564,12 @@ fn check_antigravity_user(home: &Path, _mode: SecurityMode, report: &mut DoctorR
             .map(|rd| rd.filter_map(Result::ok).filter(|e| e.path().extension().is_some_and(|ext| ext == "md")).count())
             .unwrap_or(0);
         if count > 0 {
-            report.add_pass(platform, "workflows", &format!("{} global workflows installed", count));
+            let msg = if count > EXPECTED_PROMPT_COUNT {
+                format!("{} global workflows installed ({} extra)", count, count - EXPECTED_PROMPT_COUNT)
+            } else {
+                format!("{} global workflows installed", count)
+            };
+            report.add_pass(platform, "workflows", &msg);
         }
     }
     // No warning for missing user dirs - they're optional
