@@ -1,13 +1,32 @@
 //! Security module for doctor validation
 //!
 //! Implements security checks per the spec:
-//! - Claude Code: permissions.deny exists
+//! - Claude Code: permissions.deny exists with minimum patterns
 //! - Antigravity: not in Turbo mode
 //! - Cursor: MCP servers in allowlist
 
 use std::path::Path;
 
 use crate::config::SecurityMode;
+
+/// Minimum deny patterns that must be present (mirrors claude_code.rs)
+const MINIMUM_DENY_PATTERNS: &[&str] = &[
+    ".env",
+    "*.pem",
+    "*.key",
+    "id_rsa",
+    ".git/",
+];
+
+/// Known safe MCP server command patterns (allowlist)
+const MCP_ALLOWLIST: &[&str] = &[
+    "npx",           // npm package executor (common for official MCP servers)
+    "uvx",           // Python uv package executor
+    "node",          // Node.js
+    "@anthropic/",   // Official Anthropic MCP servers
+    "@modelcontextprotocol/", // Official MCP servers
+    "mcp-server-",   // Common MCP server naming pattern
+];
 
 /// Security check result
 #[derive(Debug, Clone, PartialEq)]
@@ -138,10 +157,56 @@ fn check_claude_code(root: &Path, mode: SecurityMode, report: &mut DoctorReport)
     if settings_file.exists() {
         report.add_pass(platform, "settings", ".claude/settings.json exists");
         
-        // Check for permissions.deny
+        // Check for permissions.deny and completeness
         if let Ok(content) = std::fs::read_to_string(&settings_file) {
             if content.contains("permissions") && content.contains("deny") {
-                report.add_pass(platform, "deny_list", "permissions.deny configured");
+                // Parse and check completeness
+                if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&content) {
+                    if let Some(deny_list) = parsed
+                        .get("permissions")
+                        .and_then(|p| p.get("deny"))
+                        .and_then(|d| d.as_array())
+                    {
+                        let deny_strings: Vec<&str> = deny_list
+                            .iter()
+                            .filter_map(|v| v.as_str())
+                            .collect();
+                        
+                        // Check for missing minimum patterns
+                        let missing: Vec<&str> = MINIMUM_DENY_PATTERNS
+                            .iter()
+                            .filter(|pattern| !deny_strings.iter().any(|d| d.contains(*pattern)))
+                            .copied()
+                            .collect();
+                        
+                        if missing.is_empty() {
+                            report.add_pass(platform, "deny_list", 
+                                &format!("permissions.deny complete ({} patterns)", deny_strings.len()));
+                        } else {
+                            let missing_str = missing.join(", ");
+                            match mode {
+                                SecurityMode::Strict => {
+                                    report.add_error(platform, "deny_list_incomplete",
+                                        &format!("Missing deny patterns: {}", missing_str),
+                                        Some("Add missing patterns to permissions.deny"));
+                                }
+                                SecurityMode::Balanced => {
+                                    report.add_warning(platform, "deny_list_incomplete",
+                                        &format!("Missing deny patterns: {}", missing_str),
+                                        Some("Consider adding missing patterns for better security"));
+                                }
+                                SecurityMode::Yolo => {
+                                    report.add_pass(platform, "deny_list", 
+                                        "Security checks disabled (yolo mode)");
+                                }
+                            }
+                        }
+                    } else {
+                        report.add_pass(platform, "deny_list", "permissions.deny configured");
+                    }
+                } else {
+                    report.add_pass(platform, "deny_list", "permissions.deny configured");
+                }
             } else {
                 match mode {
                     SecurityMode::Strict => {
@@ -184,11 +249,63 @@ fn check_cursor(root: &Path, mode: SecurityMode, report: &mut DoctorReport) {
             Some("Run `calvin sync` to generate rules"));
     }
 
-    // Check for MCP config
+    // Check for MCP config and validate servers against allowlist
     let mcp_file = root.join(".cursor/mcp.json");
-    if mcp_file.exists() && mode == SecurityMode::Strict {
-        // Would check MCP servers against allowlist here
-        report.add_pass(platform, "mcp", "MCP configuration found");
+    if mcp_file.exists() {
+        if let Ok(content) = std::fs::read_to_string(&mcp_file) {
+            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&content) {
+                if let Some(servers) = parsed.get("servers").and_then(|s| s.as_object()) {
+                    let mut unknown_servers = Vec::new();
+                    
+                    for (name, config) in servers {
+                        // Check command against allowlist
+                        let command = config.get("command").and_then(|c| c.as_str()).unwrap_or("");
+                        let args = config.get("args")
+                            .and_then(|a| a.as_array())
+                            .map(|arr| arr.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>().join(" "))
+                            .unwrap_or_default();
+                        
+                        let full_cmd = format!("{} {}", command, args);
+                        
+                        // Check if any allowlist pattern matches
+                        let is_allowed = MCP_ALLOWLIST.iter().any(|pattern| {
+                            command.contains(pattern) || args.contains(pattern) || full_cmd.contains(pattern)
+                        });
+                        
+                        if !is_allowed {
+                            unknown_servers.push(name.clone());
+                        }
+                    }
+                    
+                    if unknown_servers.is_empty() {
+                        report.add_pass(platform, "mcp", 
+                            &format!("MCP servers validated ({} servers)", servers.len()));
+                    } else {
+                        let unknown_str = unknown_servers.join(", ");
+                        match mode {
+                            SecurityMode::Strict => {
+                                report.add_warning(platform, "mcp_unknown",
+                                    &format!("Unknown MCP servers: {}", unknown_str),
+                                    Some("Review these servers or add them to your project's config.toml allowlist"));
+                            }
+                            SecurityMode::Balanced => {
+                                report.add_warning(platform, "mcp_unknown",
+                                    &format!("Unknown MCP servers: {}", unknown_str),
+                                    Some("Consider reviewing MCP server configurations"));
+                            }
+                            SecurityMode::Yolo => {
+                                report.add_pass(platform, "mcp", "MCP checks disabled (yolo mode)");
+                            }
+                        }
+                    }
+                } else {
+                    report.add_pass(platform, "mcp", "MCP configuration found (no servers)");
+                }
+            } else {
+                report.add_warning(platform, "mcp", "Invalid mcp.json format",
+                    Some("Check mcp.json for JSON syntax errors"));
+            }
+        }
     }
 }
 
@@ -313,5 +430,109 @@ mod tests {
         assert_eq!(format!("{}", CheckStatus::Pass), "✓");
         assert_eq!(format!("{}", CheckStatus::Warning), "⚠");
         assert_eq!(format!("{}", CheckStatus::Error), "✗");
+    }
+
+    // === TDD: Deny List Completeness Tests (P2 Fix) ===
+
+    #[test]
+    fn test_deny_list_completeness_full() {
+        let dir = tempdir().unwrap();
+        
+        // Create Claude Code settings with COMPLETE deny list
+        fs::create_dir_all(dir.path().join(".claude")).unwrap();
+        fs::write(
+            dir.path().join(".claude/settings.json"),
+            r#"{"permissions": {"deny": [".env", ".env.*", "*.pem", "*.key", "id_rsa", "id_ed25519", ".git/"]}}"#
+        ).unwrap();
+        
+        let report = run_doctor(dir.path(), SecurityMode::Strict);
+        
+        // Should NOT have any error about missing deny patterns
+        let deny_errors: Vec<_> = report.checks.iter()
+            .filter(|c| c.name.contains("deny") && c.status == CheckStatus::Error)
+            .collect();
+        assert!(deny_errors.is_empty(), "Should pass with complete deny list");
+    }
+
+    #[test]
+    fn test_deny_list_completeness_missing_patterns() {
+        let dir = tempdir().unwrap();
+        
+        // Create Claude Code settings with INCOMPLETE deny list (missing .git/)
+        fs::create_dir_all(dir.path().join(".claude")).unwrap();
+        fs::write(
+            dir.path().join(".claude/settings.json"),
+            r#"{"permissions": {"deny": [".env"]}}"#
+        ).unwrap();
+        
+        let report = run_doctor(dir.path(), SecurityMode::Strict);
+        
+        // Should have warning/error about missing deny patterns in strict mode
+        let deny_checks: Vec<_> = report.checks.iter()
+            .filter(|c| c.name.contains("deny") && c.status != CheckStatus::Pass)
+            .collect();
+        assert!(!deny_checks.is_empty(), "Should warn about incomplete deny list");
+    }
+
+    #[test]
+    fn test_deny_list_completeness_balanced_mode() {
+        let dir = tempdir().unwrap();
+        
+        // Create Claude Code settings with INCOMPLETE deny list
+        fs::create_dir_all(dir.path().join(".claude")).unwrap();
+        fs::write(
+            dir.path().join(".claude/settings.json"),
+            r#"{"permissions": {"deny": [".env"]}}"#
+        ).unwrap();
+        
+        let report = run_doctor(dir.path(), SecurityMode::Balanced);
+        
+        // In balanced mode, missing patterns should be warnings, not errors
+        let deny_errors: Vec<_> = report.checks.iter()
+            .filter(|c| c.name.contains("deny") && c.status == CheckStatus::Error)
+            .collect();
+        assert!(deny_errors.is_empty(), "Balanced mode should not produce errors for incomplete deny list");
+    }
+
+    // === TDD: MCP Allowlist Validation Tests (P2 Fix) ===
+
+    #[test]
+    fn test_mcp_allowlist_valid_servers() {
+        let dir = tempdir().unwrap();
+        
+        // Create Cursor MCP config with known safe servers
+        fs::create_dir_all(dir.path().join(".cursor")).unwrap();
+        fs::write(
+            dir.path().join(".cursor/mcp.json"),
+            r#"{"servers": {"filesystem": {"command": "npx", "args": ["-y", "@anthropic/mcp-server-filesystem"]}}}"#
+        ).unwrap();
+        
+        let report = run_doctor(dir.path(), SecurityMode::Strict);
+        
+        // Should pass or warn, not error for known servers
+        let mcp_errors: Vec<_> = report.checks.iter()
+            .filter(|c| c.name.contains("mcp") && c.status == CheckStatus::Error)
+            .collect();
+        assert!(mcp_errors.is_empty(), "Known MCP servers should not produce errors");
+    }
+
+    #[test]
+    fn test_mcp_allowlist_unknown_servers() {
+        let dir = tempdir().unwrap();
+        
+        // Create Cursor MCP config with unknown/suspicious server
+        fs::create_dir_all(dir.path().join(".cursor")).unwrap();
+        fs::write(
+            dir.path().join(".cursor/mcp.json"),
+            r#"{"servers": {"evil": {"command": "/tmp/evil-hacker-script.sh"}}}"#
+        ).unwrap();
+        
+        let report = run_doctor(dir.path(), SecurityMode::Strict);
+        
+        // Should have warning about unknown MCP server in strict mode
+        let mcp_checks: Vec<_> = report.checks.iter()
+            .filter(|c| c.name.contains("mcp") && c.status != CheckStatus::Pass)
+            .collect();
+        assert!(!mcp_checks.is_empty(), "Unknown MCP servers should trigger warnings in strict mode");
     }
 }

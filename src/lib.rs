@@ -22,4 +22,4 @@ pub use adapters::{TargetAdapter, OutputFile, all_adapters, get_adapter};
 pub use sync::{SyncOptions, SyncResult, compile_assets, sync_outputs};
 pub use config::{Config, SecurityMode};
 pub use security::{DoctorReport, run_doctor};
-pub use watcher::{WatchOptions, WatchEvent, watch};
+pub use watcher::{WatchOptions, WatchEvent, watch, IncrementalCache, parse_incremental};

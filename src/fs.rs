@@ -54,11 +54,40 @@ impl FileSystem for LocalFileSystem {
 /// Remote file system implementation using SSH
 pub struct RemoteFileSystem {
     destination: String,
+    /// Cached remote $HOME value
+    cached_home: std::sync::Mutex<Option<String>>,
 }
 
 impl RemoteFileSystem {
     pub fn new(destination: impl Into<String>) -> Self {
-        Self { destination: destination.into() }
+        Self { 
+            destination: destination.into(),
+            cached_home: std::sync::Mutex::new(None),
+        }
+    }
+
+    /// Get the remote $HOME directory (cached)
+    fn get_remote_home(&self) -> Option<String> {
+        // Check cache first
+        {
+            let cache = self.cached_home.lock().unwrap();
+            if let Some(ref home) = *cache {
+                return Some(home.clone());
+            }
+        }
+        
+        // Fetch from remote via `echo $HOME`
+        // This is safe because we're not passing user input to the shell
+        if let Ok(home) = self.run_command("echo $HOME", None) {
+            let home = home.trim().to_string();
+            if !home.is_empty() {
+                let mut cache = self.cached_home.lock().unwrap();
+                *cache = Some(home.clone());
+                return Some(home);
+            }
+        }
+        
+        None
     }
 
     fn run_command(&self, command: &str, input: Option<&str>) -> CalvinResult<String> {
@@ -137,34 +166,21 @@ impl FileSystem for RemoteFileSystem {
     }
 
     fn expand_home(&self, path: &Path) -> PathBuf {
-        // For now, treat ~ as handled by shell expansion or remote?
-        // But quote_path wraps in single quotes, suppressing expansion.
-        // We should resolve ~ if present using echo.
-        // Optimization: assume sync root provided is absolute or relative to home.
-        // If path starts with ~, we remove it and assume relative to home?
-        // '~/foo' -> $HOME/foo.
-        // But doing `cat '~/foo'` fails. `cat ~/foo` works.
-        // We should explicitly resolve.
-        
         let p = path.to_string_lossy();
+        
         if p.starts_with("~/") || p == "~" {
-             // Dangerous to shell inject if we blindly echo.
-             // But we need to resolve.
-             // Let's assume passed path is safe-ish or we use a separate safe resolve?
-             // Or just leave it to user to provide absolute paths?
-             // Sync engine expand_home_dir logic expands locally!
-             // So `sync_with_fs` calls `fs.expand_home`.
-             // If we return input, `sync_with_fs` logic handles it (checking starts_with(~)).
-             // But wait, `fs.expand_home` is meant to resolving to ABSOLUTE path.
-             // If we return `~/.claude/...`, `sync_outputs` treats it as absolute-ish.
-             // But `write_atomic` quotes it -> `'~/.claude/...'`. Shell treats as literal relative directory named `~`?
-             // Yes. That's bad.
-             // We MUST expand `~` to `/home/user`.
-             
-             // Simplest: `ssh host echo $HOME` (cached preferably)
-             // Then replace `~`.
-             // I'll leave it as TODO or implementing simple replacement?
-             path.to_path_buf() 
+            // Get remote $HOME via cached SSH call
+            if let Some(home) = self.get_remote_home() {
+                if p == "~" {
+                    return PathBuf::from(home);
+                } else {
+                    // ~/foo -> /home/user/foo
+                    return PathBuf::from(home).join(p.strip_prefix("~/").unwrap());
+                }
+            }
+            // Fallback: if we can't get home, return as-is (will likely fail later)
+            // This shouldn't happen in practice if SSH is working
+            path.to_path_buf()
         } else {
             path.to_path_buf()
         }
