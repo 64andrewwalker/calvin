@@ -176,20 +176,35 @@ fn run_deploy(
             sync_outputs(&dist_root, &outputs, &options)?
         }
         DeployTarget::Remote(remote_str) => {
-            let (host, path) = if let Some((h, p)) = remote_str.split_once(':') {
-                (h, p)
+            // Use rsync for fast batch transfer
+            if calvin::sync::remote::has_rsync() {
+                if !json {
+                    println!("\n📡 Using rsync for fast batch transfer...");
+                }
+                calvin::sync::remote::sync_remote_rsync(
+                    &remote_str,
+                    &outputs,
+                    &options,
+                    json,
+                )?
             } else {
-                (remote_str.as_str(), ".")
-            };
-            
-            if !json {
-                println!("\n⏳ Syncing {} files to remote (this may take a while)...", outputs.len());
-                println!("   Each file requires multiple SSH operations.");
+                // Fallback to slow SSH method
+                let (host, path) = if let Some((h, p)) = remote_str.split_once(':') {
+                    (h, p)
+                } else {
+                    (remote_str.as_str(), ".")
+                };
+                
+                if !json {
+                    println!("\n⚠️  rsync not found, falling back to slow SSH method...");
+                    println!("   Install rsync for 10x faster transfers.");
+                    println!("\n⏳ Syncing {} files to remote (this may take a while)...", outputs.len());
+                }
+                
+                let fs = calvin::fs::RemoteFileSystem::new(host);
+                let dist_root = PathBuf::from(path);
+                sync_with_fs(&dist_root, &outputs, &options, &fs)?
             }
-            
-            let fs = calvin::fs::RemoteFileSystem::new(host);
-            let dist_root = PathBuf::from(path);
-            sync_with_fs(&dist_root, &outputs, &options, &fs)?
         }
     };
 
