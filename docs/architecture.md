@@ -22,7 +22,7 @@ Calvin is a PromptOps compiler and synchronization tool that enables teams to ma
 │                            ▼                                           │
 │                   ┌────────────────┐                                   │
 │                   │     CALVIN     │                                   │
-│                   │   (promptctl)  │                                   │
+│                   │   (calvin)  │                                   │
 │                   └────────┬───────┘                                   │
 │                            │                                           │
 │         ┌──────────────────┼──────────────────┐                        │

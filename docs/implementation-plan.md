@@ -181,7 +181,7 @@ This phase implements **project-scope** output only (files that go in the reposi
 
 ### Example Output:
 ```
-$ promptctl doctor
+$ calvin doctor
 
 Claude Code
   ✓ .claude/settings.json exists

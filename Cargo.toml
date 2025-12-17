@@ -1,7 +1,25 @@
 [package]
 name = "calvin"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
+authors = ["Your Name <your@email.com>"]
+description = "PromptOps compiler and synchronization tool for AI coding assistants"
+license = "MIT"
+repository = "https://github.com/YOUR_USERNAME/calvin"
+homepage = "https://github.com/YOUR_USERNAME/calvin"
+readme = "README.md"
+keywords = ["ai", "prompt", "cli", "devtools", "automation"]
+categories = ["command-line-utilities", "development-tools"]
+
+# cargo-binstall support
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/v{ version }/calvin-{ target }.tar.gz"
+pkg-fmt = "tgz"
+bin-dir = "calvin"
+
+[package.metadata.binstall.overrides.x86_64-pc-windows-msvc]
+pkg-url = "{ repo }/releases/download/v{ version }/calvin-{ target }.zip"
+pkg-fmt = "zip"
 
 [dependencies]
 anyhow = "1"
@@ -27,3 +45,6 @@ opt-level = "z"
 
 [profile.release.package."*"]
 opt-level = "z"
+
+[dev-dependencies]
+insta = "1.44.3"

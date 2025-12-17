@@ -359,13 +359,13 @@ The original spec mandated strict security (deny lists, MCP blocking). However:
 
 **Doctor Behavior**:
 ```
-$ promptctl doctor --mode yolo
+$ calvin doctor --mode yolo
 
 Claude Code
   ℹ Security checks disabled (yolo mode)
   ✓ 3 commands synced
 
-$ promptctl doctor --mode strict  
+$ calvin doctor --mode strict  
 
 Claude Code
   ✗ ERROR: permissions.deny not configured

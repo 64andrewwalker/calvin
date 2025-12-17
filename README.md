@@ -41,7 +41,7 @@ Write once, compile everywhere.
 Then run:
 
 ```bash
-promptctl sync
+calvin sync
 ```
 
 And Calvin generates platform-specific outputs:
@@ -84,26 +84,26 @@ cargo install calvin
 ## Quick Start
 
 ```bash
-# Initialize a new .promptpack directory
-promptctl init
+# Create a .promptpack directory with your policies and actions
+mkdir -p .promptpack/policies .promptpack/actions
 
 # Compile to all platforms
-promptctl sync
+calvin sync
 
 # Preview what would change
-promptctl diff
+calvin diff
 
-# Watch for changes
-promptctl watch
+# Watch for changes and auto-recompile
+calvin watch
 
-# Validate configuration
-promptctl doctor
+# Validate configuration and security
+calvin doctor
 
-# Install to user-level directories
-promptctl install --user
+# Install to user-level directories (~/.claude/, ~/.codex/)
+calvin install --user
 
 # Sync to remote server
-promptctl sync --remote user@host:/path/to/project
+calvin sync --remote user@host:/path/to/project
 ```
 
 ## Documentation
@@ -114,9 +114,9 @@ promptctl sync --remote user@host:/path/to/project
 
 ## Project Status
 
-**Stage**: Planning Complete ✅
+**Stage**: v0.1.0 Implementation Complete 🎉
 
-See [TODO.md](TODO.md) for the implementation checklist.
+All 11 phases are complete with 164 tests passing. See [TODO.md](TODO.md) for details.
 
 ## Philosophy
 
