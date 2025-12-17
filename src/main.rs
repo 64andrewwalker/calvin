@@ -50,6 +50,10 @@ enum Commands {
         #[arg(short, long)]
         force: bool,
 
+        /// Interactively confirm overwrites on conflicts (shows diff)
+        #[arg(short, long)]
+        interactive: bool,
+
         /// Dry run - show what would be done
         #[arg(long)]
         dry_run: bool,
@@ -158,8 +162,8 @@ fn main() -> Result<()> {
         Commands::Parse { source } => {
             cmd_parse(&source, cli.json)
         }
-        Commands::Install { source, user, global, force, dry_run } => {
-            cmd_install(&source, user, global, force, dry_run, cli.json)
+        Commands::Install { source, user, global, force, interactive, dry_run } => {
+            cmd_install(&source, user, global, force, interactive, dry_run, cli.json)
         }
         Commands::Migrate { format, adapter, dry_run } => {
             cmd_migrate(format, adapter, dry_run, cli.json)
@@ -229,7 +233,7 @@ fn cmd_migrate(format: Option<String>, adapter: Option<String>, dry_run: bool, j
     Ok(())
 }
 
-fn cmd_install(source: &std::path::Path, user: bool, global: bool, force: bool, dry_run: bool, json: bool) -> Result<()> {
+fn cmd_install(source: &std::path::Path, user: bool, global: bool, force: bool, interactive: bool, dry_run: bool, json: bool) -> Result<()> {
     use calvin::sync::{compile_assets, sync_outputs, SyncOptions};
     use calvin::models::Scope;
 
@@ -253,6 +257,9 @@ fn cmd_install(source: &std::path::Path, user: bool, global: bool, force: bool, 
         }
         if dry_run {
             println!("Option: Dry run");
+        }
+        if interactive {
+            println!("Option: Interactive (confirm overwrites)");
         }
     }
 
@@ -306,7 +313,7 @@ fn cmd_install(source: &std::path::Path, user: bool, global: bool, force: bool, 
     let options = SyncOptions {
         force,
         dry_run,
-        interactive: false,
+        interactive,
         targets: Vec::new(),
     };
 
