@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use calvin::Target;
 
-use crate::ui::menu::{select_targets_interactive, ALL_TARGETS};
+use crate::ui::menu::ALL_TARGETS;
 use crate::ui::output::{maybe_warn_allow_naked, print_config_warnings};
 
 #[derive(Debug)]
@@ -78,7 +78,13 @@ fn run_deploy(
         }
     } else {
         // Use interactive selection with config defaults
-        match select_targets_interactive(&config, json, interactive) {
+        // DP-7: Save selection if different from config
+        let config_path = source.join("config.toml");
+        match crate::ui::menu::select_targets_interactive_with_save(
+            &config,
+            json,
+            if config_path.exists() { Some(&config_path) } else { None },
+        ) {
             Some(t) => t,
             None => return Ok(()),
         }
