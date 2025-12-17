@@ -1,35 +1,42 @@
 //! VS Code (GitHub Copilot) adapter
 //!
 //! Generates output for VS Code with GitHub Copilot:
-//! - `.github/copilot-instructions.md` - Merged instructions
-//! - `.github/instructions/<id>.instructions.md` - Split instructions with applyTo
+//! - `.github/instructions/<id>.instructions.md` - Instruction files (default)
+//! - `.github/copilot-instructions.md` - Merged instructions (optional)
 //! - `AGENTS.md` - Summary index
 
 use std::path::PathBuf;
 
 use crate::adapters::{Diagnostic, DiagnosticSeverity, OutputFile, TargetAdapter};
 use crate::error::CalvinResult;
-use crate::models::{AssetKind, PromptAsset, Target};
+use crate::models::{AssetKind, PromptAsset, Scope, Target};
 
 /// VS Code adapter
 pub struct VSCodeAdapter {
-    /// Whether to use merged mode (single copilot-instructions.md)
-    /// or split mode (multiple .instructions.md files)
-    pub split_mode: bool,
+    /// Whether to merge policies into single copilot-instructions.md
+    /// Default is false - generate individual .instructions.md files
+    pub merge_mode: bool,
 }
 
 impl VSCodeAdapter {
     pub fn new() -> Self {
-        Self { split_mode: false }
+        Self { merge_mode: false }
     }
 
     pub fn with_split_mode(split_mode: bool) -> Self {
-        Self { split_mode }
+        // For backwards compat: split_mode=true means NOT merging
+        Self { merge_mode: !split_mode }
+    }
+
+    pub fn with_merge_mode(merge_mode: bool) -> Self {
+        Self { merge_mode }
     }
 
     /// Generate applyTo frontmatter for instruction files
     fn generate_instruction_frontmatter(&self, asset: &PromptAsset) -> String {
         let mut fm = String::from("---\n");
+        
+        fm.push_str(&format!("description: {}\n", asset.frontmatter.description));
         
         if let Some(apply) = &asset.frontmatter.apply {
             fm.push_str(&format!("applyTo: \"{}\"\n", apply));
@@ -55,41 +62,29 @@ impl TargetAdapter for VSCodeAdapter {
         let mut outputs = Vec::new();
         let header = self.header(&asset.source_path.display().to_string());
 
-        match asset.frontmatter.kind {
-            AssetKind::Policy => {
-                if self.split_mode || asset.frontmatter.apply.is_some() {
-                    // Split mode: .github/instructions/<id>.instructions.md
-                    let path = PathBuf::from(".github/instructions")
-                        .join(format!("{}.instructions.md", asset.id));
+        // Determine base path based on scope
+        // User scope: VS Code stores user instructions in profile, but we use ~/.vscode/
+        let instructions_base = match asset.frontmatter.scope {
+            Scope::User => PathBuf::from("~/.vscode/instructions"),
+            Scope::Project => PathBuf::from(".github/instructions"),
+        };
 
-                    let frontmatter = self.generate_instruction_frontmatter(asset);
-                    let content = format!(
-                        "{}{}\n{}",
-                        header,
-                        frontmatter,
-                        asset.content.trim()
-                    );
+        // All assets generate individual .instructions.md files by default
+        // Merge mode is optional and handled in post_compile()
+        if !self.merge_mode || asset.frontmatter.apply.is_some() || asset.frontmatter.scope == Scope::User {
+            let path = instructions_base.join(format!("{}.instructions.md", asset.id));
 
-                    outputs.push(OutputFile::new(path, content));
-                }
-                // Merged mode policies are handled in post_compile()
-                // Don't generate individual files here
-            }
-            AssetKind::Action | AssetKind::Agent => {
-                // Actions become instruction files in VS Code
-                let path = PathBuf::from(".github/instructions")
-                    .join(format!("{}.instructions.md", asset.id));
+            let frontmatter = self.generate_instruction_frontmatter(asset);
+            let content = format!(
+                "{}{}\n{}",
+                header,
+                frontmatter,
+                asset.content.trim()
+            );
 
-                let content = format!(
-                    "{}\n# {}\n\n{}",
-                    header,
-                    asset.frontmatter.description,
-                    asset.content.trim()
-                );
-
-                outputs.push(OutputFile::new(path, content));
-            }
+            outputs.push(OutputFile::new(path, content));
         }
+        // If merge_mode is true and no applyTo, the policy will be merged in post_compile()
 
         Ok(outputs)
     }
@@ -125,24 +120,26 @@ impl TargetAdapter for VSCodeAdapter {
     fn post_compile(&self, assets: &[PromptAsset]) -> CalvinResult<Vec<OutputFile>> {
         let mut outputs = Vec::new();
         
-        // Generate merged copilot-instructions.md for policies without applyTo
-        let merged_policies: Vec<_> = assets.iter()
-            .filter(|a| a.frontmatter.kind == AssetKind::Policy)
-            .filter(|a| a.frontmatter.apply.is_none())
-            .filter(|_| !self.split_mode)
-            .collect();
-        
-        if !merged_policies.is_empty() {
-            let mut content = String::from("<!-- Generated by Calvin. DO NOT EDIT. -->\n\n");
-            content.push_str("# Copilot Instructions\n\n");
+        // Only generate merged copilot-instructions.md when merge_mode is enabled
+        if self.merge_mode {
+            let merged_policies: Vec<_> = assets.iter()
+                .filter(|a| a.frontmatter.kind == AssetKind::Policy)
+                .filter(|a| a.frontmatter.apply.is_none())
+                .filter(|a| a.frontmatter.scope == Scope::Project)
+                .collect();
             
-            for asset in &merged_policies {
-                content.push_str(&format!("## {}\n\n", asset.frontmatter.description));
-                content.push_str(asset.content.trim());
-                content.push_str("\n\n");
+            if !merged_policies.is_empty() {
+                let mut content = String::from("<!-- Generated by Calvin. DO NOT EDIT. -->\n\n");
+                content.push_str("# Copilot Instructions\n\n");
+                
+                for asset in &merged_policies {
+                    content.push_str(&format!("## {}\n\n", asset.frontmatter.description));
+                    content.push_str(asset.content.trim());
+                    content.push_str("\n\n");
+                }
+                
+                outputs.push(OutputFile::new(".github/copilot-instructions.md", content));
             }
-            
-            outputs.push(OutputFile::new(".github/copilot-instructions.md", content));
         }
         
         // Generate AGENTS.md
@@ -203,9 +200,8 @@ mod tests {
     use crate::models::Frontmatter;
 
     #[test]
-    fn test_vscode_adapter_compile_policy_merged() {
-        // Policies without applyTo generate no output from compile()
-        // They are merged in post_compile() instead
+    fn test_vscode_adapter_compile_policy_default() {
+        // Default mode: all assets generate individual .instructions.md files
         let adapter = VSCodeAdapter::new();
         let fm = Frontmatter::new("Code style rules");
         let asset = PromptAsset::new(
@@ -217,10 +213,32 @@ mod tests {
 
         let outputs = adapter.compile(&asset).unwrap();
         
-        // No output from compile() - merged policies are handled in post_compile()
+        // Should generate individual instruction file
+        assert_eq!(outputs.len(), 1);
+        assert_eq!(
+            outputs[0].path,
+            PathBuf::from(".github/instructions/code-style.instructions.md")
+        );
+        assert!(outputs[0].content.contains("description: Code style rules"));
+    }
+
+    #[test]
+    fn test_vscode_adapter_merge_mode() {
+        // Merge mode: policies without applyTo are merged in post_compile()
+        let adapter = VSCodeAdapter::with_merge_mode(true);
+        let fm = Frontmatter::new("Code style rules");
+        let asset = PromptAsset::new(
+            "code-style",
+            "policies/code-style.md",
+            fm,
+            "# Code Style\n\nFollow these rules.",
+        );
+
+        // compile() returns nothing for mergeable policies
+        let outputs = adapter.compile(&asset).unwrap();
         assert_eq!(outputs.len(), 0);
         
-        // Test post_compile() generates merged file
+        // post_compile() generates merged file
         let post_outputs = adapter.post_compile(&[asset]).unwrap();
         
         let copilot_file = post_outputs.iter()

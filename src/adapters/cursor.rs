@@ -8,7 +8,7 @@ use std::path::PathBuf;
 
 use crate::adapters::{Diagnostic, DiagnosticSeverity, OutputFile, TargetAdapter};
 use crate::error::CalvinResult;
-use crate::models::{AssetKind, PromptAsset, Target};
+use crate::models::{AssetKind, PromptAsset, Scope, Target};
 
 /// Cursor adapter
 pub struct CursorAdapter;
@@ -53,10 +53,22 @@ impl TargetAdapter for CursorAdapter {
     fn compile(&self, asset: &PromptAsset) -> CalvinResult<Vec<OutputFile>> {
         let mut outputs = Vec::new();
 
+        // Determine base paths based on scope
+        let (rules_base, commands_base) = match asset.frontmatter.scope {
+            Scope::User => (
+                PathBuf::from("~/.cursor/rules"),
+                PathBuf::from("~/.cursor/commands"),
+            ),
+            Scope::Project => (
+                PathBuf::from(".cursor/rules"),
+                PathBuf::from(".cursor/commands"),
+            ),
+        };
+
         match asset.frontmatter.kind {
             AssetKind::Policy => {
-                // Generate rule file: .cursor/rules/<id>/RULE.md
-                let rule_path = PathBuf::from(".cursor/rules")
+                // Generate rule file: <base>/rules/<id>/RULE.md
+                let rule_path = rules_base
                     .join(&asset.id)
                     .join("RULE.md");
 
@@ -72,8 +84,8 @@ impl TargetAdapter for CursorAdapter {
                 outputs.push(OutputFile::new(rule_path, content));
             }
             AssetKind::Action | AssetKind::Agent => {
-                // Generate command file: .cursor/commands/<id>.md
-                let command_path = PathBuf::from(".cursor/commands")
+                // Generate command file: <base>/commands/<id>.md
+                let command_path = commands_base
                     .join(format!("{}.md", asset.id));
 
                 let header = self.header(&asset.source_path.display().to_string());
