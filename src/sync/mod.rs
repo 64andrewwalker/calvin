@@ -248,6 +248,16 @@ fn sync_with_fs_with_prompter<FS: crate::fs::FileSystem + ?Sized, P: SyncPrompte
             continue;
         }
 
+        // Check if content actually changed (skip if hash matches lockfile)
+        let new_hash = writer::hash_content(output.content.as_bytes());
+        if let Some(recorded_hash) = lockfile.get_hash(&path_str) {
+            if recorded_hash == new_hash {
+                // Content unchanged, skip write
+                result.skipped.push(path_str);
+                continue;
+            }
+        }
+
         // Create parent directories
         if let Some(parent) = target_path.parent() {
             fs.create_dir_all(parent)?;
@@ -257,7 +267,6 @@ fn sync_with_fs_with_prompter<FS: crate::fs::FileSystem + ?Sized, P: SyncPrompte
         match fs.write_atomic(&target_path, &output.content) {
             Ok(()) => {
                 // Update lockfile with new hash
-                let new_hash = writer::hash_content(output.content.as_bytes());
                 lockfile.set_hash(&path_str, &new_hash);
                 result.written.push(path_str);
             }
