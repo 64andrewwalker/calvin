@@ -11,7 +11,71 @@
 use std::path::PathBuf;
 
 use anyhow::Result;
+use calvin::Target;
 use clap::{Parser, Subcommand};
+
+/// All available targets for interactive selection (excludes Target::All)
+const ALL_TARGETS: [Target; 5] = [
+    Target::ClaudeCode,
+    Target::Cursor,
+    Target::VSCode,
+    Target::Codex,
+    Target::Antigravity,
+];
+
+/// Get display name for a target
+fn target_display_name(t: &Target) -> &'static str {
+    match t {
+        Target::ClaudeCode => "Claude Code (.claude/)",
+        Target::Cursor => "Cursor (.cursor/)",
+        Target::VSCode => "VS Code (.vscode/)",
+        Target::Codex => "Codex (.codex/)",
+        Target::Antigravity => "Antigravity/Gemini (.gemini/)",
+        Target::All => "All platforms",
+    }
+}
+
+/// Interactive target selection with remembered defaults from config
+/// Returns None if user aborts (selects nothing)
+fn select_targets_interactive(
+    config: &calvin::config::Config,
+    json: bool,
+) -> Option<Vec<Target>> {
+    use dialoguer::MultiSelect;
+
+    if json || !atty::is(atty::Stream::Stdin) {
+        // Non-interactive mode: use config or all targets
+        let targets = if config.targets.enabled.is_empty() {
+            ALL_TARGETS.to_vec()
+        } else {
+            config.targets.enabled.clone()
+        };
+        return Some(targets);
+    }
+
+    let items: Vec<&str> = ALL_TARGETS.iter().map(|t| target_display_name(t)).collect();
+
+    // Set defaults based on previously enabled targets in config
+    let defaults: Vec<bool> = ALL_TARGETS.iter().map(|t| {
+        config.targets.enabled.contains(t) || config.targets.enabled.contains(&Target::All)
+    }).collect();
+
+    println!("\n📋 Select target platforms (use space to toggle, enter to confirm):");
+    let selection = MultiSelect::new()
+        .items(&items)
+        .defaults(&defaults)
+        .interact()
+        .unwrap_or_default();
+    
+    if selection.is_empty() {
+        println!("No targets selected. Aborted.");
+        return None;
+    }
+
+    let selected: Vec<Target> = selection.iter().map(|&i| ALL_TARGETS[i]).collect();
+    println!("Selected targets: {:?}", selected);
+    Some(selected)
+}
 
 /// Calvin - PromptOps compiler and synchronization tool
 #[derive(Parser, Debug)]
@@ -45,6 +109,10 @@ enum Commands {
         /// Install ALL assets to global user directories (ignores scope in frontmatter)
         #[arg(long, short = 'g')]
         global: bool,
+
+        /// Target platforms (will prompt interactively if not specified)
+        #[arg(short, long, value_delimiter = ',')]
+        targets: Option<Vec<Target>>,
 
         /// Force overwrite of modified files
         #[arg(short, long)]
@@ -80,6 +148,10 @@ enum Commands {
         /// Dry run - show what would be done
         #[arg(long)]
         dry_run: bool,
+
+        /// Target platforms (will prompt interactively if not specified)
+        #[arg(short, long, value_delimiter = ',')]
+        targets: Option<Vec<Target>>,
     },
 
     /// Watch for changes and sync continuously
@@ -144,8 +216,8 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Sync { source, remote, force, yes, dry_run } => {
-            cmd_sync(&source, remote, force, !yes, dry_run, cli.json, cli.verbose)
+        Commands::Sync { source, remote, force, yes, dry_run, targets } => {
+            cmd_sync(&source, remote, &targets, force, !yes, dry_run, cli.json, cli.verbose)
         }
         Commands::Watch { source } => {
             cmd_watch(&source, cli.json)
@@ -162,8 +234,8 @@ fn main() -> Result<()> {
         Commands::Parse { source } => {
             cmd_parse(&source, cli.json)
         }
-        Commands::Install { source, user, global, force, yes, dry_run } => {
-            cmd_install(&source, user, global, force, !yes, dry_run, cli.json)
+        Commands::Install { source, user, global, targets, force, yes, dry_run } => {
+            cmd_install(&source, user, global, &targets, force, !yes, dry_run, cli.json)
         }
         Commands::Migrate { format, adapter, dry_run } => {
             cmd_migrate(format, adapter, dry_run, cli.json)
@@ -233,7 +305,7 @@ fn cmd_migrate(format: Option<String>, adapter: Option<String>, dry_run: bool, j
     Ok(())
 }
 
-fn cmd_install(source: &std::path::Path, user: bool, global: bool, force: bool, interactive: bool, dry_run: bool, json: bool) -> Result<()> {
+fn cmd_install(source: &std::path::Path, user: bool, global: bool, cli_targets: &Option<Vec<Target>>, force: bool, interactive: bool, dry_run: bool, json: bool) -> Result<()> {
     use calvin::sync::{compile_assets, sync_outputs, SyncOptions};
     use calvin::models::Scope;
 
@@ -246,20 +318,46 @@ fn cmd_install(source: &std::path::Path, user: bool, global: bool, force: bool, 
         anyhow::bail!("Install requires --user or --global flag. Use --global to install all assets to home directory, or --user for only scope: user assets.");
     }
 
+    // Load configuration for target selection defaults
+    let config_path = source.join("config.toml");
+    let (config, warnings) =
+        calvin::config::Config::load_with_warnings(&config_path).unwrap_or((calvin::config::Config::default(), Vec::new()));
+    if !json {
+        print_config_warnings(&config_path, &warnings);
+    }
+    maybe_warn_allow_naked(&config, json);
+
+    // Determine which targets to install
+    let selected_targets: Vec<Target> = if let Some(targets) = cli_targets {
+        // Handle Target::All
+        if targets.contains(&Target::All) {
+            ALL_TARGETS.to_vec()
+        } else {
+            targets.clone()
+        }
+    } else {
+        // Use interactive selection with config defaults
+        match select_targets_interactive(&config, json) {
+            Some(t) => t,
+            None => return Ok(()),
+        }
+    };
+
     if !json {
         if global {
             println!("Mode: Global (all assets to home directory)");
         } else {
             println!("Mode: User scope (only scope: user assets)");
         }
+        println!("Targets: {}", selected_targets.iter()
+            .map(|t| format!("{:?}", t).to_lowercase())
+            .collect::<Vec<_>>()
+            .join(", "));
         if force {
             println!("Option: Force overwrite");
         }
         if dry_run {
             println!("Option: Dry run");
-        }
-        if interactive {
-            println!("Option: Interactive (confirm overwrites)");
         }
     }
 
@@ -302,8 +400,8 @@ fn cmd_install(source: &std::path::Path, user: bool, global: bool, force: bool, 
         }
     }
 
-    // Compile to all targets
-    let outputs = compile_assets(&assets, &[], &config)?;
+    // Compile to selected targets only
+    let outputs = compile_assets(&assets, &selected_targets, &config)?;
     
     if !json {
         println!("✓ Compiled to {} output files", outputs.len());
@@ -356,6 +454,7 @@ fn cmd_install(source: &std::path::Path, user: bool, global: bool, force: bool, 
 fn cmd_sync(
     source: &std::path::Path,
     remote: Option<String>,
+    targets: &Option<Vec<Target>>,
     force: bool,
     interactive: bool,
     dry_run: bool,
@@ -380,6 +479,26 @@ fn cmd_sync(
             println!("Mode: Dry run");
         }
     }
+
+    // Load configuration early to get previous target selection
+    let config_path = source.join("config.toml");
+    let (config, warnings) =
+        calvin::config::Config::load_with_warnings(&config_path).unwrap_or((calvin::config::Config::default(), Vec::new()));
+    if !json {
+        print_config_warnings(&config_path, &warnings);
+    }
+    maybe_warn_allow_naked(&config, json);
+
+    // Determine selected targets - interactive selection if not specified
+    let selected_targets: Vec<Target> = if let Some(t) = targets {
+        t.clone()
+    } else {
+        // Use interactive selection with config defaults
+        match select_targets_interactive(&config, json) {
+            Some(t) => t,
+            None => return Ok(()),
+        }
+    };
 
     // Check for .git directory (project scope sync should be in a git repo)
     if remote.is_none() {
@@ -407,15 +526,6 @@ fn cmd_sync(
         }
     }
 
-    // Load configuration
-    let config_path = source.join("config.toml");
-    let (config, warnings) =
-        calvin::config::Config::load_with_warnings(&config_path).unwrap_or((calvin::config::Config::default(), Vec::new()));
-    if !json {
-        print_config_warnings(&config_path, &warnings);
-    }
-    maybe_warn_allow_naked(&config, json);
-
     // Parse source directory
     let assets = calvin::parser::parse_directory(source)?;
     
@@ -423,8 +533,8 @@ fn cmd_sync(
         println!("\n✓ Parsed {} assets", assets.len());
     }
 
-    // Compile to all targets
-    let outputs = compile_assets(&assets, &[], &config)?;
+    // Compile to selected targets
+    let outputs = compile_assets(&assets, &selected_targets, &config)?;
     
     if !json {
         println!("✓ Compiled to {} output files", outputs.len());
@@ -435,7 +545,7 @@ fn cmd_sync(
         force,
         dry_run,
         interactive,
-        targets: Vec::new(),
+        targets: selected_targets,
     };
 
     let result = if let Some(remote_str) = remote {
