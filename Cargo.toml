@@ -40,6 +40,9 @@ thiserror = "2"
 toml = "0.8"
 which = "8"
 
+[features]
+claude = []
+
 [profile.release]
 lto = true
 codegen-units = 1

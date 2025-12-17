@@ -148,7 +148,7 @@ fn check_claude_code(root: &Path, mode: SecurityMode, config: &Config, report: &
         report.add_pass(platform, "commands", &format!("{} commands synced", count));
     } else {
         report.add_warning(platform, "commands", "No commands directory found", 
-            Some("Run `calvin sync` to generate commands"));
+            Some("Run `calvin deploy` to generate commands"));
     }
 
     // Check .claude/settings.json exists with permissions.deny
@@ -201,7 +201,7 @@ fn check_claude_code(root: &Path, mode: SecurityMode, config: &Config, report: &
                             platform,
                             "deny_list",
                             "permissions.deny not configured",
-                            Some("Run `calvin sync` or add permissions.deny to .claude/settings.json"),
+                            Some("Run `calvin deploy` or add permissions.deny to .claude/settings.json"),
                         ),
                         SecurityMode::Balanced => report.add_warning(
                             platform,
@@ -239,7 +239,7 @@ fn check_claude_code(root: &Path, mode: SecurityMode, config: &Config, report: &
                             platform,
                             "deny_list_incomplete",
                             &format!("Missing deny patterns: {}", missing_str),
-                            Some("Run `calvin sync` to regenerate baseline or add missing patterns"),
+                            Some("Run `calvin deploy` to regenerate baseline or add missing patterns"),
                         ),
                         SecurityMode::Balanced => report.add_warning(
                             platform,
@@ -259,13 +259,13 @@ fn check_claude_code(root: &Path, mode: SecurityMode, config: &Config, report: &
                     platform,
                     "deny_list",
                     "Invalid JSON in .claude/settings.json",
-                    Some("Fix JSON syntax or regenerate with `calvin sync`"),
+                    Some("Fix JSON syntax or regenerate with `calvin deploy`"),
                 );
             }
         }
     } else if mode != SecurityMode::Yolo {
         report.add_warning(platform, "settings", "No settings.json found",
-            Some("Run `calvin sync` to generate security baseline"));
+            Some("Run `calvin deploy` to generate security baseline"));
     }
 }
 
@@ -281,7 +281,7 @@ fn check_cursor(root: &Path, mode: SecurityMode, config: &Config, report: &mut D
         report.add_pass(platform, "rules", &format!("{} rules synced", count));
     } else {
         report.add_warning(platform, "rules", "No rules directory found",
-            Some("Run `calvin sync` to generate rules"));
+            Some("Run `calvin deploy` to generate rules"));
     }
 
     // Check for MCP config and validate servers against allowlist
@@ -405,7 +405,7 @@ fn check_vscode(root: &Path, _mode: SecurityMode, report: &mut DoctorReport) {
         report.add_pass(platform, "instructions", ".github/copilot-instructions.md exists");
     } else {
         report.add_warning(platform, "instructions", "No copilot-instructions.md found",
-            Some("Run `calvin sync` to generate instructions"));
+            Some("Run `calvin deploy` to generate instructions"));
     }
 
     // Check AGENTS.md
@@ -427,7 +427,7 @@ fn check_antigravity(root: &Path, mode: SecurityMode, report: &mut DoctorReport)
         report.add_pass(platform, "rules", &format!("{} rules synced", count));
     } else {
         report.add_warning(platform, "rules", "No rules directory found",
-            Some("Run `calvin sync` to generate rules"));
+            Some("Run `calvin deploy` to generate rules"));
     }
 
     // Check .agent/workflows/ exists

@@ -41,7 +41,7 @@ Write once, compile everywhere.
 Then run:
 
 ```bash
-calvin sync
+calvin deploy
 ```
 
 And Calvin generates platform-specific outputs:
@@ -62,7 +62,7 @@ And Calvin generates platform-specific outputs:
 - **🔄 Multi-Platform Compilation**: Claude Code, Cursor, VS Code, Antigravity, Codex
 - **🔒 Security by Default**: Auto-generates deny lists, blocks risky MCP servers
 - **👀 Watch Mode**: Auto-recompile on file changes
-- **🏥 Doctor Command**: Validate your configuration health
+- **🔍 Check Command**: Validate your configuration health
 - **🌐 Remote Sync**: Push to SSH servers for remote development
 - **📦 Zero Dependencies**: Single static binary
 
@@ -88,7 +88,7 @@ cargo install calvin
 mkdir -p .promptpack/policies .promptpack/actions
 
 # Compile to all platforms
-calvin sync
+calvin deploy
 
 # Preview what would change
 calvin diff
@@ -97,13 +97,13 @@ calvin diff
 calvin watch
 
 # Validate configuration and security
-calvin doctor
+calvin check
 
-# Install to user-level directories (~/.claude/, ~/.codex/)
-calvin install --user
+# Deploy everything to home directory targets (~/.claude/, ~/.codex/, ...)
+calvin deploy --home
 
 # Sync to remote server
-calvin sync --remote user@host:/path/to/project
+calvin deploy --remote user@host:/path/to/project
 ```
 
 ## Documentation
