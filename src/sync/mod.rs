@@ -152,6 +152,9 @@ fn sync_with_fs_with_prompter<FS: crate::fs::FileSystem + ?Sized, P: SyncPrompte
 ) -> CalvinResult<SyncResult> {
     let mut result = SyncResult::new();
 
+    // Expand project_root if it contains ~ (for remote deployments)
+    let project_root = fs.expand_home(project_root);
+
     // Load or create lockfile
     let lockfile_path = project_root.join(".promptpack/.calvin.lock");
     let mut lockfile = Lockfile::load_or_new(&lockfile_path, fs);
@@ -167,7 +170,7 @@ fn sync_with_fs_with_prompter<FS: crate::fs::FileSystem + ?Sized, P: SyncPrompte
 
     'files: for output in outputs {
         // Validate path safety (prevent path traversal attacks)
-        validate_path_safety(&output.path, project_root)?;
+        validate_path_safety(&output.path, &project_root)?;
 
         // Expand home directory if needed
         let output_path = fs.expand_home(&output.path);

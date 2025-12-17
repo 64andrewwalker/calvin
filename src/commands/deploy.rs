@@ -181,6 +181,12 @@ fn run_deploy(
             } else {
                 (remote_str.as_str(), ".")
             };
+            
+            if !json {
+                println!("\n⏳ Syncing {} files to remote (this may take a while)...", outputs.len());
+                println!("   Each file requires multiple SSH operations.");
+            }
+            
             let fs = calvin::fs::RemoteFileSystem::new(host);
             let dist_root = PathBuf::from(path);
             sync_with_fs(&dist_root, &outputs, &options, &fs)?
