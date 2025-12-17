@@ -50,9 +50,9 @@ enum Commands {
         #[arg(short, long)]
         force: bool,
 
-        /// Interactively confirm overwrites on conflicts (shows diff)
+        /// Skip interactive prompts (auto-confirm overwrites)
         #[arg(short, long)]
-        interactive: bool,
+        yes: bool,
 
         /// Dry run - show what would be done
         #[arg(long)]
@@ -73,9 +73,9 @@ enum Commands {
         #[arg(short, long)]
         force: bool,
 
-        /// Interactively confirm overwrites on conflicts
+        /// Skip interactive prompts (auto-confirm overwrites)
         #[arg(short, long)]
-        interactive: bool,
+        yes: bool,
 
         /// Dry run - show what would be done
         #[arg(long)]
@@ -144,8 +144,8 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Sync { source, remote, force, interactive, dry_run } => {
-            cmd_sync(&source, remote, force, interactive, dry_run, cli.json, cli.verbose)
+        Commands::Sync { source, remote, force, yes, dry_run } => {
+            cmd_sync(&source, remote, force, !yes, dry_run, cli.json, cli.verbose)
         }
         Commands::Watch { source } => {
             cmd_watch(&source, cli.json)
@@ -162,8 +162,8 @@ fn main() -> Result<()> {
         Commands::Parse { source } => {
             cmd_parse(&source, cli.json)
         }
-        Commands::Install { source, user, global, force, interactive, dry_run } => {
-            cmd_install(&source, user, global, force, interactive, dry_run, cli.json)
+        Commands::Install { source, user, global, force, yes, dry_run } => {
+            cmd_install(&source, user, global, force, !yes, dry_run, cli.json)
         }
         Commands::Migrate { format, adapter, dry_run } => {
             cmd_migrate(format, adapter, dry_run, cli.json)
@@ -378,6 +378,32 @@ fn cmd_sync(
         }
         if dry_run {
             println!("Mode: Dry run");
+        }
+    }
+
+    // Check for .git directory (project scope sync should be in a git repo)
+    if remote.is_none() {
+        let project_root = source.parent().unwrap_or(std::path::Path::new("."));
+        let git_dir = project_root.join(".git");
+        if !git_dir.exists() {
+            if !json {
+                println!("\n⚠️  Warning: Not a git repository");
+                println!("   Project scope files will be created in: {}", project_root.display());
+                println!("   These files are typically committed to source control.");
+            }
+            if interactive && !force && !dry_run {
+                print!("\nContinue anyway? [y/N]: ");
+                use std::io::{self, Write};
+                io::stdout().flush()?;
+                let mut input = String::new();
+                io::stdin().read_line(&mut input)?;
+                if !input.trim().eq_ignore_ascii_case("y") {
+                    if !json {
+                        println!("Aborted.");
+                    }
+                    return Ok(());
+                }
+            }
         }
     }
 
