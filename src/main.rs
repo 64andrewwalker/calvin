@@ -903,20 +903,20 @@ mod tests {
     }
 
     #[test]
-    fn test_cli_parse_sync_interactive() {
-        let cli = Cli::try_parse_from(["calvin", "sync", "--interactive"]).unwrap();
-        if let Commands::Sync { interactive, .. } = cli.command {
-            assert!(interactive);
+    fn test_cli_parse_sync_yes() {
+        let cli = Cli::try_parse_from(["calvin", "sync", "--yes"]).unwrap();
+        if let Commands::Sync { yes, .. } = cli.command {
+            assert!(yes);
         } else {
             panic!("Expected Sync command");
         }
     }
 
     #[test]
-    fn test_cli_parse_sync_interactive_short_flag() {
-        let cli = Cli::try_parse_from(["calvin", "sync", "-i"]).unwrap();
-        if let Commands::Sync { interactive, .. } = cli.command {
-            assert!(interactive);
+    fn test_cli_parse_sync_yes_short_flag() {
+        let cli = Cli::try_parse_from(["calvin", "sync", "-y"]).unwrap();
+        if let Commands::Sync { yes, .. } = cli.command {
+            assert!(yes);
         } else {
             panic!("Expected Sync command");
         }

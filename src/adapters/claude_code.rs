@@ -46,12 +46,14 @@ impl TargetAdapter for ClaudeCodeAdapter {
         let command_path = PathBuf::from(".claude/commands")
             .join(format!("{}.md", asset.id));
 
-        let header = self.header(&asset.source_path.display().to_string());
+        // Put header at the END so it doesn't interfere with Claude Code's command preview
+        // Claude Code shows the first line as the command description
+        let footer = self.footer(&asset.source_path.display().to_string());
         let content = format!(
-            "{}{}\n\n{}",
-            header,
+            "{}\\n\\n{}\\n\\n{}",
             asset.frontmatter.description,
-            asset.content.trim()
+            asset.content.trim(),
+            footer
         );
 
         outputs.push(OutputFile::new(command_path, content));
