@@ -7,7 +7,7 @@
 version = "1.0"
 
 [security]
-mode = "balanced"  # yolo | balanced | strict
+mode = "yolo"  # yolo | balanced | strict
 
 [targets]
 enabled = ["claude-code", "cursor", "vscode", "antigravity"]

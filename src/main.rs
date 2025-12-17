@@ -38,9 +38,13 @@ enum Commands {
         #[arg(short, long, default_value = ".promptpack")]
         source: PathBuf,
 
-        /// Install to user scope (home directory)
+        /// Install to user scope (home directory) - only installs scope: user assets
         #[arg(long)]
         user: bool,
+
+        /// Install ALL assets to global user directories (ignores scope in frontmatter)
+        #[arg(long, short = 'g')]
+        global: bool,
 
         /// Force overwrite of modified files
         #[arg(short, long)]
@@ -154,8 +158,8 @@ fn main() -> Result<()> {
         Commands::Parse { source } => {
             cmd_parse(&source, cli.json)
         }
-        Commands::Install { source, user, force, dry_run } => {
-            cmd_install(&source, user, force, dry_run, cli.json)
+        Commands::Install { source, user, global, force, dry_run } => {
+            cmd_install(&source, user, global, force, dry_run, cli.json)
         }
         Commands::Migrate { format, adapter, dry_run } => {
             cmd_migrate(format, adapter, dry_run, cli.json)
@@ -225,7 +229,7 @@ fn cmd_migrate(format: Option<String>, adapter: Option<String>, dry_run: bool, j
     Ok(())
 }
 
-fn cmd_install(source: &std::path::Path, user: bool, force: bool, dry_run: bool, json: bool) -> Result<()> {
+fn cmd_install(source: &std::path::Path, user: bool, global: bool, force: bool, dry_run: bool, json: bool) -> Result<()> {
     use calvin::sync::{compile_assets, sync_outputs, SyncOptions};
     use calvin::models::Scope;
 
@@ -234,12 +238,16 @@ fn cmd_install(source: &std::path::Path, user: bool, force: bool, dry_run: bool,
         println!("Source: {}", source.display());
     }
 
-    if !user {
-        anyhow::bail!("Install currently only supports --user flag to install to home directory. Use 'sync' for project synchronization.");
+    if !user && !global {
+        anyhow::bail!("Install requires --user or --global flag. Use --global to install all assets to home directory, or --user for only scope: user assets.");
     }
 
     if !json {
-        println!("Mode: User scope (Home directory)");
+        if global {
+            println!("Mode: Global (all assets to home directory)");
+        } else {
+            println!("Mode: User scope (only scope: user assets)");
+        }
         if force {
             println!("Option: Force overwrite");
         }
@@ -258,27 +266,37 @@ fn cmd_install(source: &std::path::Path, user: bool, force: bool, dry_run: bool,
     maybe_warn_allow_naked(&config, json);
 
     // Parse source directory
-    let assets = calvin::parser::parse_directory(source)?;
+    let mut assets = calvin::parser::parse_directory(source)?;
     let total_assets = assets.len();
     
-    // Filter for user scope assets only
-    let user_assets: Vec<_> = assets.into_iter()
-        .filter(|a| a.frontmatter.scope == Scope::User)
-        .collect();
-
-    if !json {
-        println!("\n✓ Found {} user-scoped assets (of {} total)", user_assets.len(), total_assets);
-    }
-    
-    if user_assets.is_empty() {
-        if !json {
-            println!("Nothing to install.");
+    if global {
+        // --global: Force all assets to User scope so they generate to home directories
+        for asset in &mut assets {
+            asset.frontmatter.scope = Scope::User;
         }
-        return Ok(());
+        if !json {
+            println!("\n✓ Installing {} assets to global directories", total_assets);
+        }
+    } else {
+        // --user: Filter for user scope assets only
+        assets = assets.into_iter()
+            .filter(|a| a.frontmatter.scope == Scope::User)
+            .collect();
+        
+        if !json {
+            println!("\n✓ Found {} user-scoped assets (of {} total)", assets.len(), total_assets);
+        }
+        
+        if assets.is_empty() {
+            if !json {
+                println!("Nothing to install. Use --global to install all assets.");
+            }
+            return Ok(());
+        }
     }
 
     // Compile to all targets
-    let outputs = compile_assets(&user_assets, &[], &config)?;
+    let outputs = compile_assets(&assets, &[], &config)?;
     
     if !json {
         println!("✓ Compiled to {} output files", outputs.len());
