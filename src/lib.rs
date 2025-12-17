@@ -11,6 +11,7 @@ pub mod adapters;
 pub mod sync;
 pub mod config;
 pub mod security;
+pub mod security_baseline;
 pub mod watcher;
 pub mod fs;
 

@@ -323,6 +323,7 @@ fn perform_sync(options: &WatchOptions) -> CalvinResult<SyncResult> {
     let sync_options = SyncOptions {
         force: false,
         dry_run: false,
+        interactive: false,
         targets: options.targets.clone(),
     };
     
@@ -547,4 +548,3 @@ mod tests {
         assert_eq!(assets.len(), 2);
     }
 }
-

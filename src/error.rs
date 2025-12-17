@@ -65,6 +65,10 @@ pub enum CalvinError {
         path: PathBuf,
         root: PathBuf,
     },
+
+    /// Sync was aborted by user in interactive mode
+    #[error("sync aborted by user")]
+    SyncAborted,
 }
 
 #[cfg(test)]

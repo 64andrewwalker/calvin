@@ -11,17 +11,7 @@ use serde::{Deserialize, Serialize};
 use crate::adapters::{Diagnostic, DiagnosticSeverity, OutputFile, TargetAdapter};
 use crate::error::CalvinResult;
 use crate::models::{PromptAsset, Target};
-
-/// Minimum deny list (always applied per TD-16)
-const MINIMUM_DENY: &[&str] = &[
-    ".env",
-    ".env.*",
-    "*.pem",
-    "*.key",
-    "id_rsa",
-    "id_ed25519",
-    ".git/",
-];
+use crate::security_baseline::MINIMUM_DENY;
 
 /// Claude Code adapter
 pub struct ClaudeCodeAdapter;
@@ -120,7 +110,8 @@ impl TargetAdapter for ClaudeCodeAdapter {
     }
 
     fn security_baseline(&self, _config: &crate::config::Config) -> Vec<OutputFile> {
-        let settings = ClaudeSettings::with_deny(&[]);
+        let patterns = crate::security_baseline::effective_claude_deny_patterns(_config);
+        let settings = ClaudeSettings::with_patterns(&patterns);
         let content = serde_json::to_string_pretty(&settings).unwrap_or_default();
         
         vec![
@@ -151,10 +142,20 @@ impl ClaudeSettings {
     pub fn with_deny(custom: &[String]) -> Self {
         let mut deny: Vec<String> = MINIMUM_DENY.iter().map(|s| s.to_string()).collect();
         deny.extend(custom.iter().cloned());
-        // Remove duplicates while preserving order
+        // Remove duplicates for deterministic output
         deny.sort();
         deny.dedup();
 
+        Self {
+            permissions: Some(Permissions { deny }),
+        }
+    }
+
+    /// Create settings with an explicit deny list (no implicit minimum deny injection).
+    pub fn with_patterns(patterns: &[String]) -> Self {
+        let mut deny: Vec<String> = patterns.to_vec();
+        deny.sort();
+        deny.dedup();
         Self {
             permissions: Some(Permissions { deny }),
         }
@@ -236,6 +237,73 @@ mod tests {
         assert_eq!(baseline[0].path, PathBuf::from(".claude/settings.json"));
         assert_eq!(baseline[1].path, PathBuf::from(".claude/settings.local.json"));
         assert!(baseline[0].content.contains("deny"));
+    }
+
+    // === TDD: US-1 Configurable deny list (Sprint 1 / P0) ===
+
+    #[test]
+    fn test_claude_security_baseline_respects_allow_naked() {
+        let adapter = ClaudeCodeAdapter::new();
+        let mut config = crate::config::Config::default();
+        config.security.allow_naked = true;
+
+        let baseline = adapter.security_baseline(&config);
+        let settings_json = baseline
+            .iter()
+            .find(|f| f.path == PathBuf::from(".claude/settings.json"))
+            .expect("should generate settings.json")
+            .content
+            .clone();
+
+        let parsed: serde_json::Value = serde_json::from_str(&settings_json).unwrap();
+        let deny = parsed
+            .get("permissions")
+            .and_then(|p| p.get("deny"))
+            .and_then(|d| d.as_array())
+            .cloned()
+            .unwrap_or_default();
+        let deny_strings: Vec<String> = deny
+            .iter()
+            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+            .collect();
+
+        assert!(
+            !deny_strings.iter().any(|p| p == ".env" || p == ".env.*" || p == ".git/"),
+            "allow_naked=true should not inject minimum deny patterns"
+        );
+    }
+
+    #[test]
+    fn test_claude_security_baseline_applies_deny_exclude() {
+        let adapter = ClaudeCodeAdapter::new();
+        let mut config = crate::config::Config::default();
+        config.security.allow_naked = false;
+        config.security.deny.exclude = vec![".env.example".to_string()];
+
+        let baseline = adapter.security_baseline(&config);
+        let settings_json = baseline
+            .iter()
+            .find(|f| f.path == PathBuf::from(".claude/settings.json"))
+            .expect("should generate settings.json")
+            .content
+            .clone();
+
+        let parsed: serde_json::Value = serde_json::from_str(&settings_json).unwrap();
+        let deny = parsed
+            .get("permissions")
+            .and_then(|p| p.get("deny"))
+            .and_then(|d| d.as_array())
+            .cloned()
+            .unwrap_or_default();
+        let deny_strings: Vec<String> = deny
+            .iter()
+            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+            .collect();
+
+        assert!(
+            !deny_strings.contains(&".env.*".to_string()),
+            "exclude should remove deny patterns that would block .env.example (e.g. .env.*)"
+        );
     }
 
     #[test]

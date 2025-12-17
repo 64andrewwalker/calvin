@@ -79,7 +79,7 @@ pub fn extract_frontmatter(content: &str, file: &Path) -> CalvinResult<Extracted
 pub fn parse_frontmatter(yaml: &str, file: &Path) -> CalvinResult<Frontmatter> {
     serde_yaml::from_str(yaml).map_err(|e| CalvinError::InvalidFrontmatter {
         file: file.to_path_buf(),
-        message: e.to_string(),
+        message: format_yaml_frontmatter_error(yaml, &e),
     })
 }
 
@@ -142,23 +142,55 @@ fn parse_directory_recursive(
                 continue;
             }
             
-            match parse_file(&path) {
-                Ok(mut asset) => {
-                    // Make source_path relative to root
-                    if let Ok(relative) = path.strip_prefix(root) {
-                        asset.source_path = relative.to_path_buf();
-                    }
-                    assets.push(asset);
-                }
-                Err(e) => {
-                    // Log error but continue parsing other files
-                    eprintln!("Warning: Failed to parse {}: {}", path.display(), e);
-                }
+            let mut asset = parse_file(&path)?;
+            // Make source_path relative to root
+            if let Ok(relative) = path.strip_prefix(root) {
+                asset.source_path = relative.to_path_buf();
             }
+            assets.push(asset);
         }
     }
     
     Ok(())
+}
+
+fn format_yaml_frontmatter_error(yaml: &str, err: &serde_yaml::Error) -> String {
+    let mut message = String::new();
+
+    let err_str = err.to_string();
+    if let Some((line, _col)) = yaml_error_location(err) {
+        message.push_str(&format!("Line {}: Invalid YAML - {}\n", line, err_str));
+    } else {
+        message.push_str(&format!("Invalid YAML - {}\n", err_str));
+    }
+
+    if should_hint_colon_quotes(yaml, &err_str) {
+        message.push_str("Hint: Strings with colons need quotes: description: \"My: Rule\"\n");
+    }
+
+    message.push_str("Docs: https://calvin.dev/docs/frontmatter");
+    message
+}
+
+fn yaml_error_location(err: &serde_yaml::Error) -> Option<(usize, usize)> {
+    err.location()
+        .map(|loc| (loc.line(), loc.column()))
+        .or_else(|| {
+            let s = err.to_string();
+            let marker = "at line ";
+            let start = s.find(marker)? + marker.len();
+            let rest = &s[start..];
+            let line_end = rest.find(' ')?;
+            let line: usize = rest[..line_end].parse().ok()?;
+            Some((line, 0))
+        })
+}
+
+fn should_hint_colon_quotes(yaml: &str, err_str: &str) -> bool {
+    // Heuristic: common YAML parse error when unquoted scalars contain `: `.
+    err_str.contains("mapping values are not allowed")
+        || err_str.contains("unexpected ':'")
+        || yaml.lines().any(|l| l.contains(": ") && l.contains("description"))
 }
 
 /// Derive asset ID from file path
@@ -174,6 +206,8 @@ pub fn derive_id(path: &Path) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tempfile::tempdir;
+    use std::fs;
 
     // === TDD Cycle 2: Frontmatter Extraction ===
 
@@ -278,6 +312,37 @@ description: Unclosed
         let result = parse_frontmatter(yaml, Path::new("test.md"));
         
         assert!(matches!(result, Err(CalvinError::InvalidFrontmatter { .. })));
+    }
+
+    #[test]
+    fn test_parse_frontmatter_invalid_yaml_with_colon_includes_hint() {
+        let yaml = "description: My: Rule";
+        let err = parse_frontmatter(yaml, Path::new("test.md")).unwrap_err();
+        let msg = err.to_string();
+
+        assert!(msg.contains("Line"), "should include line number");
+        assert!(msg.contains("Hint"), "should include actionable hint");
+    }
+
+    #[test]
+    fn test_parse_directory_fails_on_invalid_file() {
+        let dir = tempdir().unwrap();
+        let promptpack = dir.path().join(".promptpack");
+        fs::create_dir_all(promptpack.join("policies")).unwrap();
+
+        // Invalid YAML in frontmatter should fail the whole parse (sync should not silently continue).
+        fs::write(
+            promptpack.join("policies/bad.md"),
+            r#"---
+description: [invalid
+---
+# Bad
+"#,
+        )
+        .unwrap();
+
+        let err = parse_directory(&promptpack).expect_err("should fail on invalid file");
+        assert!(err.to_string().contains("bad.md"));
     }
 
     // === TDD Cycle: Full Parse Flow ===
