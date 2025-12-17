@@ -2,229 +2,134 @@
 
 > **目标版本**: v0.2.0  
 > **开始日期**: 2025-12-17  
-> **状态**: 规划中  
+> **状态**: Phase 0-2 已完成，Phase 1 已完成  
 > **前提**: 项目尚未发布，可大胆重构
 
 ---
 
-## 当前代码分析
-
-### 文件行数统计
+## 重构进度概览
 
 ```
-+-----------------------------+-------+--------+
-| 文件                         | 行数   | 问题   |
-+-----------------------------+-------+--------+
-| src/main.rs                 | 1151  | GOD    | <- 上帝对象
-| src/sync/mod.rs             | 904   | 偏大   |
-| src/security.rs             | 764   | 偏大   |
-| src/config.rs               | 620   | OK     |
-| src/watcher.rs              | 550   | OK     |
-| src/adapters/claude_code.rs | 443   | OK     |
-| src/parser.rs               | 364   | OK     |
-| src/adapters/vscode.rs      | 344   | OK     |
-| src/sync/lockfile.rs        | 299   | OK     |
-| src/models.rs               | 297   | OK     |
-+-----------------------------+-------+--------+
-```
-
-### 上帝对象问题
-
-**main.rs (1151行)** 包含了所有命令实现：
-
-```rust
-// 当前 main.rs 内容：
-fn main()                    // CLI 解析
-fn target_display_name()     // UI 辅助
-fn select_targets_interactive() // UI 交互
-struct Cli                   // CLI 定义
-enum Commands                // 8 个子命令定义
-fn cmd_version()             // 版本命令 (20行)
-fn cmd_migrate()             // 迁移命令 (30行)
-fn cmd_install()             // 安装命令 (145行) <- 最大
-fn cmd_sync()                // 同步命令 (147行) <- 最大
-fn cmd_watch()               // 监听命令 (70行)
-fn cmd_diff()                // 差异命令 (90行)
-fn cmd_doctor()              // 检查命令 (85行)
-fn cmd_audit()               // 审计命令 (70行)
-fn cmd_parse()               // 解析命令 (40行)
-fn maybe_warn_allow_naked()  // 警告辅助
-fn print_config_warnings()   // 警告辅助
-mod tests                    // 测试代码 (170行)
-```
-
-**问题**：
-1. 8 个命令实现全在一个文件
-2. UI 逻辑与业务逻辑混杂
-3. 重复代码（cmd_install 和 cmd_sync 有大量相似代码）
-4. 测试代码也在同一文件
-
-### 命令重复问题
-
-```
-当前命令:
-  sync              部署到项目目录
-  install --user    部署到用户目录（过滤 scope）
-  install --global  部署到用户目录（全部）
-  sync --remote     部署到远程
-  doctor            检查配置
-  audit             CI 审计
-  watch             监听模式
-  diff              显示差异
-  version           版本信息
-  migrate           迁移工具
-  parse             调试工具
-
-实际需要:
-  deploy            部署（统一 sync + install）
-  check             检查（统一 doctor + audit）
-  watch             监听
-  explain           AI 自述（新增）
-  (无参数)          交互式入口（新增）
++==============================================================+
+|  Phase 0: 消灭上帝对象                           ✅ 已完成    |
+|  Phase 1: 交互式入口                             ✅ 已完成    |
+|  Phase 2: explain 命令                           ✅ 已完成    |
+|  Phase 3: 错误增强                               ⬜ 待开始    |
+|  Phase 4: sync 模块重构                          ⬜ 待开始    |
+|  Phase 5: 文档清理                               🔄 进行中    |
++==============================================================+
 ```
 
 ---
 
-## 重构计划
+## 重构后代码结构
 
-### 重构顺序原则
+### 行数统计对比
 
 ```
-1. 先拆分，后新增
-   - 不要在上帝对象上添加新功能
-   - 先把代码拆开，再加新功能
++-----------------------------+-------+-------+---------+
+| 文件                         | 之前   | 之后   | 状态    |
++-----------------------------+-------+-------+---------+
+| src/main.rs                 | 1151  | 123   | ✅ 达标 |
+| src/cli.rs                  | -     | 441   | ✅ 新增 |
+| src/state.rs                | -     | 138   | ✅ 新增 |
+| src/commands/deploy.rs      | -     | 329   | ✅ 新增 |
+| src/commands/check.rs       | -     | 260   | ✅ 新增 |
+| src/commands/interactive.rs | -     | 479   | ✅ 新增 |
+| src/commands/debug.rs       | -     | 200   | ✅ 新增 |
+| src/commands/explain.rs     | -     | 95    | ✅ 新增 |
+| src/commands/watch.rs       | -     | 81    | ✅ 新增 |
+| src/ui/menu.rs              | -     | 68    | ✅ 新增 |
+| src/ui/output.rs            | -     | 27    | ✅ 新增 |
++-----------------------------+-------+-------+---------+
+```
 
-2. 保持测试通过
-   - 每一步都要 cargo test 通过
-   - 重构不改变外部行为
+### 新命令结构
 
-3. 删除重复，不是增加抽象
-   - sync 和 install 合并，不是抽取公共函数
+```bash
+# 无参数运行
+calvin                 # 交互式菜单（根据项目状态显示不同菜单）
+
+# 核心命令（显示在 --help）
+calvin deploy          # 统一部署（替代 sync + install）
+calvin check           # 统一检查（替代 doctor + audit）
+calvin explain         # AI 自述（新增）
+calvin watch           # 监听模式
+calvin diff            # 预览变更
+calvin version         # 版本信息
+
+# 隐藏命令（向后兼容，带 deprecation warning）
+calvin sync            # -> deploy
+calvin install         # -> deploy --home
+calvin doctor          # -> check
+calvin audit           # -> check --strict-warnings
+calvin migrate         # 调试用
+calvin parse           # 调试用
 ```
 
 ---
 
-## Phase 0: 消灭上帝对象 (main.rs)
+## Phase 0: 消灭上帝对象 ✅ 已完成
 
-> **优先级**: P0  
-> **目标**: main.rs 从 1151 行降到 <150 行  
-> **预计时间**: 1天
+> **完成日期**: 2025-12-17
 
-### 0.1 创建 commands/ 模块
+### 0.1 创建 commands/ 模块 ✅
 
-- [ ] **创建目录结构**
-  ```
-  src/
-  |-- main.rs              # 仅保留 CLI 解析和 dispatch
-  |-- cli.rs               # Cli struct + Commands enum
-  |-- commands/
-  |   |-- mod.rs           # 公开所有命令
-  |   |-- deploy.rs        # 新 deploy 命令（合并 sync + install）
-  |   |-- check.rs         # 新 check 命令（合并 doctor + audit）
-  |   |-- watch.rs         # watch 命令
-  |   |-- explain.rs       # 新 explain 命令
-  |   +-- debug.rs         # diff, parse, migrate, version
-  ```
+- [x] 创建 `src/cli.rs` - CLI 定义 + 测试
+- [x] 创建 `src/commands/mod.rs`
+- [x] 创建 `src/commands/deploy.rs` - 合并 sync + install
+- [x] 创建 `src/commands/check.rs` - 合并 doctor + audit
+- [x] 创建 `src/commands/explain.rs` - AI 自述
+- [x] 创建 `src/commands/watch.rs`
+- [x] 创建 `src/commands/debug.rs` - diff, parse, migrate, version
 
-- [ ] **迁移 CLI 定义到 cli.rs**
-  - 移动 `Cli` struct
-  - 移动 `Commands` enum
-  - main.rs 只保留 `use crate::cli::*`
+### 0.2 创建 ui/ 模块 ✅
 
-- [ ] **迁移命令实现到 commands/**
-  - 每个命令一个文件
-  - 函数签名保持不变
+- [x] 创建 `src/ui/mod.rs`
+- [x] 创建 `src/ui/menu.rs` - select_targets_interactive
+- [x] 创建 `src/ui/output.rs` - 配置警告输出
 
-### 0.2 统一 deploy 命令
+### 0.3 统一命令 ✅
 
-- [ ] **合并 cmd_sync 和 cmd_install**
-  ```rust
-  // commands/deploy.rs
-  pub fn run(
-      source: &Path,
-      target: DeployTarget,  // Project | Home | Remote(String)
-      force: bool,
-      dry_run: bool,
-      json: bool,
-  ) -> Result<()>
-  ```
+- [x] 实现 `calvin deploy` (project / --home / --remote)
+- [x] 实现 `calvin check` (doctor + audit 行为)
+- [x] 实现 `calvin explain` (人类可读 + --brief + --json)
 
-- [ ] **删除 cmd_sync 和 cmd_install**
+### 0.4 向后兼容 ✅
 
-- [ ] **更新 Commands enum**
-  ```rust
-  enum Commands {
-      Deploy {
-          #[arg(long)]
-          home: bool,
-          #[arg(long)]
-          remote: Option<String>,
-          // ...
-      },
-      // sync 和 install 删除
-  }
-  ```
+- [x] 保留旧命令作为隐藏别名
+- [x] 运行旧命令时打印 deprecation warning
+- [x] --json 模式下抑制 warning
 
-### 0.3 统一 check 命令
+### 0.5 验证 ✅
 
-- [ ] **合并 cmd_doctor 和 cmd_audit**
-  ```rust
-  // commands/check.rs
-  pub fn run(
-      mode: SecurityMode,
-      strict: bool,  // 原 audit 的 --strict-warnings
-      json: bool,
-  ) -> Result<()>
-  ```
-
-- [ ] **删除 cmd_doctor 和 cmd_audit**
-
-### 0.4 创建 ui/ 模块
-
-- [ ] **抽取 UI 相关代码**
-  ```
-  src/ui/
-  |-- mod.rs
-  |-- menu.rs      # select_targets_interactive
-  |-- output.rs    # 格式化输出
-  +-- prompt.rs    # 确认提示
-  ```
-
-- [ ] **移动 target_display_name()**
-
-- [ ] **移动 select_targets_interactive()**
-
-### 0.5 验证
-
-- [ ] `cargo test` 全部通过
-- [ ] `cargo clippy` 无警告
-- [ ] main.rs < 150 行
+- [x] `cargo test` 全部通过
+- [x] `cargo clippy` 无警告
+- [x] main.rs 从 1151 行降到 123 行 ✅
 
 ---
 
-## Phase 1: 交互式入口
+## Phase 1: 交互式入口 ✅ 已完成
 
-> **优先级**: P0  
-> **目标**: `calvin` 无参数运行显示交互菜单  
-> **预计时间**: 2天
+> **完成日期**: 2025-12-17
 
-### 1.1 状态检测
+### 1.1 状态检测 ✅
 
-- [ ] **实现项目状态检测**
+- [x] 创建 `src/state.rs`
+- [x] 实现 `ProjectState` 枚举
   ```rust
-  // src/state.rs
   pub enum ProjectState {
-      NoPromptPack,           // .promptpack/ 不存在
-      EmptyPromptPack,        // .promptpack/ 存在但为空
-      Configured(AssetCount), // 有配置和 assets
+      NoPromptPack,
+      EmptyPromptPack,
+      Configured(AssetCount),
   }
-  
-  pub fn detect_state(cwd: &Path) -> ProjectState
   ```
+- [x] 实现 `detect_state(cwd: &Path) -> ProjectState`
+- [x] 测试覆盖（6 个测试）
 
-### 1.2 首次运行菜单
+### 1.2 首次运行菜单 (NoPromptPack) ✅
 
-- [ ] **实现 "No .promptpack" 菜单**
+- [x] 实现主菜单
   ```
   ? What would you like to do?
   
@@ -232,74 +137,61 @@ mod tests                    // 测试代码 (170行)
       [2] Learn what Calvin does first
       [3] Show commands (for experts)
       [4] Explain yourself (for AI assistants)
+      [5] Quit
   ```
 
-- [ ] **实现 3 步 setup 流程**
+- [x] 实现 3 步 setup wizard
   - Step 1: 选择目标平台
-  - Step 2: 选择示例模板
-  - Step 3: 选择安全模式
+  - Step 2: 选择示例模板 (review/test/refactor/docs/empty)
+  - Step 3: 选择安全模式 (balanced/strict/minimal)
 
-- [ ] **生成配置和示例文件**
+- [x] 生成 config.toml 和示例文件
+- [x] `write_file_if_missing()` 不覆盖现有文件
 
-### 1.3 已有项目菜单
+### 1.3 已有项目菜单 (Configured) ✅
 
-- [ ] **实现操作菜单**
+- [x] 实现操作菜单
   ```
   ? What would you like to do?
   
     > [1] Deploy to this project
       [2] Deploy to home directory
-      [3] Preview changes
-      [4] Watch mode
-      [5] Check configuration
+      [3] Deploy to remote server
+      [4] Preview changes
+      [5] Watch mode
+      [6] Check configuration
+      [7] Explain yourself
+      [8] Quit
   ```
 
-### 1.4 main() 更新
+### 1.4 main() 更新 ✅
 
-- [ ] **无参数时进入交互模式**
-  ```rust
-  fn main() {
-      let cli = Cli::try_parse();
-      match cli {
-          Ok(c) => dispatch(c),
-          Err(_) if args_empty() => interactive_mode(),
-          Err(e) => e.exit(),
-      }
-  }
-  ```
+- [x] CLI 允许无子命令 (`Option<Commands>`)
+- [x] 无参数时进入交互模式
+- [x] `--json` 模式输出状态 JSON
+- [x] 非 TTY 检测（管道模式下不显示菜单）
+
+### 1.5 测试 ✅
+
+- [x] `write_promptpack_creates_config_and_templates`
+- [x] `write_promptpack_empty_templates_creates_no_action_files`
+- [x] `write_config_does_not_overwrite_existing_file`
+- [x] `write_config_minimal_sets_allow_naked_true`
 
 ---
 
-## Phase 2: explain 命令
+## Phase 2: explain 命令 ✅ 已完成
 
-> **优先级**: P0  
-> **目标**: AI 助手可以通过 explain 了解工具  
-> **预计时间**: 1天
+> **完成日期**: 2025-12-17
 
-### 2.1 实现 explain 命令
-
-- [ ] **人类可读输出**
-  - 工具用途
-  - 目录结构
-  - Frontmatter 格式
-  - 常用命令
-
-- [ ] **JSON 输出 (`--json`)**
-  ```json
-  {
-    "name": "calvin",
-    "version": "0.2.0",
-    "purpose": "...",
-    "commands": {...},
-    "examples": {...}
-  }
-  ```
-
-- [ ] **简短模式 (`--brief`)**
+- [x] 人类可读输出
+- [x] `--brief` 简短模式
+- [x] `--json` 机器可读模式
+- [x] 显示目录结构、frontmatter 格式、命令列表
 
 ---
 
-## Phase 3: 错误增强
+## Phase 3: 错误增强 ⬜ 待开始
 
 > **优先级**: P1  
 > **目标**: 每个错误都是教学时刻  
@@ -307,78 +199,74 @@ mod tests                    // 测试代码 (170行)
 
 ### 3.1 错误信息模板
 
-- [ ] **创建错误格式规范**
+- [ ] 创建统一错误格式
   ```
   [ERROR] 标题
           位置信息
-
+  
   问题描述/上下文
-
+  
   FIX: 修复建议
   ```
 
-- [ ] **更新现有错误类型**
-  - NoFrontmatter
-  - InvalidFrontmatter
-  - MissingField
+- [ ] 更新 NoFrontmatter 错误
+- [ ] 更新 InvalidFrontmatter 错误
+- [ ] 更新 MissingField 错误
 
 ### 3.2 一键修复
 
-- [ ] **检测 $EDITOR**
-- [ ] **实现 "Press Enter to open in editor"**
+- [ ] 检测 `$EDITOR`
+- [ ] 实现 "Press Enter to open in editor"
 
 ### 3.3 Did you mean?
 
-- [ ] **未知配置键检测**
-  - 使用编辑距离
-  - 提供最接近的建议
+- [ ] 未知配置键检测（编辑距离算法）
+- [ ] 提供最接近的建议
 
 ---
 
-## Phase 4: sync 模块重构
+## Phase 4: sync 模块重构 ⬜ 待开始
 
 > **优先级**: P1  
-> **目标**: sync/mod.rs 从 904 行降到 <400 行  
+> **目标**: sync/mod.rs 从 904 行降到更合理的大小  
 > **预计时间**: 1天
 
 ### 4.1 拆分 sync 模块
 
-- [ ] **创建 compile.rs**
-  - 移动 compile_assets()
+- [ ] 创建 `sync/compile.rs` - compile_assets()
+- [ ] 创建 `sync/conflict.rs` - ConflictReason, ConflictChoice, SyncPrompter
+- [ ] 保持 `sync/lockfile.rs` 和 `sync/writer.rs` 不变
 
-- [ ] **创建 conflict.rs**
-  - 移动 ConflictReason, ConflictChoice
-  - 移动 SyncPrompter trait
-  - 移动 StdioPrompter
+### 4.2 验证
 
-- [ ] **验证测试通过**
+- [ ] 所有测试通过
+- [ ] sync/mod.rs < 400 行
 
 ---
 
-## Phase 5: 文档和清理
+## Phase 5: 文档清理 🔄 进行中
 
 > **优先级**: P2  
 > **目标**: 代码和文档同步  
 > **预计时间**: 1天
 
-### 5.1 更新 README
+### 5.1 README 更新 ✅
 
-- [ ] **Quick Start 使用新命令**
-  ```bash
-  brew install calvin
-  cd your-project
-  calvin
-  ```
+- [x] Quick Start 使用新命令 (deploy, check)
 
-### 5.2 更新 --help
+### 5.2 check 命令输出更新 ✅
 
-- [ ] **简化命令列表**
-- [ ] **添加 explain 到帮助**
+- [x] `calvin check` 输出提示 "Run `calvin deploy`"（已修复）
 
-### 5.3 删除废弃代码
+### 5.3 帮助信息 ✅
 
-- [ ] **删除旧命令定义**
-- [ ] **删除未使用的函数**
+- [x] --help 只显示核心命令
+- [x] 隐藏命令不在帮助中出现
+
+### 5.4 清理
+
+- [ ] 更新 TDD 文档归档
+- [ ] 最终文档审查
 
 ---
 
@@ -386,71 +274,29 @@ mod tests                    // 测试代码 (170行)
 
 | Phase | 任务数 | 完成 | 状态 |
 |-------|--------|------|------|
-| 0. 消灭上帝对象 | 12 | 0 | ⬜ TODO |
-| 1. 交互式入口 | 8 | 0 | ⬜ TODO |
-| 2. explain 命令 | 3 | 0 | ⬜ TODO |
-| 3. 错误增强 | 5 | 0 | ⬜ TODO |
-| 4. sync 重构 | 3 | 0 | ⬜ TODO |
-| 5. 文档清理 | 4 | 0 | ⬜ TODO |
-| **总计** | **35** | **0** | **0%** |
+| 0. 消灭上帝对象 | 15 | 15 | ✅ 已完成 |
+| 1. 交互式入口 | 14 | 14 | ✅ 已完成 |
+| 2. explain 命令 | 4 | 4 | ✅ 已完成 |
+| 3. 错误增强 | 6 | 0 | ⬜ 待开始 |
+| 4. sync 重构 | 4 | 0 | ⬜ 待开始 |
+| 5. 文档清理 | 5 | 4 | 🔄 进行中 |
+| **总计** | **48** | **37** | **77%** |
 
 ---
 
-## 目标代码结构
+## 验证清单
 
-```
-src/
-|-- main.rs              # <150 行，仅 CLI 解析
-|-- cli.rs               # CLI 定义
-|-- state.rs             # 项目状态检测
-|-- commands/
-|   |-- mod.rs
-|   |-- deploy.rs        # 统一部署命令
-|   |-- check.rs         # 统一检查命令
-|   |-- watch.rs
-|   |-- explain.rs       # AI 自述
-|   |-- interactive.rs   # 交互式入口
-|   +-- debug.rs         # diff, parse, version
-|-- ui/
-|   |-- mod.rs
-|   |-- menu.rs          # 菜单选择
-|   |-- output.rs        # 格式化输出
-|   +-- prompt.rs        # 确认提示
-|-- sync/
-|   |-- mod.rs           # <400 行
-|   |-- compile.rs       # 编译逻辑
-|   |-- conflict.rs      # 冲突处理
-|   |-- lockfile.rs      # 锁文件
-|   +-- writer.rs        # 原子写入
-|-- adapters/            # 保持不变
-|-- config.rs            # 保持不变
-|-- models.rs            # 保持不变
-|-- parser.rs            # 保持不变
-|-- security.rs          # 保持不变
-|-- fs.rs                # 保持不变
-+-- error.rs             # 保持不变
-```
-
----
-
-## 成功标准
-
-### 代码质量
-
-| 指标 | 当前 | 目标 |
-|------|------|------|
-| main.rs 行数 | 1151 | <150 |
-| sync/mod.rs 行数 | 904 | <400 |
-| 命令数量 | 10 | 5 |
-| 上帝对象 | 1 | 0 |
-
-### 用户体验
-
-| 指标 | 当前 | 目标 |
-|------|------|------|
-| 首次部署时间 | 15分钟 | 3分钟 |
-| 需要读文档 | 必须 | 可选 |
-| AI 可辅助配置 | ✗ | ✓ |
+- [x] `cargo test` 全部通过 (41 个测试)
+- [x] `cargo clippy` 无警告
+- [x] `calvin --help` 显示新命令结构
+- [x] `calvin` 无参数进入交互菜单
+- [x] `calvin --json` 输出项目状态 JSON
+- [x] `calvin deploy --help` 参数正确
+- [x] `calvin explain` 输出完整
+- [x] `calvin explain --json` 可被 AI 解析
+- [x] `calvin check` 提示 `calvin deploy`
+- [x] `calvin sync` 显示 deprecation warning
+- [x] main.rs < 150 行 ✅ (123 行)
 
 ---
 
@@ -458,3 +304,5 @@ src/
 
 - [产品重构方案](./product-reflection.md) - 交互设计详情
 - [设计原则](./design-principles.md) - 10 条核心原则
+- [TDD 会话记录 Phase 0](../tdd-session-v0.2.0-phase0.md)
+- [TDD 会话记录 Phase 1](../tdd-session-v0.2.0-phase1.md)
