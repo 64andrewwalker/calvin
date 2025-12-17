@@ -114,6 +114,7 @@ impl DoctorReport {
 }
 
 /// Run doctor checks for all platforms
+/// Checks both project directory and user home directory
 pub fn run_doctor(project_root: &Path, mode: SecurityMode) -> DoctorReport {
     let mut report = DoctorReport::new();
 
@@ -121,6 +122,7 @@ pub fn run_doctor(project_root: &Path, mode: SecurityMode) -> DoctorReport {
     let config_path = project_root.join(".promptpack/config.toml");
     let config = Config::load(&config_path).unwrap_or_default();
 
+    // === Project-scope checks ===
     // Claude Code checks
     check_claude_code(project_root, mode, &config, &mut report);
 
@@ -133,11 +135,20 @@ pub fn run_doctor(project_root: &Path, mode: SecurityMode) -> DoctorReport {
     // Antigravity checks
     check_antigravity(project_root, mode, &mut report);
 
-    // Codex checks
+    // Codex checks (already handles both project and user scope)
     check_codex(project_root, mode, &mut report);
+
+    // === User-scope checks (home directory) ===
+    if let Some(home) = dirs::home_dir() {
+        // Only check user dirs if they exist (user may have deployed --home)
+        check_claude_code_user(&home, mode, &config, &mut report);
+        check_cursor_user(&home, mode, &mut report);
+        check_antigravity_user(&home, mode, &mut report);
+    }
 
     report
 }
+
 
 fn check_claude_code(root: &Path, mode: SecurityMode, config: &Config, report: &mut DoctorReport) {
     let platform = "Claude Code";
@@ -495,6 +506,56 @@ fn check_codex(root: &Path, _mode: SecurityMode, report: &mut DoctorReport) {
             Some("Run `calvin deploy --home --targets codex` to install prompts"),
         );
     }
+}
+
+// === User-scope check functions ===
+
+fn check_claude_code_user(home: &Path, _mode: SecurityMode, _config: &Config, report: &mut DoctorReport) {
+    let platform = "Claude Code (User)";
+
+    // Check ~/.claude/commands/ exists
+    let commands_dir = home.join(".claude/commands");
+    if commands_dir.exists() {
+        let count = std::fs::read_dir(&commands_dir)
+            .map(|rd| rd.filter_map(Result::ok).filter(|e| e.path().extension().is_some_and(|ext| ext == "md")).count())
+            .unwrap_or(0);
+        if count > 0 {
+            report.add_pass(platform, "commands", &format!("{} user commands installed", count));
+        }
+    }
+    // No warning for missing user dirs - they're optional
+}
+
+fn check_cursor_user(home: &Path, _mode: SecurityMode, report: &mut DoctorReport) {
+    let platform = "Cursor (User)";
+
+    // Check ~/.cursor/rules/ exists
+    let rules_dir = home.join(".cursor/rules");
+    if rules_dir.exists() {
+        let count = std::fs::read_dir(&rules_dir)
+            .map(|rd| rd.filter_map(Result::ok).filter(|e| e.path().extension().is_some_and(|ext| ext == "mdc" || ext == "md")).count())
+            .unwrap_or(0);
+        if count > 0 {
+            report.add_pass(platform, "rules", &format!("{} user rules installed", count));
+        }
+    }
+    // No warning for missing user dirs - they're optional
+}
+
+fn check_antigravity_user(home: &Path, _mode: SecurityMode, report: &mut DoctorReport) {
+    let platform = "Antigravity (User)";
+
+    // Check ~/.gemini/antigravity/global_workflows/ exists
+    let workflows_dir = home.join(".gemini/antigravity/global_workflows");
+    if workflows_dir.exists() {
+        let count = std::fs::read_dir(&workflows_dir)
+            .map(|rd| rd.filter_map(Result::ok).filter(|e| e.path().extension().is_some_and(|ext| ext == "md")).count())
+            .unwrap_or(0);
+        if count > 0 {
+            report.add_pass(platform, "workflows", &format!("{} global workflows installed", count));
+        }
+    }
+    // No warning for missing user dirs - they're optional
 }
 
 #[cfg(test)]

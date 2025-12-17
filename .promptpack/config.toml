@@ -10,7 +10,7 @@ version = "1.0"
 mode = "yolo"  # yolo | balanced | strict
 
 [targets]
-enabled = ["claude-code", "cursor", "vscode", "antigravity"]
+enabled = ["claude-code", "cursor", "codex", "antigravity"]
 
 [sync]
 atomic_writes = true
