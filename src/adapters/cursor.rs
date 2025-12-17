@@ -29,9 +29,12 @@ impl CursorAdapter {
             fm.push_str(&format!("globs: \"{}\"\n", apply));
         }
         
-        // Policies without apply pattern should be always applied
+        // alwaysApply: true only for policies without apply pattern
+        // Actions/Agents should NOT be alwaysApply
         if asset.frontmatter.kind == AssetKind::Policy && asset.frontmatter.apply.is_none() {
             fm.push_str("alwaysApply: true\n");
+        } else {
+            fm.push_str("alwaysApply: false\n");
         }
         
         fm.push_str("---\n");
@@ -177,7 +180,8 @@ mod tests {
         let outputs = adapter.compile(&asset).unwrap();
         
         assert!(outputs[0].content.contains("globs: \"*.rs\""));
-        assert!(!outputs[0].content.contains("alwaysApply"));
+        // Policies with apply pattern have alwaysApply: false
+        assert!(outputs[0].content.contains("alwaysApply: false"));
     }
 
     #[test]
