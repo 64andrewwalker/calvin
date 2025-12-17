@@ -8,7 +8,7 @@ use std::path::PathBuf;
 
 use crate::adapters::{Diagnostic, DiagnosticSeverity, OutputFile, TargetAdapter};
 use crate::error::CalvinResult;
-use crate::models::{AssetKind, PromptAsset, Target};
+use crate::models::{AssetKind, PromptAsset, Scope, Target};
 
 /// Antigravity adapter
 pub struct AntigravityAdapter;
@@ -42,11 +42,22 @@ impl TargetAdapter for AntigravityAdapter {
         let mut outputs = Vec::new();
         let header = self.header(&asset.source_path.display().to_string());
 
+        // Determine base path based on scope
+        let (rules_base, workflows_base) = match asset.frontmatter.scope {
+            Scope::User => (
+                PathBuf::from("~/.gemini/antigravity/global_rules"),
+                PathBuf::from("~/.gemini/antigravity/global_workflows"),
+            ),
+            Scope::Project => (
+                PathBuf::from(".agent/rules"),
+                PathBuf::from(".agent/workflows"),
+            ),
+        };
+
         match asset.frontmatter.kind {
             AssetKind::Policy => {
-                // Rules go to .agent/rules/
-                let path = PathBuf::from(".agent/rules")
-                    .join(format!("{}.md", asset.id));
+                // Rules go to rules directory
+                let path = rules_base.join(format!("{}.md", asset.id));
 
                 let content = format!(
                     "{}\n# {}\n\n{}",
@@ -58,9 +69,8 @@ impl TargetAdapter for AntigravityAdapter {
                 outputs.push(OutputFile::new(path, content));
             }
             AssetKind::Action => {
-                // Actions become workflows in .agent/workflows/
-                let path = PathBuf::from(".agent/workflows")
-                    .join(format!("{}.md", asset.id));
+                // Actions become workflows
+                let path = workflows_base.join(format!("{}.md", asset.id));
 
                 let frontmatter = self.generate_workflow_frontmatter(asset);
                 let content = format!(
@@ -74,8 +84,7 @@ impl TargetAdapter for AntigravityAdapter {
             }
             AssetKind::Agent => {
                 // Agents also go to rules with special handling
-                let path = PathBuf::from(".agent/rules")
-                    .join(format!("{}.md", asset.id));
+                let path = rules_base.join(format!("{}.md", asset.id));
 
                 let content = format!(
                     "{}\n# Agent: {}\n\n{}",
