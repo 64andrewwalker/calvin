@@ -101,7 +101,7 @@ impl RemoteFileSystem {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
-            .map_err(|e| crate::error::CalvinError::Io(e))?;
+            .map_err(crate::error::CalvinError::Io)?;
 
         if let Some(inp) = input {
             if let Some(mut stdin) = child.stdin.take() {
@@ -119,7 +119,7 @@ impl RemoteFileSystem {
             // But we return error here. 
             // Caller (exists) handles it.
             return Err(crate::error::CalvinError::Io(
-                std::io::Error::new(std::io::ErrorKind::Other, format!("SSH error: {}", stderr))
+                std::io::Error::other(format!("SSH error: {}", stderr))
             ));
         }
 

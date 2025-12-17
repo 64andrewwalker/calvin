@@ -260,12 +260,12 @@ pub fn watch(
         },
         Config::default(),
     ).map_err(|e| crate::error::CalvinError::Io(
-        std::io::Error::new(std::io::ErrorKind::Other, e.to_string())
+        std::io::Error::other(e.to_string())
     ))?;
 
     watcher.watch(&options.source, RecursiveMode::Recursive)
         .map_err(|e| crate::error::CalvinError::Io(
-            std::io::Error::new(std::io::ErrorKind::Other, e.to_string())
+            std::io::Error::other(e.to_string())
         ))?;
 
     // Watch loop with debouncing

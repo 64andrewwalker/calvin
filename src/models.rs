@@ -88,17 +88,9 @@ impl Frontmatter {
         }
     }
 
-    /// Get effective targets (returns all if targets is empty)
+    /// Get effective targets (returns all if targets is empty or contains All)
     pub fn effective_targets(&self) -> Vec<Target> {
-        if self.targets.is_empty() {
-            vec![
-                Target::ClaudeCode,
-                Target::Cursor,
-                Target::VSCode,
-                Target::Antigravity,
-                Target::Codex,
-            ]
-        } else if self.targets.contains(&Target::All) {
+        if self.targets.is_empty() || self.targets.contains(&Target::All) {
             vec![
                 Target::ClaudeCode,
                 Target::Cursor,
