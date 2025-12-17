@@ -19,11 +19,11 @@ use clap::{Parser, Subcommand};
 #[command(author, version, about, long_about = None)]
 struct Cli {
     /// Output format for CI
-    #[arg(long, default_value = "false")]
+    #[arg(long, global = true)]
     json: bool,
 
     /// Verbosity level (-v, -vv, -vvv)
-    #[arg(short, long, action = clap::ArgAction::Count)]
+    #[arg(short, long, action = clap::ArgAction::Count, global = true)]
     verbose: u8,
 
     #[command(subcommand)]
@@ -64,6 +64,10 @@ enum Commands {
         /// Force overwrite of modified files
         #[arg(short, long)]
         force: bool,
+
+        /// Interactively confirm overwrites on conflicts
+        #[arg(short, long)]
+        interactive: bool,
 
         /// Dry run - show what would be done
         #[arg(long)]
@@ -118,11 +122,7 @@ enum Commands {
     },
 
     /// Show version information including adapters
-    Version {
-        /// Output in JSON format
-        #[arg(long)]
-        json: bool,
-    },
+    Version,
 
     /// Parse and display PromptPack files (debugging)
     Parse {
@@ -136,8 +136,8 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Sync { source, remote, force, dry_run } => {
-            cmd_sync(&source, remote, force, dry_run, cli.json)
+        Commands::Sync { source, remote, force, interactive, dry_run } => {
+            cmd_sync(&source, remote, force, interactive, dry_run, cli.json, cli.verbose)
         }
         Commands::Watch { source } => {
             cmd_watch(&source, cli.json)
@@ -146,10 +146,10 @@ fn main() -> Result<()> {
             cmd_diff(&source, cli.json)
         }
         Commands::Doctor { mode } => {
-            cmd_doctor(&mode, cli.json)
+            cmd_doctor(&mode, cli.json, cli.verbose)
         }
         Commands::Audit { mode, strict_warnings } => {
-            cmd_audit(&mode, strict_warnings, cli.json)
+            cmd_audit(&mode, strict_warnings, cli.json, cli.verbose)
         }
         Commands::Parse { source } => {
             cmd_parse(&source, cli.json)
@@ -160,8 +160,8 @@ fn main() -> Result<()> {
         Commands::Migrate { format, adapter, dry_run } => {
             cmd_migrate(format, adapter, dry_run, cli.json)
         }
-        Commands::Version { json } => {
-            cmd_version(json)
+        Commands::Version => {
+            cmd_version(cli.json)
         }
     }
 }
@@ -250,7 +250,12 @@ fn cmd_install(source: &PathBuf, user: bool, force: bool, dry_run: bool, json: b
 
     // Load configuration
     let config_path = source.join("config.toml");
-    let config = calvin::config::Config::load(&config_path).unwrap_or_default();
+    let (config, warnings) =
+        calvin::config::Config::load_with_warnings(&config_path).unwrap_or((calvin::config::Config::default(), Vec::new()));
+    if !json {
+        print_config_warnings(&config_path, &warnings);
+    }
+    maybe_warn_allow_naked(&config, json);
 
     // Parse source directory
     let assets = calvin::parser::parse_directory(source)?;
@@ -283,6 +288,7 @@ fn cmd_install(source: &PathBuf, user: bool, force: bool, dry_run: bool, json: b
     let options = SyncOptions {
         force,
         dry_run,
+        interactive: false,
         targets: Vec::new(),
     };
 
@@ -322,7 +328,15 @@ fn cmd_install(source: &PathBuf, user: bool, force: bool, dry_run: bool, json: b
     Ok(())
 }
 
-fn cmd_sync(source: &PathBuf, remote: Option<String>, force: bool, dry_run: bool, json: bool) -> Result<()> {
+fn cmd_sync(
+    source: &PathBuf,
+    remote: Option<String>,
+    force: bool,
+    interactive: bool,
+    dry_run: bool,
+    json: bool,
+    _verbose: u8,
+) -> Result<()> {
     use calvin::sync::{compile_assets, sync_outputs, sync_with_fs, SyncOptions};
 
     if !json {
@@ -334,6 +348,9 @@ fn cmd_sync(source: &PathBuf, remote: Option<String>, force: bool, dry_run: bool
         if force {
             println!("Mode: Force overwrite");
         }
+        if interactive {
+            println!("Mode: Interactive");
+        }
         if dry_run {
             println!("Mode: Dry run");
         }
@@ -341,7 +358,12 @@ fn cmd_sync(source: &PathBuf, remote: Option<String>, force: bool, dry_run: bool
 
     // Load configuration
     let config_path = source.join("config.toml");
-    let config = calvin::config::Config::load(&config_path).unwrap_or_default();
+    let (config, warnings) =
+        calvin::config::Config::load_with_warnings(&config_path).unwrap_or((calvin::config::Config::default(), Vec::new()));
+    if !json {
+        print_config_warnings(&config_path, &warnings);
+    }
+    maybe_warn_allow_naked(&config, json);
 
     // Parse source directory
     let assets = calvin::parser::parse_directory(source)?;
@@ -361,6 +383,7 @@ fn cmd_sync(source: &PathBuf, remote: Option<String>, force: bool, dry_run: bool
     let options = SyncOptions {
         force,
         dry_run,
+        interactive,
         targets: Vec::new(),
     };
 
@@ -499,7 +522,11 @@ fn cmd_diff(source: &PathBuf, json: bool) -> Result<()> {
 
     // Load configuration
     let config_path = source.join("config.toml");
-    let config = calvin::config::Config::load(&config_path).unwrap_or_default();
+    let (config, warnings) =
+        calvin::config::Config::load_with_warnings(&config_path).unwrap_or((calvin::config::Config::default(), Vec::new()));
+    if !json {
+        print_config_warnings(&config_path, &warnings);
+    }
 
     // Parse source directory
     let assets = calvin::parser::parse_directory(source)?;
@@ -573,7 +600,7 @@ fn cmd_diff(source: &PathBuf, json: bool) -> Result<()> {
     Ok(())
 }
 
-fn cmd_doctor(mode: &str, json: bool) -> Result<()> {
+fn cmd_doctor(mode: &str, json: bool, verbose: u8) -> Result<()> {
     use calvin::config::SecurityMode;
     use calvin::security::{run_doctor, CheckStatus};
 
@@ -628,6 +655,12 @@ fn cmd_doctor(mode: &str, json: bool) -> Result<()> {
             if let Some(rec) = &check.recommendation {
                 println!("    ↳ {}", rec);
             }
+
+            if verbose > 0 && !check.details.is_empty() {
+                for detail in &check.details {
+                    println!("    ↳ {}", detail);
+                }
+            }
         }
         
         println!();
@@ -652,7 +685,7 @@ fn cmd_doctor(mode: &str, json: bool) -> Result<()> {
     Ok(())
 }
 
-fn cmd_audit(mode: &str, strict_warnings: bool, json: bool) -> Result<()> {
+fn cmd_audit(mode: &str, strict_warnings: bool, json: bool, _verbose: u8) -> Result<()> {
     use calvin::config::SecurityMode;
     use calvin::security::{run_doctor, CheckStatus};
 
@@ -766,6 +799,31 @@ fn cmd_parse(source: &PathBuf, json: bool) -> Result<()> {
     Ok(())
 }
 
+fn maybe_warn_allow_naked(config: &calvin::config::Config, json: bool) {
+    if json || !config.security.allow_naked {
+        return;
+    }
+
+    eprintln!("⚠ WARNING: Security protections disabled!");
+    eprintln!("  You have set security.allow_naked = true.");
+    eprintln!("  .env, private keys, and .git may be visible to AI assistants.");
+    eprintln!("  This is your responsibility.\n");
+}
+
+fn print_config_warnings(path: &PathBuf, warnings: &[calvin::config::ConfigWarning]) {
+    for w in warnings {
+        if let Some(line) = w.line {
+            eprintln!("⚠ Unknown config key '{}' in {}:{}", w.key, path.display(), line);
+        } else {
+            eprintln!("⚠ Unknown config key '{}' in {}", w.key, path.display());
+        }
+
+        if let Some(suggestion) = &w.suggestion {
+            eprintln!("   Did you mean '{}'?\n", suggestion);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -796,6 +854,26 @@ mod tests {
     }
 
     #[test]
+    fn test_cli_parse_sync_interactive() {
+        let cli = Cli::try_parse_from(["calvin", "sync", "--interactive"]).unwrap();
+        if let Commands::Sync { interactive, .. } = cli.command {
+            assert!(interactive);
+        } else {
+            panic!("Expected Sync command");
+        }
+    }
+
+    #[test]
+    fn test_cli_parse_sync_interactive_short_flag() {
+        let cli = Cli::try_parse_from(["calvin", "sync", "-i"]).unwrap();
+        if let Commands::Sync { interactive, .. } = cli.command {
+            assert!(interactive);
+        } else {
+            panic!("Expected Sync command");
+        }
+    }
+
+    #[test]
     fn test_cli_parse_doctor() {
         let cli = Cli::try_parse_from(["calvin", "doctor", "--mode", "strict"]).unwrap();
         if let Commands::Doctor { mode } = cli.command {
@@ -812,9 +890,21 @@ mod tests {
     }
 
     #[test]
+    fn test_cli_json_flag_after_subcommand() {
+        let cli = Cli::try_parse_from(["calvin", "sync", "--json"]).unwrap();
+        assert!(cli.json);
+    }
+
+    #[test]
     fn test_cli_verbose_flag() {
         let cli = Cli::try_parse_from(["calvin", "-vvv", "sync"]).unwrap();
         assert_eq!(cli.verbose, 3);
+    }
+
+    #[test]
+    fn test_cli_verbose_flag_after_subcommand() {
+        let cli = Cli::try_parse_from(["calvin", "doctor", "-v"]).unwrap();
+        assert_eq!(cli.verbose, 1);
     }
 
     #[test]
@@ -896,10 +986,7 @@ mod tests {
     #[test]
     fn test_cli_parse_version() {
         let cli = Cli::try_parse_from(["calvin", "version", "--json"]).unwrap();
-        if let Commands::Version { json } = cli.command {
-            assert!(json);
-        } else {
-            panic!("Expected Version command");
-        }
+        assert!(cli.json);
+        assert!(matches!(cli.command, Commands::Version));
     }
 }

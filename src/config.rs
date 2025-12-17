@@ -55,10 +55,66 @@ pub struct SecurityConfig {
     pub mode: SecurityMode,
     
     #[serde(default)]
-    pub deny: Vec<String>,
+    pub deny: DenyConfig,
     
     #[serde(default)]
     pub allow_naked: bool,
+
+    #[serde(default)]
+    pub mcp: SecurityMcpConfig,
+}
+
+/// MCP allowlist configuration for `doctor` checks.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct SecurityMcpConfig {
+    #[serde(default)]
+    pub allowlist: Vec<String>,
+
+    #[serde(default)]
+    pub additional_allowlist: Vec<String>,
+}
+
+/// Deny list configuration for security baselines.
+///
+/// Supports both legacy array form:
+///   [security]
+///   deny = ["*.secret"]
+///
+/// And structured table form:
+///   [security.deny]
+///   patterns = ["*.secret"]
+///   exclude = [".env.example"]
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct DenyConfig {
+    pub patterns: Vec<String>,
+    pub exclude: Vec<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+enum DenyConfigDe {
+    List(Vec<String>),
+    Table {
+        #[serde(default)]
+        patterns: Vec<String>,
+        #[serde(default)]
+        exclude: Vec<String>,
+    },
+}
+
+impl<'de> Deserialize<'de> for DenyConfig {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        match DenyConfigDe::deserialize(deserializer)? {
+            DenyConfigDe::List(patterns) => Ok(Self {
+                patterns,
+                exclude: Vec::new(),
+            }),
+            DenyConfigDe::Table { patterns, exclude } => Ok(Self { patterns, exclude }),
+        }
+    }
 }
 
 /// Target configuration
@@ -146,16 +202,55 @@ pub struct Config {
     pub mcp: McpConfig,
 }
 
+/// Non-fatal configuration warning surfaced to CLI users.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConfigWarning {
+    pub key: String,
+    pub file: PathBuf,
+    pub line: Option<usize>,
+    pub suggestion: Option<String>,
+}
+
 impl Config {
     /// Load configuration from a TOML file
     pub fn load(path: &Path) -> CalvinResult<Self> {
-        let content = fs::read_to_string(path)?;
-        let config: Self = toml::from_str(&content)
-            .map_err(|e| crate::error::CalvinError::InvalidFrontmatter {
-                file: path.to_path_buf(),
-                message: e.to_string(),
-            })?;
+        let (config, _warnings) = Self::load_with_warnings(path)?;
         Ok(config)
+    }
+
+    /// Load configuration and collect non-fatal warnings (e.g. unknown keys).
+    pub fn load_with_warnings(path: &Path) -> CalvinResult<(Self, Vec<ConfigWarning>)> {
+        let content = fs::read_to_string(path)?;
+
+        let mut unknown_paths: Vec<String> = Vec::new();
+        let deserializer = toml::de::Deserializer::new(&content);
+
+        let config: Self = serde_ignored::deserialize(deserializer, |path| {
+            unknown_paths.push(path.to_string());
+        })
+        .map_err(|e| crate::error::CalvinError::InvalidFrontmatter {
+            file: path.to_path_buf(),
+            message: e.to_string(),
+        })?;
+
+        let warnings = unknown_paths
+            .into_iter()
+            .map(|path_str| {
+                let key = path_str
+                    .split('.')
+                    .last()
+                    .unwrap_or(path_str.as_str())
+                    .to_string();
+                ConfigWarning {
+                    key: key.clone(),
+                    file: path.to_path_buf(),
+                    line: find_line_number(&content, &key),
+                    suggestion: suggest_key(&key),
+                }
+            })
+            .collect();
+
+        Ok((config, warnings))
     }
     
     /// Load from project config, user config, or defaults
@@ -257,9 +352,87 @@ fn dirs_config_dir() -> Option<PathBuf> {
         })
 }
 
+fn find_line_number(content: &str, needle: &str) -> Option<usize> {
+    for (i, line) in content.lines().enumerate() {
+        if line.contains(needle) {
+            return Some(i + 1);
+        }
+    }
+    None
+}
+
+fn suggest_key(unknown: &str) -> Option<String> {
+    const CANDIDATES: &[&str] = &[
+        "format",
+        "version",
+        "security",
+        "mode",
+        "allow_naked",
+        "deny",
+        "patterns",
+        "exclude",
+        "mcp",
+        "allowlist",
+        "additional_allowlist",
+        "targets",
+        "enabled",
+        "sync",
+        "atomic_writes",
+        "respect_lockfile",
+        "output",
+        "verbosity",
+        "servers",
+        "command",
+        "args",
+    ];
+
+    let mut best: Option<(&str, usize)> = None;
+    for candidate in CANDIDATES {
+        let dist = levenshtein(unknown, candidate);
+        best = match best {
+            None => Some((candidate, dist)),
+            Some((_, best_dist)) if dist < best_dist => Some((candidate, dist)),
+            Some(current) => Some(current),
+        };
+    }
+
+    match best {
+        Some((candidate, dist)) if dist <= 2 => Some(candidate.to_string()),
+        _ => None,
+    }
+}
+
+fn levenshtein(a: &str, b: &str) -> usize {
+    if a == b {
+        return 0;
+    }
+
+    let a_bytes = a.as_bytes();
+    let b_bytes = b.as_bytes();
+
+    let mut prev: Vec<usize> = (0..=b_bytes.len()).collect();
+    let mut curr = vec![0usize; b_bytes.len() + 1];
+
+    for (i, &ac) in a_bytes.iter().enumerate() {
+        curr[0] = i + 1;
+        for (j, &bc) in b_bytes.iter().enumerate() {
+            let cost = if ac == bc { 0 } else { 1 };
+            curr[j + 1] = std::cmp::min(
+                std::cmp::min(prev[j + 1] + 1, curr[j] + 1),
+                prev[j] + cost,
+            );
+        }
+        prev.clone_from_slice(&curr);
+    }
+
+    prev[b_bytes.len()]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tempfile::tempdir;
+    use std::fs;
 
     #[test]
     fn test_config_default() {
@@ -378,5 +551,70 @@ verbosity = "normal"
         let config = Config::default().with_env_overrides();
         assert!(!config.sync.atomic_writes);
         unsafe { std::env::remove_var("CALVIN_ATOMIC_WRITES") };
+    }
+
+    // === TDD: US-1 Configurable deny list (Sprint 1 / P0) ===
+
+    #[test]
+    fn test_config_parse_security_deny_table_with_exclude() {
+        let toml = r#"
+[security]
+mode = "balanced"
+allow_naked = false
+
+[security.deny]
+patterns = ["secrets/**"]
+exclude = [".env.example"]
+"#;
+
+        let config: Config = toml::from_str(toml).unwrap();
+        assert_eq!(config.security.mode, SecurityMode::Balanced);
+        assert!(!config.security.allow_naked);
+        assert_eq!(config.security.deny.patterns, vec!["secrets/**".to_string()]);
+        assert_eq!(config.security.deny.exclude, vec![".env.example".to_string()]);
+    }
+
+    #[test]
+    fn test_config_parse_security_deny_array_compat() {
+        let toml = r#"
+[security]
+deny = ["*.secret"]
+"#;
+
+        let config: Config = toml::from_str(toml).unwrap();
+        assert_eq!(config.security.deny.patterns, vec!["*.secret".to_string()]);
+        assert!(config.security.deny.exclude.is_empty());
+    }
+
+    // === TDD: US-2 MCP allowlist config (Sprint 2 / P1) ===
+
+    #[test]
+    fn test_config_parse_security_mcp_additional_allowlist() {
+        let toml = r#"
+[security.mcp]
+additional_allowlist = ["internal-code-server"]
+"#;
+
+        let config: Config = toml::from_str(toml).unwrap();
+        assert_eq!(
+            config.security.mcp.additional_allowlist,
+            vec!["internal-code-server".to_string()]
+        );
+    }
+
+    // === TDD: US-9 Config unknown key warnings (Sprint 2 / P1) ===
+
+    #[test]
+    fn test_config_load_with_warnings_reports_unknown_key_with_suggestion() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+
+        fs::write(&path, "securty = 1\n").unwrap();
+
+        let (_config, warnings) = Config::load_with_warnings(&path).unwrap();
+        assert_eq!(warnings.len(), 1);
+        assert_eq!(warnings[0].key, "securty");
+        assert_eq!(warnings[0].line, Some(1));
+        assert_eq!(warnings[0].suggestion, Some("security".to_string()));
     }
 }
