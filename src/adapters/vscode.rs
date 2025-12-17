@@ -60,7 +60,7 @@ impl TargetAdapter for VSCodeAdapter {
 
     fn compile(&self, asset: &PromptAsset) -> CalvinResult<Vec<OutputFile>> {
         let mut outputs = Vec::new();
-        let header = self.header(&asset.source_path.display().to_string());
+        let footer = self.footer(&asset.source_path.display().to_string());
 
         // Determine base path based on scope
         // User scope: VS Code stores user instructions in profile, but we use ~/.vscode/
@@ -76,10 +76,10 @@ impl TargetAdapter for VSCodeAdapter {
 
             let frontmatter = self.generate_instruction_frontmatter(asset);
             let content = format!(
-                "{}{}\n{}",
-                header,
+                "{}\n{}\n\n{}",
                 frontmatter,
-                asset.content.trim()
+                asset.content.trim(),
+                footer
             );
 
             outputs.push(OutputFile::new(path, content));
@@ -203,7 +203,8 @@ mod tests {
     fn test_vscode_adapter_compile_policy_default() {
         // Default mode: all assets generate individual .instructions.md files
         let adapter = VSCodeAdapter::new();
-        let fm = Frontmatter::new("Code style rules");
+        let mut fm = Frontmatter::new("Code style rules");
+        fm.kind = AssetKind::Policy; // Explicitly set to Policy
         let asset = PromptAsset::new(
             "code-style",
             "policies/code-style.md",
@@ -219,14 +220,19 @@ mod tests {
             outputs[0].path,
             PathBuf::from(".github/instructions/code-style.instructions.md")
         );
+        // Frontmatter should be at the very beginning
+        assert!(outputs[0].content.starts_with("---\n"));
         assert!(outputs[0].content.contains("description: Code style rules"));
+        // Footer should be at the end
+        assert!(outputs[0].content.ends_with("DO NOT EDIT. -->"));
     }
 
     #[test]
     fn test_vscode_adapter_merge_mode() {
         // Merge mode: policies without applyTo are merged in post_compile()
         let adapter = VSCodeAdapter::with_merge_mode(true);
-        let fm = Frontmatter::new("Code style rules");
+        let mut fm = Frontmatter::new("Code style rules");
+        fm.kind = AssetKind::Policy; // Explicitly set to Policy for merge mode
         let asset = PromptAsset::new(
             "code-style",
             "policies/code-style.md",
@@ -251,6 +257,7 @@ mod tests {
     fn test_vscode_adapter_compile_policy_with_apply() {
         let adapter = VSCodeAdapter::new();
         let mut fm = Frontmatter::new("Rust rules");
+        fm.kind = AssetKind::Policy; // Explicitly set to Policy
         fm.apply = Some("**/*.rs".to_string());
         let asset = PromptAsset::new(
             "rust-style",
@@ -271,7 +278,8 @@ mod tests {
     #[test]
     fn test_vscode_adapter_split_mode() {
         let adapter = VSCodeAdapter::with_split_mode(true);
-        let fm = Frontmatter::new("Generic rules");
+        let mut fm = Frontmatter::new("Generic rules");
+        fm.kind = AssetKind::Policy; // Explicitly set to Policy
         let asset = PromptAsset::new(
             "generic",
             "policies/generic.md",
@@ -309,11 +317,12 @@ mod tests {
 
     #[test]
     fn test_generate_agents_md() {
-        let fm1 = Frontmatter::new("Security policy");
+        let mut fm1 = Frontmatter::new("Security policy");
+        fm1.kind = AssetKind::Policy; // Explicitly set to Policy
         let asset1 = PromptAsset::new("security", "policies/security.md", fm1, "");
 
-        let mut fm2 = Frontmatter::new("Code review action");
-        fm2.kind = AssetKind::Action;
+        let fm2 = Frontmatter::new("Code review action");
+        // fm2.kind defaults to Action now
         let asset2 = PromptAsset::new("code-review", "actions/code-review.md", fm2, "");
 
         let content = generate_agents_md(&[asset1, asset2]);

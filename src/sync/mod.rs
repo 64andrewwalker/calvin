@@ -214,6 +214,16 @@ pub fn compile_assets(
 ) -> CalvinResult<Vec<OutputFile>> {
     let mut outputs = Vec::new();
     
+    // Check if Claude Code is in the target list
+    // This affects Cursor's behavior - if Claude Code is not selected, Cursor needs to generate commands
+    let has_claude_code = targets.is_empty() || targets.contains(&Target::ClaudeCode);
+    let has_cursor = targets.is_empty() || targets.contains(&Target::Cursor);
+    
+    // Use cursor adapter with commands enabled if:
+    // 1. Cursor is selected AND
+    // 2. Claude Code is NOT selected
+    let cursor_needs_commands = has_cursor && !has_claude_code;
+    
     let adapters = all_adapters();
     
     for asset in assets {
@@ -235,6 +245,31 @@ pub fn compile_assets(
             
             // Compile asset with this adapter
             let files = adapter.compile(asset)?;
+            
+            // Special handling for Cursor: add commands if Claude Code is not selected
+            let files = if adapter_target == Target::Cursor && cursor_needs_commands {
+                let mut all_files = files;
+                // Generate commands for Cursor (same format as Claude Code)
+                if let crate::models::AssetKind::Action | crate::models::AssetKind::Agent = asset.frontmatter.kind {
+                    let commands_base = match asset.frontmatter.scope {
+                        crate::models::Scope::User => std::path::PathBuf::from("~/.cursor/commands"),
+                        crate::models::Scope::Project => std::path::PathBuf::from(".cursor/commands"),
+                    };
+                    let command_path = commands_base.join(format!("{}.md", asset.id));
+                    let footer = adapter.footer(&asset.source_path.display().to_string());
+                    let content = format!(
+                        "{}\n\n{}\n\n{}",
+                        asset.frontmatter.description,
+                        asset.content.trim(),
+                        footer
+                    );
+                    all_files.push(OutputFile::new(command_path, content));
+                }
+                all_files
+            } else {
+                files
+            };
+            
             outputs.extend(files);
         }
     }

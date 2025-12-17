@@ -13,9 +13,9 @@ use std::path::PathBuf;
 #[serde(rename_all = "lowercase")]
 pub enum AssetKind {
     /// Long-term rules (code style, security, testing policies)
-    #[default]
     Policy,
     /// Triggered commands/workflows (generate tests, PR review)
+    #[default]
     Action,
     /// Specialized sub-agents/roles
     Agent,
@@ -33,7 +33,7 @@ pub enum Scope {
 }
 
 /// Target platform for compilation
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, clap::ValueEnum)]
 #[serde(rename_all = "kebab-case")]
 pub enum Target {
     /// Claude Code (Anthropic)
@@ -145,11 +145,11 @@ mod tests {
     
     #[test]
     fn test_frontmatter_deserialize_minimal() {
-        let yaml = "description: Test policy";
+        let yaml = "description: Test action";
         let fm: Frontmatter = serde_yaml::from_str(yaml).unwrap();
         
-        assert_eq!(fm.description, "Test policy");
-        assert_eq!(fm.kind, AssetKind::Policy); // default
+        assert_eq!(fm.description, "Test action");
+        assert_eq!(fm.kind, AssetKind::Action); // default
         assert_eq!(fm.scope, Scope::Project); // default
         assert!(fm.targets.is_empty()); // default
         assert!(fm.apply.is_none()); // default

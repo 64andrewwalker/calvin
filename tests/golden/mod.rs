@@ -13,6 +13,7 @@ use calvin::models::Target;
 /// Test fixture: a simple policy file
 const SIMPLE_POLICY: &str = r#"---
 description: Code style policy for consistent formatting
+kind: policy
 targets: [all]
 ---
 # Code Style Policy
@@ -214,6 +215,7 @@ Look for variables named "bar" and "baz".
     fn test_escaping_backslashes() {
         let content_with_backslash = r#"---
 description: Regex pattern check
+kind: policy
 ---
 Use regex: \\d+ to match digits.
 File path: C:\Users\test
@@ -238,6 +240,7 @@ File path: C:\Users\test
     fn test_escaping_preserves_newlines() {
         let content_with_newlines = r#"---
 description: Multi-line content
+kind: policy
 ---
 Line 1
 
