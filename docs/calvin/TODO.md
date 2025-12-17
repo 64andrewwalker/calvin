@@ -2,7 +2,7 @@
 
 > **目标版本**: v0.2.0  
 > **开始日期**: 2025-12-17  
-> **状态**: Phase 0-2 已完成，Phase 1 已完成  
+> **状态**: Phase 0-4 已完成，Phase 5 进行中  
 > **前提**: 项目尚未发布，可大胆重构
 
 ---
@@ -14,8 +14,8 @@
 |  Phase 0: 消灭上帝对象                           ✅ 已完成    |
 |  Phase 1: 交互式入口                             ✅ 已完成    |
 |  Phase 2: explain 命令                           ✅ 已完成    |
-|  Phase 3: 错误增强                               ⬜ 待开始    |
-|  Phase 4: sync 模块重构                          ⬜ 待开始    |
+|  Phase 3: 错误增强                               ✅ 已完成    |
+|  Phase 4: sync 模块重构                          ✅ 已完成    |
 |  Phase 5: 文档清理                               🔄 进行中    |
 +==============================================================+
 ```
@@ -41,6 +41,11 @@
 | src/commands/watch.rs       | -     | 81    | ✅ 新增 |
 | src/ui/menu.rs              | -     | 68    | ✅ 新增 |
 | src/ui/output.rs            | -     | 27    | ✅ 新增 |
+| src/ui/error.rs             | -     | 194   | ✅ 新增 |
+| src/sync/mod.rs             | 904   | 296   | ✅ 达标 |
+| src/sync/compile.rs         | -     | 97    | ✅ 新增 |
+| src/sync/conflict.rs        | -     | 85    | ✅ 新增 |
+| src/sync/tests.rs           | -     | 461   | ✅ 新增 |
 +-----------------------------+-------+-------+---------+
 ```
 
@@ -117,52 +122,19 @@ calvin parse           # 调试用
 
 - [x] 创建 `src/state.rs`
 - [x] 实现 `ProjectState` 枚举
-  ```rust
-  pub enum ProjectState {
-      NoPromptPack,
-      EmptyPromptPack,
-      Configured(AssetCount),
-  }
-  ```
 - [x] 实现 `detect_state(cwd: &Path) -> ProjectState`
 - [x] 测试覆盖（6 个测试）
 
 ### 1.2 首次运行菜单 (NoPromptPack) ✅
 
-- [x] 实现主菜单
-  ```
-  ? What would you like to do?
-  
-    > [1] Set up Calvin for this project
-      [2] Learn what Calvin does first
-      [3] Show commands (for experts)
-      [4] Explain yourself (for AI assistants)
-      [5] Quit
-  ```
-
+- [x] 实现主菜单（5 个选项）
 - [x] 实现 3 步 setup wizard
-  - Step 1: 选择目标平台
-  - Step 2: 选择示例模板 (review/test/refactor/docs/empty)
-  - Step 3: 选择安全模式 (balanced/strict/minimal)
-
 - [x] 生成 config.toml 和示例文件
 - [x] `write_file_if_missing()` 不覆盖现有文件
 
 ### 1.3 已有项目菜单 (Configured) ✅
 
-- [x] 实现操作菜单
-  ```
-  ? What would you like to do?
-  
-    > [1] Deploy to this project
-      [2] Deploy to home directory
-      [3] Deploy to remote server
-      [4] Preview changes
-      [5] Watch mode
-      [6] Check configuration
-      [7] Explain yourself
-      [8] Quit
-  ```
+- [x] 实现操作菜单（8 个选项）
 
 ### 1.4 main() 更新 ✅
 
@@ -173,10 +145,7 @@ calvin parse           # 调试用
 
 ### 1.5 测试 ✅
 
-- [x] `write_promptpack_creates_config_and_templates`
-- [x] `write_promptpack_empty_templates_creates_no_action_files`
-- [x] `write_config_does_not_overwrite_existing_file`
-- [x] `write_config_minimal_sets_allow_naked_true`
+- [x] 4 个 interactive.rs 测试
 
 ---
 
@@ -191,56 +160,55 @@ calvin parse           # 调试用
 
 ---
 
-## Phase 3: 错误增强 ⬜ 待开始
+## Phase 3: 错误增强 ✅ 已完成
 
-> **优先级**: P1  
-> **目标**: 每个错误都是教学时刻  
-> **预计时间**: 1天
+> **完成日期**: 2025-12-17
 
-### 3.1 错误信息模板
+### 3.1 错误信息模板 ✅
 
-- [ ] 创建统一错误格式
-  ```
-  [ERROR] 标题
-          位置信息
-  
-  问题描述/上下文
-  
-  FIX: 修复建议
-  ```
+- [x] 创建 `src/ui/error.rs` (194 行)
+- [x] 统一错误格式 `[ERROR] 标题 + 位置 + 描述 + FIX:`
+- [x] 更新 NoFrontmatter 错误
+- [x] 更新 InvalidFrontmatter 错误
+- [x] 更新 MissingField 错误
+- [x] 更新 UnclosedFrontmatter 错误
 
-- [ ] 更新 NoFrontmatter 错误
-- [ ] 更新 InvalidFrontmatter 错误
-- [ ] 更新 MissingField 错误
+### 3.2 一键修复 ✅
 
-### 3.2 一键修复
+- [x] 检测 `$VISUAL` / `$EDITOR`
+- [x] 实现 "Press Enter to open in editor"
+- [x] 支持 code/cursor 的 `-g file:line` 格式
+- [x] 支持 vim/nvim 的 `+line file` 格式
 
-- [ ] 检测 `$EDITOR`
-- [ ] 实现 "Press Enter to open in editor"
-
-### 3.3 Did you mean?
+### 3.3 Did you mean? ⬜ 延期
 
 - [ ] 未知配置键检测（编辑距离算法）
 - [ ] 提供最接近的建议
+- **原因**: 低优先级，可在后续版本实现
+
+### 3.4 测试 ✅
+
+- [x] `test_format_missing_field_includes_error_header_and_fix`
+- [x] `test_format_no_frontmatter_includes_fix`
 
 ---
 
-## Phase 4: sync 模块重构 ⬜ 待开始
+## Phase 4: sync 模块重构 ✅ 已完成
 
-> **优先级**: P1  
-> **目标**: sync/mod.rs 从 904 行降到更合理的大小  
-> **预计时间**: 1天
+> **完成日期**: 2025-12-17
 
-### 4.1 拆分 sync 模块
+### 4.1 拆分 sync 模块 ✅
 
-- [ ] 创建 `sync/compile.rs` - compile_assets()
-- [ ] 创建 `sync/conflict.rs` - ConflictReason, ConflictChoice, SyncPrompter
-- [ ] 保持 `sync/lockfile.rs` 和 `sync/writer.rs` 不变
+- [x] 创建 `sync/compile.rs` (97 行) - compile_assets()
+- [x] 创建 `sync/conflict.rs` (85 行) - ConflictReason, ConflictChoice, SyncPrompter
+- [x] 创建 `sync/tests.rs` (461 行) - 单元测试抽离
+- [x] 保持 `sync/lockfile.rs` 和 `sync/writer.rs` 不变
 
-### 4.2 验证
+### 4.2 验证 ✅
 
-- [ ] 所有测试通过
-- [ ] sync/mod.rs < 400 行
+- [x] 所有测试通过 (43 个)
+- [x] sync/mod.rs 从 904 行降到 296 行 ✅ (<400 达标)
+- [x] `compile_assets` 仍以 `calvin::sync::compile_assets` 对外导出
 
 ---
 
@@ -256,7 +224,7 @@ calvin parse           # 调试用
 
 ### 5.2 check 命令输出更新 ✅
 
-- [x] `calvin check` 输出提示 "Run `calvin deploy`"（已修复）
+- [x] `calvin check` 输出提示 "Run `calvin deploy`"
 
 ### 5.3 帮助信息 ✅
 
@@ -267,6 +235,7 @@ calvin parse           # 调试用
 
 - [ ] 更新 TDD 文档归档
 - [ ] 最终文档审查
+- [ ] 提交所有更改
 
 ---
 
@@ -277,16 +246,16 @@ calvin parse           # 调试用
 | 0. 消灭上帝对象 | 15 | 15 | ✅ 已完成 |
 | 1. 交互式入口 | 14 | 14 | ✅ 已完成 |
 | 2. explain 命令 | 4 | 4 | ✅ 已完成 |
-| 3. 错误增强 | 6 | 0 | ⬜ 待开始 |
-| 4. sync 重构 | 4 | 0 | ⬜ 待开始 |
-| 5. 文档清理 | 5 | 4 | 🔄 进行中 |
-| **总计** | **48** | **37** | **77%** |
+| 3. 错误增强 | 10 | 8 | ✅ 已完成 (Did you mean 延期) |
+| 4. sync 重构 | 5 | 5 | ✅ 已完成 |
+| 5. 文档清理 | 6 | 4 | 🔄 进行中 |
+| **总计** | **54** | **50** | **93%** |
 
 ---
 
 ## 验证清单
 
-- [x] `cargo test` 全部通过 (41 个测试)
+- [x] `cargo test` 全部通过 (43 个测试)
 - [x] `cargo clippy` 无警告
 - [x] `calvin --help` 显示新命令结构
 - [x] `calvin` 无参数进入交互菜单
@@ -297,6 +266,8 @@ calvin parse           # 调试用
 - [x] `calvin check` 提示 `calvin deploy`
 - [x] `calvin sync` 显示 deprecation warning
 - [x] main.rs < 150 行 ✅ (123 行)
+- [x] sync/mod.rs < 400 行 ✅ (296 行)
+- [x] 错误信息包含 FIX 建议 ✅
 
 ---
 
@@ -306,3 +277,5 @@ calvin parse           # 调试用
 - [设计原则](./design-principles.md) - 10 条核心原则
 - [TDD 会话记录 Phase 0](../tdd-session-v0.2.0-phase0.md)
 - [TDD 会话记录 Phase 1](../tdd-session-v0.2.0-phase1.md)
+- [TDD 会话记录 Phase 3](../tdd-session-v0.2.0-phase3.md)
+- [TDD 会话记录 Phase 4](../tdd-session-v0.2.0-phase4.md)
