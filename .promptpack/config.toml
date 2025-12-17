@@ -1,0 +1,20 @@
+# Example Project Configuration
+#
+# This file demonstrates all available configuration options.
+# Only [format].version is required.
+
+[format]
+version = "1.0"
+
+[security]
+mode = "balanced"  # yolo | balanced | strict
+
+[targets]
+enabled = ["claude-code", "cursor", "vscode", "antigravity"]
+
+[sync]
+atomic_writes = true
+respect_lockfile = true
+
+[output]
+verbosity = "normal"
