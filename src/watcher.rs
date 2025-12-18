@@ -97,10 +97,15 @@ pub fn parse_incremental(
         
         let assets = parse_directory(source_dir)?;
         for asset in &assets {
-            let hash = compute_content_hash(&asset.content);
             // Use absolute path for cache key for consistency
             let abs_path = source_dir.join(&asset.source_path);
-            cache.update_asset(&abs_path, &hash, asset.clone());
+            // Canonicalize for consistent path matching with notify events
+            let canonical_path = abs_path.canonicalize().unwrap_or(abs_path.clone());
+            
+            // IMPORTANT: Use raw file content hash (not parsed content) to match watch loop
+            let raw_content = std::fs::read_to_string(&canonical_path).unwrap_or_default();
+            let hash = compute_content_hash(&raw_content);
+            cache.update_asset(&canonical_path, &hash, asset.clone());
         }
         return Ok(assets);
     }
@@ -120,12 +125,17 @@ pub fn parse_incremental(
                     if let Ok(relative) = path.strip_prefix(source_dir) {
                         asset.source_path = relative.to_path_buf();
                     }
-                    let hash = compute_content_hash(&asset.content);
-                    cache.update_asset(path, &hash, asset);
+                    // Canonicalize path for consistent cache key
+                    let canonical_path = path.canonicalize().unwrap_or(path.clone());
+                    // Use raw file content hash (not parsed content) to match watch loop
+                    let raw_content = std::fs::read_to_string(&canonical_path).unwrap_or_default();
+                    let hash = compute_content_hash(&raw_content);
+                    cache.update_asset(&canonical_path, &hash, asset);
                 }
             } else {
-                // File was deleted
-                cache.invalidate(path);
+                // File was deleted - canonicalize for cache key consistency
+                let canonical_path = path.canonicalize().unwrap_or(path.clone());
+                cache.invalidate(&canonical_path);
             }
         }
     }
@@ -254,14 +264,49 @@ pub fn watch(
 
     // Watch loop with debouncing
     let mut state = WatcherState::new();
+    // Track content hashes for change detection (separate from parse cache)
+    // Pre-populate from initial cache to avoid spurious syncs on startup
+    let mut content_hashes: HashMap<PathBuf, String> = cache.file_hashes.clone();
+    
+    // Startup cooldown: drain any initial events from notify (it sometimes sends
+    // events for existing files when the watcher is first registered)
+    let cooldown_end = Instant::now() + Duration::from_millis(500);
+    while Instant::now() < cooldown_end {
+        // Drain events but don't process them
+        let _ = rx.recv_timeout(Duration::from_millis(50));
+    }
     
     while running.load(Ordering::SeqCst) {
         // Check for file changes (non-blocking with timeout)
         if let Ok(path) = rx.recv_timeout(Duration::from_millis(50)) {
-            // Only watch .md files
+            // Only watch .md files, ignore .calvin.lock and other non-md files
             if path.extension().map(|e| e == "md").unwrap_or(false) {
-                // Don't report yet - wait for debounce to dedupe multiple events
-                state.add_change(path);
+                // Skip lockfile (it's in .promptpack/ and sync updates it)
+                if path.file_name().map(|n| n == ".calvin.lock").unwrap_or(false) {
+                    continue;
+                }
+                
+                // Canonicalize path to ensure consistent matching with cache
+                let canonical_path = path.canonicalize().unwrap_or(path);
+                
+                // Check if content actually changed (filter out IDE auto-save noise)
+                if let Ok(content) = std::fs::read_to_string(&canonical_path) {
+                    let new_hash = compute_content_hash(&content);
+                    
+                    // Check against our local content tracker
+                    let cache_hit = content_hashes.get(&canonical_path);
+                    
+                    if let Some(old_hash) = cache_hit {
+                        if old_hash == &new_hash {
+                            // Content unchanged, skip
+                            continue;
+                        }
+                    }
+                    
+                    // Content changed (or new file), update tracker and queue for sync
+                    content_hashes.insert(canonical_path.clone(), new_hash);
+                    state.add_change(canonical_path);
+                }
             }
         }
 
