@@ -284,7 +284,7 @@ mod tests {
         let baseline = adapter.security_baseline(&config);
         let settings_json = baseline
             .iter()
-            .find(|f| f.path == PathBuf::from(".claude/settings.json"))
+            .find(|f| f.path == std::path::Path::new(".claude/settings.json"))
             .expect("should generate settings.json")
             .content
             .clone();
@@ -317,7 +317,7 @@ mod tests {
         let baseline = adapter.security_baseline(&config);
         let settings_json = baseline
             .iter()
-            .find(|f| f.path == PathBuf::from(".claude/settings.json"))
+            .find(|f| f.path == std::path::Path::new(".claude/settings.json"))
             .expect("should generate settings.json")
             .content
             .clone();

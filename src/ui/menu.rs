@@ -73,7 +73,7 @@ pub fn select_targets_interactive_with_save(
         .map(|t| config.targets.enabled.contains(t) || config.targets.enabled.contains(&Target::All))
         .collect();
 
-    println!("\n📋 Select target platforms (use space to toggle, enter to confirm):");
+    println!("\nSelect target platforms (use space to toggle, enter to confirm):");
     let selection = MultiSelect::new()
         .items(&items)
         .defaults(&defaults)
@@ -94,9 +94,9 @@ pub fn select_targets_interactive_with_save(
         
         if config_targets != selected_set {
             if let Err(e) = save_targets_to_config(path, &selected) {
-                eprintln!("⚠️  Could not save target selection: {}", e);
+                eprintln!("Warning: Could not save target selection: {}", e);
             } else {
-                println!("💾 Saved target selection to config.toml");
+                println!("Saved target selection to config.toml");
             }
         }
     }
@@ -158,4 +158,3 @@ fn save_targets_to_config(config_path: &Path, targets: &[Target]) -> std::io::Re
     
     std::fs::write(config_path, new_content)
 }
-

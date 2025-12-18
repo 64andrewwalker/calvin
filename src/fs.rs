@@ -203,6 +203,13 @@ impl MockFileSystem {
 }
 
 #[cfg(test)]
+impl Default for MockFileSystem {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(test)]
 impl FileSystem for MockFileSystem {
     fn read_to_string(&self, path: &Path) -> CalvinResult<String> {
         let files = self.files.lock().unwrap();

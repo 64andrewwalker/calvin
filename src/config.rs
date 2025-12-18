@@ -148,10 +148,51 @@ fn default_true() -> bool {
 }
 
 /// Output configuration
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OutputConfig {
     #[serde(default)]
     pub verbosity: Verbosity,
+
+    #[serde(default)]
+    pub color: ColorMode,
+
+    #[serde(default)]
+    pub animation: AnimationMode,
+
+    #[serde(default = "default_true")]
+    pub unicode: bool,
+}
+
+impl Default for OutputConfig {
+    fn default() -> Self {
+        Self {
+            verbosity: Verbosity::default(),
+            color: ColorMode::default(),
+            animation: AnimationMode::default(),
+            unicode: true,
+        }
+    }
+}
+
+/// Color output mode
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum ColorMode {
+    #[default]
+    Auto,
+    Always,
+    Never,
+}
+
+/// Animation output mode
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum AnimationMode {
+    #[default]
+    Auto,
+    Always,
+    Never,
+    Minimal,
 }
 
 /// Verbosity level
@@ -381,6 +422,9 @@ fn suggest_key(unknown: &str) -> Option<String> {
         "respect_lockfile",
         "output",
         "verbosity",
+        "color",
+        "animation",
+        "unicode",
         "servers",
         "command",
         "args",
@@ -551,6 +595,31 @@ verbosity = "normal"
         let config = Config::default().with_env_overrides();
         assert!(!config.sync.atomic_writes);
         unsafe { std::env::remove_var("CALVIN_ATOMIC_WRITES") };
+    }
+
+    // === TDD: CLI animation output config (v0.3.0 / Phase 0) ===
+
+    #[test]
+    fn test_output_config_defaults() {
+        let config = Config::default();
+        assert_eq!(config.output.color, ColorMode::Auto);
+        assert_eq!(config.output.animation, AnimationMode::Auto);
+        assert!(config.output.unicode);
+    }
+
+    #[test]
+    fn test_config_parse_output_color_animation_unicode() {
+        let toml = r#"
+[output]
+color = "never"
+animation = "minimal"
+unicode = false
+"#;
+
+        let config: Config = toml::from_str(toml).unwrap();
+        assert_eq!(config.output.color, ColorMode::Never);
+        assert_eq!(config.output.animation, AnimationMode::Minimal);
+        assert!(!config.output.unicode);
     }
 
     // === TDD: US-1 Configurable deny list (Sprint 1 / P0) ===

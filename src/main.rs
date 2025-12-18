@@ -16,6 +16,8 @@ fn main() {
     let cli = Cli::parse();
     let json = cli.json;
     let verbose = cli.verbose;
+    let color = cli.color;
+    let no_animation = cli.no_animation;
 
     let cwd = match std::env::current_dir() {
         Ok(cwd) => cwd,
@@ -27,8 +29,8 @@ fn main() {
     };
 
     let result = match cli.command {
-        None => commands::interactive::cmd_interactive(&cwd, json, verbose),
-        Some(command) => dispatch(command, json, verbose),
+        None => commands::interactive::cmd_interactive(&cwd, json, verbose, color, no_animation),
+        Some(command) => dispatch(command, json, verbose, color, no_animation),
     };
 
     if let Err(err) = result {
@@ -38,7 +40,13 @@ fn main() {
     }
 }
 
-fn dispatch(command: Commands, json: bool, verbose: u8) -> Result<()> {
+fn dispatch(
+    command: Commands,
+    json: bool,
+    verbose: u8,
+    color: Option<cli::ColorWhen>,
+    no_animation: bool,
+) -> Result<()> {
     match command {
         Commands::Deploy {
             source,
@@ -58,11 +66,13 @@ fn dispatch(command: Commands, json: bool, verbose: u8) -> Result<()> {
             dry_run,
             json,
             verbose,
+            color,
+            no_animation,
         ),
         Commands::Check {
             mode,
             strict_warnings,
-        } => commands::check::cmd_check(&mode, strict_warnings, json, verbose),
+        } => commands::check::cmd_check(&mode, strict_warnings, json, verbose, color, no_animation),
         Commands::Explain { brief } => commands::explain::cmd_explain(brief, json, verbose),
         Commands::Sync {
             source,
@@ -84,15 +94,17 @@ fn dispatch(command: Commands, json: bool, verbose: u8) -> Result<()> {
                 dry_run,
                 json,
                 verbose,
+                color,
+                no_animation,
             )
         }
-        Commands::Watch { source } => commands::watch::cmd_watch(&source, json),
+        Commands::Watch { source } => commands::watch::cmd_watch(&source, json, color, no_animation),
         Commands::Diff { source } => commands::debug::cmd_diff(&source, json),
         Commands::Doctor { mode } => {
             if !json {
                 eprintln!("[WARN] `calvin doctor` is deprecated; use `calvin check`.");
             }
-            commands::check::cmd_doctor(&mode, json, verbose)
+            commands::check::cmd_doctor(&mode, json, verbose, color, no_animation)
         }
         Commands::Audit {
             mode,
@@ -101,7 +113,7 @@ fn dispatch(command: Commands, json: bool, verbose: u8) -> Result<()> {
             if !json {
                 eprintln!("[WARN] `calvin audit` is deprecated; use `calvin check`.");
             }
-            commands::check::cmd_audit(&mode, strict_warnings, json, verbose)
+            commands::check::cmd_audit(&mode, strict_warnings, json, verbose, color, no_animation)
         }
         Commands::Parse { source } => commands::debug::cmd_parse(&source, json),
         Commands::Install {
@@ -125,6 +137,9 @@ fn dispatch(command: Commands, json: bool, verbose: u8) -> Result<()> {
                 is_interactive_run(json, yes),
                 dry_run,
                 json,
+                verbose,
+                color,
+                no_animation,
             )
         }
         Commands::Migrate {

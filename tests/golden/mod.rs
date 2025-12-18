@@ -192,7 +192,7 @@ Look for variables named "bar" and "baz".
         
         // Test all targets that produce markdown outputs with content
         for target in [Target::Cursor, Target::ClaudeCode] {
-            let outputs = compile_assets(&assets, &[target.clone()], &config).unwrap();
+            let outputs = compile_assets(&assets, &[target], &config).unwrap();
             
             // Filter to only markdown outputs (not settings.json etc)
             let md_outputs: Vec<_> = outputs.iter()

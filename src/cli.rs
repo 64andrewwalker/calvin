@@ -3,6 +3,13 @@ use std::path::PathBuf;
 use calvin::Target;
 use clap::{Parser, Subcommand};
 
+#[derive(clap::ValueEnum, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ColorWhen {
+    Auto,
+    Always,
+    Never,
+}
+
 /// Calvin - PromptOps compiler and synchronization tool
 #[derive(Parser, Debug)]
 #[command(name = "calvin")]
@@ -12,6 +19,14 @@ pub struct Cli {
     /// Output format for CI
     #[arg(long, global = true)]
     pub json: bool,
+
+    /// Color output mode
+    #[arg(long, global = true, value_enum)]
+    pub color: Option<ColorWhen>,
+
+    /// Disable animations (spinners, progress bars, live updates)
+    #[arg(long, global = true)]
+    pub no_animation: bool,
 
     /// Verbosity level (-v, -vv, -vvv)
     #[arg(short, long, action = clap::ArgAction::Count, global = true)]
@@ -448,5 +463,17 @@ mod tests {
         let cli = Cli::try_parse_from(["calvin", "version", "--json"]).unwrap();
         assert!(cli.json);
         assert!(matches!(cli.command, Some(Commands::Version)));
+    }
+
+    #[test]
+    fn test_cli_color_flag() {
+        let cli = Cli::try_parse_from(["calvin", "--color", "never", "sync"]).unwrap();
+        assert!(matches!(cli.color, Some(ColorWhen::Never)));
+    }
+
+    #[test]
+    fn test_cli_no_animation_flag() {
+        let cli = Cli::try_parse_from(["calvin", "--no-animation", "sync"]).unwrap();
+        assert!(cli.no_animation);
     }
 }

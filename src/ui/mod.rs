@@ -1,3 +1,16 @@
 pub mod menu;
 pub mod error;
 pub mod output;
+pub mod terminal;
+pub mod theme;
+pub mod render;
+pub mod primitives;
+pub mod widgets;
+pub mod animation;
+pub mod components;
+pub mod context;
+pub mod live_region;
+pub mod blocks;
+pub mod views;
+pub mod json;
+pub mod ci;

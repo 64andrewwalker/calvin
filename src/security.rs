@@ -54,6 +54,25 @@ pub struct DoctorReport {
     pub checks: Vec<SecurityCheck>,
 }
 
+pub trait DoctorSink {
+    fn add_check(&mut self, check: SecurityCheck);
+    fn add_pass(&mut self, platform: &str, name: &str, message: &str);
+    fn add_warning(
+        &mut self,
+        platform: &str,
+        name: &str,
+        message: &str,
+        recommendation: Option<&str>,
+    );
+    fn add_error(
+        &mut self,
+        platform: &str,
+        name: &str,
+        message: &str,
+        recommendation: Option<&str>,
+    );
+}
+
 impl DoctorReport {
     pub fn new() -> Self {
         Self { checks: Vec::new() }
@@ -113,6 +132,36 @@ impl DoctorReport {
     }
 }
 
+impl DoctorSink for DoctorReport {
+    fn add_check(&mut self, check: SecurityCheck) {
+        DoctorReport::add_check(self, check);
+    }
+
+    fn add_pass(&mut self, platform: &str, name: &str, message: &str) {
+        DoctorReport::add_pass(self, platform, name, message);
+    }
+
+    fn add_warning(
+        &mut self,
+        platform: &str,
+        name: &str,
+        message: &str,
+        recommendation: Option<&str>,
+    ) {
+        DoctorReport::add_warning(self, platform, name, message, recommendation);
+    }
+
+    fn add_error(
+        &mut self,
+        platform: &str,
+        name: &str,
+        message: &str,
+        recommendation: Option<&str>,
+    ) {
+        DoctorReport::add_error(self, platform, name, message, recommendation);
+    }
+}
+
 /// Run doctor checks for all platforms
 /// Checks both project directory and user home directory
 pub fn run_doctor(project_root: &Path, mode: SecurityMode) -> DoctorReport {
@@ -122,35 +171,118 @@ pub fn run_doctor(project_root: &Path, mode: SecurityMode) -> DoctorReport {
     let config_path = project_root.join(".promptpack/config.toml");
     let config = Config::load(&config_path).unwrap_or_default();
 
+    run_doctor_into(project_root, mode, &config, &mut report);
+    report
+}
+
+pub fn run_doctor_with_callback(
+    project_root: &Path,
+    mode: SecurityMode,
+    mut on_check: impl FnMut(&SecurityCheck),
+) -> DoctorReport {
+    struct CallbackSink<F> {
+        report: DoctorReport,
+        on_check: F,
+    }
+
+    impl<F> CallbackSink<F> {
+        fn new(on_check: F) -> Self {
+            Self {
+                report: DoctorReport::new(),
+                on_check,
+            }
+        }
+    }
+
+    impl<F: FnMut(&SecurityCheck)> DoctorSink for CallbackSink<F> {
+        fn add_check(&mut self, check: SecurityCheck) {
+            (self.on_check)(&check);
+            self.report.checks.push(check);
+        }
+
+        fn add_pass(&mut self, platform: &str, name: &str, message: &str) {
+            self.add_check(SecurityCheck {
+                name: name.to_string(),
+                platform: platform.to_string(),
+                status: CheckStatus::Pass,
+                message: message.to_string(),
+                recommendation: None,
+                details: Vec::new(),
+            });
+        }
+
+        fn add_warning(
+            &mut self,
+            platform: &str,
+            name: &str,
+            message: &str,
+            recommendation: Option<&str>,
+        ) {
+            self.add_check(SecurityCheck {
+                name: name.to_string(),
+                platform: platform.to_string(),
+                status: CheckStatus::Warning,
+                message: message.to_string(),
+                recommendation: recommendation.map(String::from),
+                details: Vec::new(),
+            });
+        }
+
+        fn add_error(
+            &mut self,
+            platform: &str,
+            name: &str,
+            message: &str,
+            recommendation: Option<&str>,
+        ) {
+            self.add_check(SecurityCheck {
+                name: name.to_string(),
+                platform: platform.to_string(),
+                status: CheckStatus::Error,
+                message: message.to_string(),
+                recommendation: recommendation.map(String::from),
+                details: Vec::new(),
+            });
+        }
+    }
+
+    // Load project config (used to reflect custom security rules in checks).
+    let config_path = project_root.join(".promptpack/config.toml");
+    let config = Config::load(&config_path).unwrap_or_default();
+
+    let mut sink = CallbackSink::new(|check: &SecurityCheck| on_check(check));
+    run_doctor_into(project_root, mode, &config, &mut sink);
+    sink.report
+}
+
+fn run_doctor_into(project_root: &Path, mode: SecurityMode, config: &Config, sink: &mut impl DoctorSink) {
     // === Project-scope checks ===
     // Claude Code checks
-    check_claude_code(project_root, mode, &config, &mut report);
+    check_claude_code(project_root, mode, config, sink);
 
     // Cursor checks
-    check_cursor(project_root, mode, &config, &mut report);
+    check_cursor(project_root, mode, config, sink);
 
     // VS Code checks
-    check_vscode(project_root, mode, &mut report);
+    check_vscode(project_root, mode, sink);
 
     // Antigravity checks
-    check_antigravity(project_root, mode, &mut report);
+    check_antigravity(project_root, mode, sink);
 
     // Codex checks (already handles both project and user scope)
-    check_codex(project_root, mode, &mut report);
+    check_codex(project_root, mode, sink);
 
     // === User-scope checks (home directory) ===
     if let Some(home) = dirs::home_dir() {
         // Only check user dirs if they exist (user may have deployed --home)
-        check_claude_code_user(&home, mode, &config, &mut report);
-        check_cursor_user(&home, mode, &mut report);
-        check_antigravity_user(&home, mode, &mut report);
+        check_claude_code_user(&home, mode, config, sink);
+        check_cursor_user(&home, mode, sink);
+        check_antigravity_user(&home, mode, sink);
     }
-
-    report
 }
 
 
-fn check_claude_code(root: &Path, mode: SecurityMode, config: &Config, report: &mut DoctorReport) {
+fn check_claude_code(root: &Path, mode: SecurityMode, config: &Config, sink: &mut impl DoctorSink) {
     let platform = "Claude Code";
 
     // Check .claude/commands/ exists
@@ -159,20 +291,20 @@ fn check_claude_code(root: &Path, mode: SecurityMode, config: &Config, report: &
         let count = std::fs::read_dir(&commands_dir)
             .map(|rd| rd.count())
             .unwrap_or(0);
-        report.add_pass(platform, "commands", &format!("{} commands synced", count));
+        sink.add_pass(platform, "commands", &format!("{} commands synced", count));
     } else {
-        report.add_warning(platform, "commands", "No commands directory found", 
+        sink.add_warning(platform, "commands", "No commands directory found", 
             Some("Run `calvin deploy` to generate commands"));
     }
 
     // Check .claude/settings.json exists with permissions.deny
     let settings_file = root.join(".claude/settings.json");
     if settings_file.exists() {
-        report.add_pass(platform, "settings", ".claude/settings.json exists");
+        sink.add_pass(platform, "settings", ".claude/settings.json exists");
 
         // Surface explicit opt-out in doctor output.
         if config.security.allow_naked && mode != SecurityMode::Yolo {
-            report.add_warning(
+            sink.add_warning(
                 platform,
                 "allow_naked",
                 "Security protections disabled (security.allow_naked = true)",
@@ -201,7 +333,7 @@ fn check_claude_code(root: &Path, mode: SecurityMode, config: &Config, report: &
                 // If no patterns are expected (e.g. allow_naked=true with no custom patterns),
                 // we don't require permissions.deny to exist.
                 if expected_patterns.is_empty() {
-                    report.add_pass(
+                    sink.add_pass(
                         platform,
                         "deny_list",
                         "permissions.deny not required by configuration",
@@ -211,19 +343,19 @@ fn check_claude_code(root: &Path, mode: SecurityMode, config: &Config, report: &
 
                 if deny_list.is_none() {
                     match mode {
-                        SecurityMode::Strict => report.add_error(
+                        SecurityMode::Strict => sink.add_error(
                             platform,
                             "deny_list",
                             "permissions.deny not configured",
                             Some("Run `calvin deploy` or add permissions.deny to .claude/settings.json"),
                         ),
-                        SecurityMode::Balanced => report.add_warning(
+                        SecurityMode::Balanced => sink.add_warning(
                             platform,
                             "deny_list",
                             "permissions.deny not configured",
                             Some("Consider adding deny list for sensitive files"),
                         ),
-                        SecurityMode::Yolo => report.add_pass(
+                        SecurityMode::Yolo => sink.add_pass(
                             platform,
                             "deny_list",
                             "Security checks disabled (yolo mode)",
@@ -241,7 +373,7 @@ fn check_claude_code(root: &Path, mode: SecurityMode, config: &Config, report: &
                     .collect();
 
                 if missing.is_empty() {
-                    report.add_pass(
+                    sink.add_pass(
                         platform,
                         "deny_list",
                         &format!("permissions.deny complete ({} patterns)", deny_strings.len()),
@@ -249,19 +381,19 @@ fn check_claude_code(root: &Path, mode: SecurityMode, config: &Config, report: &
                 } else {
                     let missing_str = missing.join(", ");
                     match mode {
-                        SecurityMode::Strict => report.add_error(
+                        SecurityMode::Strict => sink.add_error(
                             platform,
                             "deny_list_incomplete",
                             &format!("Missing deny patterns: {}", missing_str),
                             Some("Run `calvin deploy` to regenerate baseline or add missing patterns"),
                         ),
-                        SecurityMode::Balanced => report.add_warning(
+                        SecurityMode::Balanced => sink.add_warning(
                             platform,
                             "deny_list_incomplete",
                             &format!("Missing deny patterns: {}", missing_str),
                             Some("Consider adding missing patterns for better security"),
                         ),
-                        SecurityMode::Yolo => report.add_pass(
+                        SecurityMode::Yolo => sink.add_pass(
                             platform,
                             "deny_list",
                             "Security checks disabled (yolo mode)",
@@ -269,7 +401,7 @@ fn check_claude_code(root: &Path, mode: SecurityMode, config: &Config, report: &
                     }
                 }
             } else {
-                report.add_warning(
+                sink.add_warning(
                     platform,
                     "deny_list",
                     "Invalid JSON in .claude/settings.json",
@@ -278,12 +410,12 @@ fn check_claude_code(root: &Path, mode: SecurityMode, config: &Config, report: &
             }
         }
     } else if mode != SecurityMode::Yolo {
-        report.add_warning(platform, "settings", "No settings.json found",
+        sink.add_warning(platform, "settings", "No settings.json found",
             Some("Run `calvin deploy` to generate security baseline"));
     }
 }
 
-fn check_cursor(root: &Path, mode: SecurityMode, config: &Config, report: &mut DoctorReport) {
+fn check_cursor(root: &Path, mode: SecurityMode, config: &Config, sink: &mut impl DoctorSink) {
     let platform = "Cursor";
 
     // Check .cursor/rules/ exists
@@ -292,9 +424,9 @@ fn check_cursor(root: &Path, mode: SecurityMode, config: &Config, report: &mut D
         let count = std::fs::read_dir(&rules_dir)
             .map(|rd| rd.count())
             .unwrap_or(0);
-        report.add_pass(platform, "rules", &format!("{} rules synced", count));
+        sink.add_pass(platform, "rules", &format!("{} rules synced", count));
     } else {
-        report.add_warning(platform, "rules", "No rules directory found",
+        sink.add_warning(platform, "rules", "No rules directory found",
             Some("Run `calvin deploy` to generate rules"));
     }
 
@@ -358,7 +490,7 @@ fn check_cursor(root: &Path, mode: SecurityMode, config: &Config, report: &mut D
                     }
                     
                     if unknown_servers.is_empty() {
-                        report.add_check(SecurityCheck {
+                        sink.add_check(SecurityCheck {
                             name: "mcp".to_string(),
                             platform: platform.to_string(),
                             status: CheckStatus::Pass,
@@ -370,7 +502,7 @@ fn check_cursor(root: &Path, mode: SecurityMode, config: &Config, report: &mut D
                         let unknown_str = unknown_servers.join(", ");
                         match mode {
                             SecurityMode::Strict => {
-                                report.add_check(SecurityCheck {
+                                sink.add_check(SecurityCheck {
                                     name: "mcp_unknown".to_string(),
                                     platform: platform.to_string(),
                                     status: CheckStatus::Warning,
@@ -383,7 +515,7 @@ fn check_cursor(root: &Path, mode: SecurityMode, config: &Config, report: &mut D
                                 });
                             }
                             SecurityMode::Balanced => {
-                                report.add_check(SecurityCheck {
+                                sink.add_check(SecurityCheck {
                                     name: "mcp_unknown".to_string(),
                                     platform: platform.to_string(),
                                     status: CheckStatus::Warning,
@@ -395,41 +527,41 @@ fn check_cursor(root: &Path, mode: SecurityMode, config: &Config, report: &mut D
                                 });
                             }
                             SecurityMode::Yolo => {
-                                report.add_pass(platform, "mcp", "MCP checks disabled (yolo mode)");
+                                sink.add_pass(platform, "mcp", "MCP checks disabled (yolo mode)");
                             }
                         }
                     }
                 } else {
-                    report.add_pass(platform, "mcp", "MCP configuration found (no servers)");
+                    sink.add_pass(platform, "mcp", "MCP configuration found (no servers)");
                 }
             } else {
-                report.add_warning(platform, "mcp", "Invalid mcp.json format",
+                sink.add_warning(platform, "mcp", "Invalid mcp.json format",
                     Some("Check mcp.json for JSON syntax errors"));
             }
         }
     }
 }
 
-fn check_vscode(root: &Path, _mode: SecurityMode, report: &mut DoctorReport) {
+fn check_vscode(root: &Path, _mode: SecurityMode, sink: &mut impl DoctorSink) {
     let platform = "VS Code";
 
     // Check .github/copilot-instructions.md exists
     let instructions = root.join(".github/copilot-instructions.md");
     if instructions.exists() {
-        report.add_pass(platform, "instructions", ".github/copilot-instructions.md exists");
+        sink.add_pass(platform, "instructions", ".github/copilot-instructions.md exists");
     } else {
-        report.add_warning(platform, "instructions", "No copilot-instructions.md found",
+        sink.add_warning(platform, "instructions", "No copilot-instructions.md found",
             Some("Run `calvin deploy` to generate instructions"));
     }
 
     // Check AGENTS.md
     let agents = root.join("AGENTS.md");
     if agents.exists() {
-        report.add_pass(platform, "agents_md", "AGENTS.md exists");
+        sink.add_pass(platform, "agents_md", "AGENTS.md exists");
     }
 }
 
-fn check_antigravity(root: &Path, mode: SecurityMode, report: &mut DoctorReport) {
+fn check_antigravity(root: &Path, mode: SecurityMode, sink: &mut impl DoctorSink) {
     let platform = "Antigravity";
 
     // Check .agent/rules/ exists
@@ -438,9 +570,9 @@ fn check_antigravity(root: &Path, mode: SecurityMode, report: &mut DoctorReport)
         let count = std::fs::read_dir(&rules_dir)
             .map(|rd| rd.count())
             .unwrap_or(0);
-        report.add_pass(platform, "rules", &format!("{} rules synced", count));
+        sink.add_pass(platform, "rules", &format!("{} rules synced", count));
     } else {
-        report.add_warning(platform, "rules", "No rules directory found",
+        sink.add_warning(platform, "rules", "No rules directory found",
             Some("Run `calvin deploy` to generate rules"));
     }
 
@@ -450,18 +582,18 @@ fn check_antigravity(root: &Path, mode: SecurityMode, report: &mut DoctorReport)
         let count = std::fs::read_dir(&workflows_dir)
             .map(|rd| rd.count())
             .unwrap_or(0);
-        report.add_pass(platform, "workflows", &format!("{} workflows synced", count));
+        sink.add_pass(platform, "workflows", &format!("{} workflows synced", count));
     }
 
     // Turbo mode warning (would need to check user settings)
     if mode == SecurityMode::Strict {
-        report.add_warning(platform, "terminal_mode",
+        sink.add_warning(platform, "terminal_mode",
             "Cannot detect terminal mode from project",
             Some("Ensure Terminal mode is set to 'Auto' (not 'Turbo') in Antigravity settings"));
     }
 }
 
-fn check_codex(root: &Path, _mode: SecurityMode, report: &mut DoctorReport) {
+fn check_codex(root: &Path, _mode: SecurityMode, sink: &mut impl DoctorSink) {
     let platform = "Codex";
 
     // Project-scope prompts
@@ -474,7 +606,7 @@ fn check_codex(root: &Path, _mode: SecurityMode, report: &mut DoctorReport) {
                     .count()
             })
             .unwrap_or(0);
-        report.add_pass(platform, "prompts", &format!("{} prompts synced", count));
+        sink.add_pass(platform, "prompts", &format!("{} prompts synced", count));
         return;
     }
 
@@ -489,9 +621,9 @@ fn check_codex(root: &Path, _mode: SecurityMode, report: &mut DoctorReport) {
                         .count()
                 })
                 .unwrap_or(0);
-            report.add_pass(platform, "prompts", &format!("User prompts installed ({} prompts)", count));
+            sink.add_pass(platform, "prompts", &format!("User prompts installed ({} prompts)", count));
         } else {
-            report.add_warning(
+            sink.add_warning(
                 platform,
                 "prompts",
                 "No prompts directory found",
@@ -499,7 +631,7 @@ fn check_codex(root: &Path, _mode: SecurityMode, report: &mut DoctorReport) {
             );
         }
     } else {
-        report.add_warning(
+        sink.add_warning(
             platform,
             "prompts",
             "Cannot determine home directory for Codex prompts",
@@ -512,7 +644,7 @@ fn check_codex(root: &Path, _mode: SecurityMode, report: &mut DoctorReport) {
 // Expected number of prompts from Calvin (matches typical .promptpack count)
 const EXPECTED_PROMPT_COUNT: usize = 36;
 
-fn check_claude_code_user(home: &Path, _mode: SecurityMode, _config: &Config, report: &mut DoctorReport) {
+fn check_claude_code_user(home: &Path, _mode: SecurityMode, _config: &Config, sink: &mut impl DoctorSink) {
     let platform = "Claude Code (User)";
 
     // Check ~/.claude/commands/ exists
@@ -527,13 +659,13 @@ fn check_claude_code_user(home: &Path, _mode: SecurityMode, _config: &Config, re
             } else {
                 format!("{} user commands installed", count)
             };
-            report.add_pass(platform, "commands", &msg);
+            sink.add_pass(platform, "commands", &msg);
         }
     }
     // No warning for missing user dirs - they're optional
 }
 
-fn check_cursor_user(home: &Path, _mode: SecurityMode, report: &mut DoctorReport) {
+fn check_cursor_user(home: &Path, _mode: SecurityMode, sink: &mut impl DoctorSink) {
     let platform = "Cursor (User)";
 
     // Check ~/.cursor/rules/ exists
@@ -548,13 +680,13 @@ fn check_cursor_user(home: &Path, _mode: SecurityMode, report: &mut DoctorReport
             } else {
                 format!("{} user rules installed", count)
             };
-            report.add_pass(platform, "rules", &msg);
+            sink.add_pass(platform, "rules", &msg);
         }
     }
     // No warning for missing user dirs - they're optional
 }
 
-fn check_antigravity_user(home: &Path, _mode: SecurityMode, report: &mut DoctorReport) {
+fn check_antigravity_user(home: &Path, _mode: SecurityMode, sink: &mut impl DoctorSink) {
     let platform = "Antigravity (User)";
 
     // Check ~/.gemini/antigravity/global_workflows/ exists
@@ -569,7 +701,7 @@ fn check_antigravity_user(home: &Path, _mode: SecurityMode, report: &mut DoctorR
             } else {
                 format!("{} global workflows installed", count)
             };
-            report.add_pass(platform, "workflows", &msg);
+            sink.add_pass(platform, "workflows", &msg);
         }
     }
     // No warning for missing user dirs - they're optional

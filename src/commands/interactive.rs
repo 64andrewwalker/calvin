@@ -5,9 +5,18 @@ use dialoguer::{Confirm, Input, Select};
 
 use crate::commands;
 use crate::state::{detect_state, ProjectState};
+use crate::cli::ColorWhen;
 
-pub fn cmd_interactive(cwd: &Path, json: bool, verbose: u8) -> Result<()> {
+pub fn cmd_interactive(
+    cwd: &Path,
+    json: bool,
+    verbose: u8,
+    color: Option<ColorWhen>,
+    no_animation: bool,
+) -> Result<()> {
     let state = detect_state(cwd);
+    let config = calvin::config::Config::load_or_default(Some(cwd));
+    let ui = crate::ui::context::UiContext::new(json, verbose, color, no_animation, &config);
 
     if json {
         let output = match state {
@@ -25,7 +34,7 @@ pub fn cmd_interactive(cwd: &Path, json: bool, verbose: u8) -> Result<()> {
                 "assets": { "total": count.total }
             }),
         };
-        println!("{}", serde_json::to_string_pretty(&output)?);
+        crate::ui::json::emit(output)?;
         return Ok(());
     }
 
@@ -35,7 +44,7 @@ pub fn cmd_interactive(cwd: &Path, json: bool, verbose: u8) -> Result<()> {
         return Ok(());
     }
 
-    print_banner();
+    print_banner(&ui);
 
     match state {
         ProjectState::NoPromptPack => interactive_first_run(cwd, verbose),
@@ -110,8 +119,12 @@ fn interactive_existing_project(cwd: &Path, asset_count: Option<usize>, verbose:
     let source = cwd.join(".promptpack");
 
     match selection {
-        0 => commands::deploy::cmd_deploy(&source, false, None, &None, false, true, false, false, verbose),
-        1 => commands::deploy::cmd_deploy(&source, true, None, &None, false, true, false, false, verbose),
+        0 => commands::deploy::cmd_deploy(
+            &source, false, None, &None, false, true, false, false, verbose, None, false,
+        ),
+        1 => commands::deploy::cmd_deploy(
+            &source, true, None, &None, false, true, false, false, verbose, None, false,
+        ),
         2 => {
             let remote: String = Input::new()
                 .with_prompt("Remote destination (user@host:/path)")
@@ -126,11 +139,13 @@ fn interactive_existing_project(cwd: &Path, asset_count: Option<usize>, verbose:
                 false,
                 false,
                 verbose,
+                None,
+                false,
             )
         }
         3 => commands::debug::cmd_diff(&source, false),
-        4 => commands::watch::cmd_watch(&source, false),
-        5 => commands::check::cmd_check("balanced", false, false, verbose),
+        4 => commands::watch::cmd_watch(&source, false, None, false),
+        5 => commands::check::cmd_check("balanced", false, false, verbose, None, false),
         6 => commands::explain::cmd_explain(false, false, verbose),
         _ => Ok(()),
     }
@@ -357,15 +372,8 @@ fn target_kebab(target: calvin::Target) -> &'static str {
     }
 }
 
-fn print_banner() {
-    println!("+--------------------------------------------------------------+");
-    println!("|                                                              |");
-    println!("|   Calvin - Making AI agents behave                           |");
-    println!("|                                                              |");
-    println!("|   Calvin helps you maintain AI rules and commands in one     |");
-    println!("|   place, then deploy them to Claude, Cursor, VS Code, etc.   |");
-    println!("|                                                              |");
-    println!("+--------------------------------------------------------------+\n");
+fn print_banner(ui: &crate::ui::context::UiContext) {
+    print!("{}", crate::ui::views::interactive::render_banner(ui.color, ui.unicode));
 }
 
 fn print_learn() {
