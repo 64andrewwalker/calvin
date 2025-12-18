@@ -366,7 +366,16 @@ fn perform_sync_incremental(
     use crate::sync::engine::{SyncEngine, SyncEngineOptions};
     
     // Use incremental parsing - only reparse changed files
-    let assets = parse_incremental(&options.source, changed_files, cache)?;
+    let mut assets = parse_incremental(&options.source, changed_files, cache)?;
+    
+    // Apply scope policy: when deploying to home, force all assets to User scope
+    // This matches the ScopePolicy::ForceUser behavior in deploy --home
+    if options.deploy_to_home {
+        for asset in &mut assets {
+            asset.frontmatter.scope = crate::models::Scope::User;
+        }
+    }
+    
     let outputs = compile_assets(&assets, &options.targets, &options.config)?;
     
     // Use SyncEngine for unified sync logic
