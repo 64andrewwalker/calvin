@@ -15,6 +15,7 @@ pub struct ProgressBar {
     message: String,
     started: Instant,
     style: ProgressStyle,
+    show_eta: bool,
 }
 
 impl ProgressBar {
@@ -26,6 +27,7 @@ impl ProgressBar {
             message: String::new(),
             started: Instant::now(),
             style: ProgressStyle::Bar,
+            show_eta: true,
         }
     }
 
@@ -45,6 +47,10 @@ impl ProgressBar {
 
     pub fn set_message(&mut self, message: impl Into<String>) {
         self.message = message.into();
+    }
+
+    pub fn set_show_eta(&mut self, show_eta: bool) {
+        self.show_eta = show_eta;
     }
 
     pub fn inc(&mut self, delta: u64) {
@@ -112,8 +118,10 @@ impl ProgressBar {
             out.push_str("  ");
         }
         out.push_str(&format!("{}/{} ({}%)", self.current, self.total, pct));
-        if let Some(eta) = self.eta() {
-            out.push_str(&format!("  ETA: {}", format_duration_compact(eta)));
+        if self.show_eta {
+            if let Some(eta) = self.eta() {
+                out.push_str(&format!("  ETA: {}", format_duration_compact(eta)));
+            }
         }
         out
     }
@@ -201,5 +209,15 @@ mod tests {
         bar.set(5);
         let rendered = bar.render(true);
         assert!(!rendered.contains('━'));
+    }
+
+    #[test]
+    fn render_can_hide_eta() {
+        let mut bar = ProgressBar::new(10);
+        bar.started = Instant::now() - Duration::from_secs(10);
+        bar.set(5);
+        bar.set_show_eta(false);
+        let rendered = bar.render(true);
+        assert!(!rendered.contains("ETA:"));
     }
 }

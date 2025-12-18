@@ -47,13 +47,26 @@ pub fn cmd_interactive(
     print_banner(&ui);
 
     match state {
-        ProjectState::NoPromptPack => interactive_first_run(cwd, verbose),
-        ProjectState::EmptyPromptPack => interactive_existing_project(cwd, None, verbose),
-        ProjectState::Configured(count) => interactive_existing_project(cwd, Some(count.total), verbose),
+        ProjectState::NoPromptPack => interactive_first_run(cwd, &ui, verbose),
+        ProjectState::EmptyPromptPack => {
+            interactive_existing_project(cwd, None, &ui, verbose, color, no_animation)
+        }
+        ProjectState::Configured(count) => interactive_existing_project(
+            cwd,
+            Some(count.total),
+            &ui,
+            verbose,
+            color,
+            no_animation,
+        ),
     }
 }
 
-fn interactive_first_run(cwd: &Path, verbose: u8) -> Result<()> {
+fn interactive_first_run(
+    cwd: &Path,
+    ui: &crate::ui::context::UiContext,
+    verbose: u8,
+) -> Result<()> {
     println!("No .promptpack/ directory found.\n");
 
     let items = vec![
@@ -71,15 +84,15 @@ fn interactive_first_run(cwd: &Path, verbose: u8) -> Result<()> {
         .interact()?;
 
     match selection {
-        0 => setup_wizard(cwd),
+        0 => setup_wizard(cwd, ui),
         1 => {
-            print_learn();
+            print_learn(ui);
             if Confirm::new()
                 .with_prompt("Ready to set up Calvin for this project?")
                 .default(true)
                 .interact()?
             {
-                setup_wizard(cwd)?;
+                setup_wizard(cwd, ui)?;
             }
             Ok(())
         }
@@ -92,7 +105,14 @@ fn interactive_first_run(cwd: &Path, verbose: u8) -> Result<()> {
     }
 }
 
-fn interactive_existing_project(cwd: &Path, asset_count: Option<usize>, verbose: u8) -> Result<()> {
+fn interactive_existing_project(
+    cwd: &Path,
+    asset_count: Option<usize>,
+    _ui: &crate::ui::context::UiContext,
+    verbose: u8,
+    color: Option<ColorWhen>,
+    no_animation: bool,
+) -> Result<()> {
     if let Some(n) = asset_count {
         println!("Found .promptpack/ with {} prompts\n", n);
     } else {
@@ -120,10 +140,30 @@ fn interactive_existing_project(cwd: &Path, asset_count: Option<usize>, verbose:
 
     match selection {
         0 => commands::deploy::cmd_deploy(
-            &source, false, None, &None, false, true, false, false, verbose, None, false,
+            &source,
+            false,
+            None,
+            &None,
+            false,
+            true,
+            false,
+            false,
+            verbose,
+            color,
+            no_animation,
         ),
         1 => commands::deploy::cmd_deploy(
-            &source, true, None, &None, false, true, false, false, verbose, None, false,
+            &source,
+            true,
+            None,
+            &None,
+            false,
+            true,
+            false,
+            false,
+            verbose,
+            color,
+            no_animation,
         ),
         2 => {
             let remote: String = Input::new()
@@ -139,38 +179,33 @@ fn interactive_existing_project(cwd: &Path, asset_count: Option<usize>, verbose:
                 false,
                 false,
                 verbose,
-                None,
-                false,
+                color,
+                no_animation,
             )
         }
         3 => commands::debug::cmd_diff(&source, false),
-        4 => commands::watch::cmd_watch(&source, false, None, false),
-        5 => commands::check::cmd_check("balanced", false, false, verbose, None, false),
+        4 => commands::watch::cmd_watch(&source, false, color, no_animation),
+        5 => commands::check::cmd_check("balanced", false, false, verbose, color, no_animation),
         6 => commands::explain::cmd_explain(false, false, verbose),
         _ => Ok(()),
     }
 }
 
-fn setup_wizard(cwd: &Path) -> Result<()> {
+fn setup_wizard(cwd: &Path, ui: &crate::ui::context::UiContext) -> Result<()> {
     println!("Great! Let's set up Calvin in 3 quick steps.\n");
 
     let targets = select_targets()?;
-    let templates = select_templates()?;
-    let security = select_security_mode()?;
+    let templates = select_templates(ui)?;
+    let security = select_security_mode(ui)?;
 
     let promptpack = cwd.join(".promptpack");
     write_promptpack(&promptpack, &targets, templates, security)?;
 
-    println!("\n==============================================================");
-    println!("  Setup Complete!");
-    println!("==============================================================\n");
-    println!("Created:");
-    println!("  .promptpack/config.toml");
-    println!("  .promptpack/actions/");
-    println!("\nNext steps:");
-    println!("  1. Edit your prompts in `.promptpack/`");
-    println!("  2. Deploy to your AI tools: `calvin deploy`");
-    println!("  3. Validate config: `calvin check`");
+    println!();
+    print!(
+        "{}",
+        crate::ui::views::interactive::render_setup_complete(ui.color, ui.unicode)
+    );
 
     Ok(())
 }
@@ -190,12 +225,20 @@ enum TemplateChoice {
     Empty,
 }
 
-fn select_templates() -> Result<Vec<TemplateChoice>> {
+fn select_templates(ui: &crate::ui::context::UiContext) -> Result<Vec<TemplateChoice>> {
     use dialoguer::MultiSelect;
 
-    println!("==============================================================");
-    println!("  Step 2 of 3: Start with example prompts?");
-    println!("==============================================================\n");
+    print!(
+        "{}",
+        crate::ui::views::interactive::render_step_header(
+            2,
+            3,
+            "Start with example prompts?",
+            ui.color,
+            ui.unicode
+        )
+    );
+    println!();
 
     let items = vec![
         "review.md         /review command for PR reviews",
@@ -236,10 +279,18 @@ enum SecurityChoice {
     Minimal,
 }
 
-fn select_security_mode() -> Result<SecurityChoice> {
-    println!("==============================================================");
-    println!("  Step 3 of 3: Security preference");
-    println!("==============================================================\n");
+fn select_security_mode(ui: &crate::ui::context::UiContext) -> Result<SecurityChoice> {
+    print!(
+        "{}",
+        crate::ui::views::interactive::render_step_header(
+            3,
+            3,
+            "Security preference",
+            ui.color,
+            ui.unicode
+        )
+    );
+    println!();
     println!("Calvin can protect sensitive files from being read by AI.\n");
 
     let items = vec![
@@ -376,16 +427,21 @@ fn print_banner(ui: &crate::ui::context::UiContext) {
     print!("{}", crate::ui::views::interactive::render_banner(ui.color, ui.unicode));
 }
 
-fn print_learn() {
-    println!("==============================================================");
-    println!("  The Problem Calvin Solves");
-    println!("==============================================================\n");
+fn print_learn(ui: &crate::ui::context::UiContext) {
+    print!(
+        "{}",
+        crate::ui::views::interactive::render_section_header(
+            "The Problem Calvin Solves",
+            ui.color,
+            ui.unicode
+        )
+    );
+    println!();
     println!("You use AI coding assistants (Claude, Cursor, Copilot...).");
     println!("Each one stores rules/commands in different locations.");
     println!("Maintaining them separately is tedious and error-prone.\n");
-    println!("==============================================================");
-    println!("  The Solution");
-    println!("==============================================================\n");
+    print!("{}", crate::ui::views::interactive::render_section_header("The Solution", ui.color, ui.unicode));
+    println!();
     println!("With Calvin, you write once in `.promptpack/`, then deploy everywhere:");
     println!("  `calvin deploy`\n");
 }

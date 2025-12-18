@@ -146,8 +146,8 @@ fn dispatch(
             format,
             adapter,
             dry_run,
-        } => commands::debug::cmd_migrate(format, adapter, dry_run, json),
-        Commands::Version => commands::debug::cmd_version(json),
+        } => commands::debug::cmd_migrate(format, adapter, dry_run, json, verbose, color, no_animation),
+        Commands::Version => commands::debug::cmd_version(json, verbose, color, no_animation),
     }
 }
 

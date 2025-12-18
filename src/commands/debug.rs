@@ -2,10 +2,19 @@ use std::path::Path;
 
 use anyhow::Result;
 
+use crate::cli::ColorWhen;
 use crate::ui::output::print_config_warnings;
 
-pub fn cmd_version(json: bool) -> Result<()> {
+pub fn cmd_version(
+    json: bool,
+    verbose: u8,
+    color: Option<ColorWhen>,
+    no_animation: bool,
+) -> Result<()> {
     let adapters = calvin::adapters::all_adapters();
+    let cwd = std::env::current_dir()?;
+    let config = calvin::config::Config::load_or_default(Some(&cwd));
+    let ui = crate::ui::context::UiContext::new(json, verbose, color, no_animation, &config);
 
     if json {
         crate::ui::json::emit(serde_json::json!({
@@ -34,17 +43,36 @@ pub fn cmd_version(json: bool) -> Result<()> {
             "data": output
         }))?;
     } else {
-        println!("Calvin v{}", env!("CARGO_PKG_VERSION"));
-        println!("Source Format: 1.0\n");
-        println!("Adapters:");
-        for adapter in adapters {
-            println!("  - {:<12} v{}", format!("{:?}", adapter.target()), adapter.version());
-        }
+        let adapters: Vec<(String, String)> = adapters
+            .into_iter()
+            .map(|a| (format!("{:?}", a.target()), a.version().to_string()))
+            .collect();
+        print!(
+            "{}",
+            crate::ui::views::version::render_version(
+                env!("CARGO_PKG_VERSION"),
+                &adapters,
+                ui.color,
+                ui.unicode
+            )
+        );
     }
     Ok(())
 }
 
-pub fn cmd_migrate(format: Option<String>, adapter: Option<String>, dry_run: bool, json: bool) -> Result<()> {
+pub fn cmd_migrate(
+    format: Option<String>,
+    adapter: Option<String>,
+    dry_run: bool,
+    json: bool,
+    verbose: u8,
+    color: Option<ColorWhen>,
+    no_animation: bool,
+) -> Result<()> {
+    let cwd = std::env::current_dir()?;
+    let config = calvin::config::Config::load_or_default(Some(&cwd));
+    let ui = crate::ui::context::UiContext::new(json, verbose, color, no_animation, &config);
+
     if json {
         crate::ui::json::emit(serde_json::json!({
             "event": "start",
@@ -54,16 +82,16 @@ pub fn cmd_migrate(format: Option<String>, adapter: Option<String>, dry_run: boo
             "dry_run": dry_run
         }))?;
     } else {
-        println!("Calvin Migrate");
-        if let Some(f) = &format {
-            println!("Target Format: {}", f);
-        }
-        if let Some(a) = &adapter {
-            println!("Target Adapter: {}", a);
-        }
-        if dry_run {
-            println!("Mode: Dry run");
-        }
+        print!(
+            "{}",
+            crate::ui::views::migrate::render_migrate_header(
+                format.as_deref(),
+                adapter.as_deref(),
+                dry_run,
+                ui.color,
+                ui.unicode
+            )
+        );
     }
 
     // Placeholder for future migration logic
@@ -78,12 +106,13 @@ pub fn cmd_migrate(format: Option<String>, adapter: Option<String>, dry_run: boo
             "changes": []
         }))?;
     } else {
-        let caps = crate::ui::terminal::detect_capabilities();
-        println!(
-            "\n{} Already at latest version (1.0). No migration needed.",
-            crate::ui::primitives::icon::Icon::Success.colored(
-                caps.supports_color,
-                caps.supports_unicode
+        println!();
+        print!(
+            "{}",
+            crate::ui::views::migrate::render_migrate_complete(
+                "Already at latest version (1.0). No migration needed.",
+                ui.color,
+                ui.unicode
             )
         );
     }
@@ -237,6 +266,10 @@ pub fn cmd_diff(source: &Path, json: bool) -> Result<()> {
 }
 
 pub fn cmd_parse(source: &Path, json: bool) -> Result<()> {
+    let config_path = source.join("config.toml");
+    let config = calvin::config::Config::load_or_default(Some(source));
+    let ui = crate::ui::context::UiContext::new(json, 0, None, true, &config);
+
     if json {
         crate::ui::json::emit(serde_json::json!({
             "event": "start",
@@ -267,20 +300,20 @@ pub fn cmd_parse(source: &Path, json: bool) -> Result<()> {
             "assets": assets.len()
         }))?;
     } else {
-        println!("\nFound {} assets:\n", assets.len());
+        print!(
+            "{}",
+            crate::ui::views::parse::render_parse_header(
+                &source.display().to_string(),
+                assets.len(),
+                ui.color,
+                ui.unicode
+            )
+        );
+        println!();
+        print_config_warnings(&config_path, &[], &ui);
         for asset in &assets {
-            println!("┌─ {}", asset.id);
-            println!("│  Description: {}", asset.frontmatter.description);
-            println!("│  Kind: {:?}", asset.frontmatter.kind);
-            println!("│  Scope: {:?}", asset.frontmatter.scope);
-            println!("│  Path: {}", asset.source_path.display());
-            if !asset.frontmatter.targets.is_empty() {
-                println!("│  Targets: {:?}", asset.frontmatter.targets);
-            }
-            if let Some(apply) = &asset.frontmatter.apply {
-                println!("│  Apply: {}", apply);
-            }
-            println!("└─");
+            print!("{}", crate::ui::views::parse::render_asset(asset, ui.color, ui.unicode));
+            println!();
         }
     }
 

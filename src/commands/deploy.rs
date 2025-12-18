@@ -580,181 +580,194 @@ fn run_deploy(
             }
         }
         DeployTarget::Remote(remote_str) => {
-            // Use rsync for fast batch transfer
-            if calvin::sync::remote::has_rsync() {
-                if !json {
-                    println!(
-                        "\n{} Using rsync for fast batch transfer...",
-                        Icon::Remote.colored(ui.color, ui.unicode)
-                    );
-                }
-                calvin::sync::remote::sync_remote_rsync(
-                    &remote_str,
-                    &outputs,
-                    &options,
-                    json,
-                )?
-            } else {
-                // Fallback to slow SSH method
+            // Prefer SSH-based syncing when we need structured progress (TTY animations or JSON events).
+            let use_ssh_fs = json || ui.animation;
+
+            if use_ssh_fs {
                 let (host, path) = if let Some((h, p)) = remote_str.split_once(':') {
                     (h, p)
                 } else {
                     (remote_str.as_str(), ".")
                 };
-                
-                if !json {
-                    println!(
-                        "\n{} rsync not found, falling back to slow SSH method...",
-                        Icon::Warning.colored(ui.color, ui.unicode)
-                    );
-                    println!("   Install rsync for 10x faster transfers.");
-                    println!(
-                        "\n{} Syncing {} files to remote (this may take a while)...",
-                        Icon::Progress.colored(ui.color, ui.unicode),
-                        outputs.len()
-                    );
-                }
-                
+
                 let fs = calvin::fs::RemoteFileSystem::new(host);
                 let dist_root = PathBuf::from(path);
+
+                let sizes: Vec<u64> = outputs
+                    .iter()
+                    .map(|o| o.content.len() as u64)
+                    .collect();
+                let total_bytes: u64 = sizes.iter().sum();
+                let size_labels: Vec<String> = sizes
+                    .iter()
+                    .map(|&b| crate::ui::views::transfer::format_bytes_compact(b))
+                    .collect();
+
                 if json {
                     let mut out = std::io::stdout().lock();
                     let total = outputs.len() as u64;
                     let mut done: u64 = 0;
 
-                    let mut callback = |event: SyncEvent| {
-                        match &event {
-                            SyncEvent::ItemStart { index, path } => {
-                                let _ = crate::ui::json::write_event(
-                                    &mut out,
-                                    &serde_json::json!({
-                                        "event": "item_start",
-                                        "command": command_name,
-                                        "index": index,
-                                        "path": path,
-                                    }),
-                                );
-                            }
-                            SyncEvent::ItemWritten { index, path } => {
-                                done = done.saturating_add(1);
-                                let _ = crate::ui::json::write_event(
-                                    &mut out,
-                                    &serde_json::json!({
-                                        "event": "item_written",
-                                        "command": command_name,
-                                        "index": index,
-                                        "path": path,
-                                    }),
-                                );
-                                let _ = crate::ui::json::write_event(
-                                    &mut out,
-                                    &serde_json::json!({
-                                        "event": "progress",
-                                        "command": command_name,
-                                        "current": done,
-                                        "total": total,
-                                    }),
-                                );
-                            }
-                            SyncEvent::ItemSkipped { index, path } => {
-                                done = done.saturating_add(1);
-                                let _ = crate::ui::json::write_event(
-                                    &mut out,
-                                    &serde_json::json!({
-                                        "event": "item_skipped",
-                                        "command": command_name,
-                                        "index": index,
-                                        "path": path,
-                                    }),
-                                );
-                                let _ = crate::ui::json::write_event(
-                                    &mut out,
-                                    &serde_json::json!({
-                                        "event": "progress",
-                                        "command": command_name,
-                                        "current": done,
-                                        "total": total,
-                                    }),
-                                );
-                            }
-                            SyncEvent::ItemError {
-                                index,
-                                path,
-                                message,
-                            } => {
-                                done = done.saturating_add(1);
-                                let _ = crate::ui::json::write_event(
-                                    &mut out,
-                                    &serde_json::json!({
-                                        "event": "item_error",
-                                        "command": command_name,
-                                        "index": index,
-                                        "path": path,
-                                        "message": message,
-                                    }),
-                                );
-                                let _ = crate::ui::json::write_event(
-                                    &mut out,
-                                    &serde_json::json!({
-                                        "event": "progress",
-                                        "command": command_name,
-                                        "current": done,
-                                        "total": total,
-                                    }),
-                                );
-                            }
+                    let mut callback = |event: SyncEvent| match &event {
+                        SyncEvent::ItemStart { index, path } => {
+                            let _ = crate::ui::json::write_event(
+                                &mut out,
+                                &serde_json::json!({
+                                    "event": "item_start",
+                                    "command": command_name,
+                                    "index": index,
+                                    "path": path,
+                                }),
+                            );
+                        }
+                        SyncEvent::ItemWritten { index, path } => {
+                            done = done.saturating_add(1);
+                            let _ = crate::ui::json::write_event(
+                                &mut out,
+                                &serde_json::json!({
+                                    "event": "item_written",
+                                    "command": command_name,
+                                    "index": index,
+                                    "path": path,
+                                }),
+                            );
+                            let _ = crate::ui::json::write_event(
+                                &mut out,
+                                &serde_json::json!({
+                                    "event": "progress",
+                                    "command": command_name,
+                                    "current": done,
+                                    "total": total,
+                                }),
+                            );
+                        }
+                        SyncEvent::ItemSkipped { index, path } => {
+                            done = done.saturating_add(1);
+                            let _ = crate::ui::json::write_event(
+                                &mut out,
+                                &serde_json::json!({
+                                    "event": "item_skipped",
+                                    "command": command_name,
+                                    "index": index,
+                                    "path": path,
+                                }),
+                            );
+                            let _ = crate::ui::json::write_event(
+                                &mut out,
+                                &serde_json::json!({
+                                    "event": "progress",
+                                    "command": command_name,
+                                    "current": done,
+                                    "total": total,
+                                }),
+                            );
+                        }
+                        SyncEvent::ItemError {
+                            index,
+                            path,
+                            message,
+                        } => {
+                            done = done.saturating_add(1);
+                            let _ = crate::ui::json::write_event(
+                                &mut out,
+                                &serde_json::json!({
+                                    "event": "item_error",
+                                    "command": command_name,
+                                    "index": index,
+                                    "path": path,
+                                    "message": message,
+                                }),
+                            );
+                            let _ = crate::ui::json::write_event(
+                                &mut out,
+                                &serde_json::json!({
+                                    "event": "progress",
+                                    "command": command_name,
+                                    "current": done,
+                                    "total": total,
+                                }),
+                            );
                         }
                     };
 
                     sync_with_fs_with_callback(&dist_root, &outputs, &options, &fs, &mut callback)?
-                } else if live_sync_ui {
-                    use crate::ui::live_region::LiveRegion;
+                } else if !interactive {
                     use crate::ui::animation::progress::{ProgressBar, ProgressStyle};
                     use crate::ui::components::stream::{ItemStatus, StreamOutput};
+                    use crate::ui::live_region::LiveRegion;
 
                     let mut region = LiveRegion::new();
                     let mut list = StreamOutput::with_visible_count(8);
-                    for output in &outputs {
+                    for (index, output) in outputs.iter().enumerate() {
                         list.add(output.path.display().to_string());
+                        list.update_detail(index, size_labels[index].clone());
                     }
                     let initial_anchor = outputs.len().min(8).saturating_sub(1);
                     list.set_anchor(initial_anchor);
 
                     let mut bar = ProgressBar::new(outputs.len() as u64);
                     bar.set_message("Uploading");
+                    bar.set_show_eta(false);
                     if ui.unicode {
                         bar.set_style(ProgressStyle::Blocks);
                     }
                     let width = ui.caps.width.saturating_sub(32).clamp(10, 40);
                     bar.set_width(width);
 
-                    let mut done: u64 = 0;
+                    let started = std::time::Instant::now();
+                    let mut done_files: u64 = 0;
+                    let mut bytes_done: u64 = 0;
                     let mut stdout = std::io::stdout().lock();
 
-                    let initial = format!("{}{}", list.render(ui.color, ui.unicode), bar.render(ui.unicode));
+                    let stats = crate::ui::views::transfer::render_transfer_stats(
+                        bytes_done,
+                        total_bytes,
+                        started.elapsed(),
+                        ui.color,
+                        ui.unicode,
+                    );
+                    let initial =
+                        format!("{}{}\n{}", list.render(ui.color, ui.unicode), bar.render(ui.unicode), stats);
                     region.update(&mut stdout, &initial)?;
 
                     let mut callback = |event: SyncEvent| {
                         match event {
-                            SyncEvent::ItemStart { index, .. } => list.update(index, ItemStatus::InProgress),
+                            SyncEvent::ItemStart { index, .. } => {
+                                list.update(index, ItemStatus::InProgress);
+                                list.update_detail(
+                                    index,
+                                    format!("{}  uploading...", size_labels[index]),
+                                );
+                            }
                             SyncEvent::ItemWritten { index, .. } => {
                                 list.update(index, ItemStatus::Success);
-                                done = done.saturating_add(1);
-                                bar.set(done);
+                                list.update_detail(index, size_labels[index].clone());
+                                done_files = done_files.saturating_add(1);
+                                bytes_done = bytes_done.saturating_add(sizes[index]);
+                                bar.set(done_files);
                             }
                             SyncEvent::ItemSkipped { index, .. } => {
                                 list.update(index, ItemStatus::Warning);
-                                done = done.saturating_add(1);
-                                bar.set(done);
+                                list.update_detail(index, size_labels[index].clone());
+                                done_files = done_files.saturating_add(1);
+                                bar.set(done_files);
                             }
                             SyncEvent::ItemError { index, message, .. } => {
                                 list.update(index, ItemStatus::Error);
                                 list.update_detail(index, message);
-                                done = done.saturating_add(1);
-                                bar.set(done);
+                                done_files = done_files.saturating_add(1);
+                                bar.set(done_files);
                             }
                         }
-                        let content = format!("{}{}", list.render(ui.color, ui.unicode), bar.render(ui.unicode));
+                        let stats = crate::ui::views::transfer::render_transfer_stats(
+                            bytes_done,
+                            total_bytes,
+                            started.elapsed(),
+                            ui.color,
+                            ui.unicode,
+                        );
+                        let content =
+                            format!("{}{}\n{}", list.render(ui.color, ui.unicode), bar.render(ui.unicode), stats);
                         let _ = region.update(&mut stdout, &content);
                     };
 
@@ -763,8 +776,67 @@ fn run_deploy(
                     region.clear(&mut stdout)?;
                     result
                 } else {
-                    sync_with_fs(&dist_root, &outputs, &options, &fs)?
+                    use std::io::Write;
+
+                    let mut out = std::io::stdout().lock();
+                    let _ = writeln!(
+                        out,
+                        "\n{} Uploading {} files ({})",
+                        Icon::Remote.colored(ui.color, ui.unicode),
+                        outputs.len(),
+                        crate::ui::views::transfer::format_bytes_compact(total_bytes),
+                    );
+
+                    let mut callback = |event: SyncEvent| match event {
+                        SyncEvent::ItemWritten { index, path } => {
+                            let _ = writeln!(
+                                out,
+                                "  {} {}  {}",
+                                Icon::Success.colored(ui.color, ui.unicode),
+                                path,
+                                size_labels[index]
+                            );
+                        }
+                        SyncEvent::ItemSkipped { index, path } => {
+                            let _ = writeln!(
+                                out,
+                                "  {} {}  {}",
+                                Icon::Warning.colored(ui.color, ui.unicode),
+                                path,
+                                size_labels[index]
+                            );
+                        }
+                        SyncEvent::ItemError { path, message, .. } => {
+                            let _ = writeln!(
+                                out,
+                                "  {} {}  {}",
+                                Icon::Error.colored(ui.color, ui.unicode),
+                                path,
+                                message
+                            );
+                        }
+                        SyncEvent::ItemStart { .. } => {}
+                    };
+
+                    sync_with_fs_with_callback(&dist_root, &outputs, &options, &fs, &mut callback)?
                 }
+            } else if calvin::sync::remote::has_rsync() {
+                if !json {
+                    println!(
+                        "\n{} Using rsync for fast batch transfer...",
+                        Icon::Remote.colored(ui.color, ui.unicode)
+                    );
+                }
+                calvin::sync::remote::sync_remote_rsync(&remote_str, &outputs, &options, json)?
+            } else {
+                let (host, path) = if let Some((h, p)) = remote_str.split_once(':') {
+                    (h, p)
+                } else {
+                    (remote_str.as_str(), ".")
+                };
+                let fs = calvin::fs::RemoteFileSystem::new(host);
+                let dist_root = PathBuf::from(path);
+                sync_with_fs(&dist_root, &outputs, &options, &fs)?
             }
         }
     };

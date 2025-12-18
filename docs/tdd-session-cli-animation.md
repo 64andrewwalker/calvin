@@ -186,3 +186,21 @@ Mode: RED → GREEN → REFACTOR, iterating until checklist completion.
   - Remove unnecessary `clone()` on `Copy` targets in golden tests.
 - Refactoring notes
   - None.
+
+### Iteration 12 — Remove legacy borders + remote transfer progress (DC-1, Phase 1.5/3.1 partial)
+
+- Requirements covered
+  - Interactive setup wizard no longer uses legacy `=====` separators; all headings use themed `Box` borders.
+  - `version`, `migrate`, `parse` non-JSON output migrated to themed boxed UI (no legacy `┌─/└─`).
+  - Remote deploy shows detailed transfer feedback (file sizes + progress + speed/ETA) when animations are enabled.
+- Tests written
+  - `tests/no_legacy_borders.rs`: forbids legacy border tokens in `src/commands` + `src/ui`.
+  - `tests/cli_version.rs`, `tests/cli_migrate.rs`, `tests/cli_parse.rs`: assert boxed output (themed borders) and remove legacy box-drawing chars.
+  - `src/ui/views/transfer.rs`: bytes + transfer stats formatting tests.
+  - `src/ui/widgets/progress.rs`: can hide ETA when rendered (used for transfer stats line).
+- Implementation decisions
+  - Add `ui/views/transfer.rs` helpers (`format_bytes_compact`, `render_transfer_stats`) for reusable transfer UI.
+  - Prefer SSH-based sync for remote deploy when JSON/events or TTY animations are requested; keep rsync as a fast path when structured progress is not needed.
+- Refactoring notes
+  - `interactive.rs` step/section headings now render via `ui/views/interactive.rs` helpers.
+  - `commands/debug.rs` non-JSON output now renders through `ui/views/{version,migrate,parse}.rs`.
