@@ -50,18 +50,6 @@ fn run_deploy(
     let ui = crate::ui::context::UiContext::new(json, verbose, color, no_animation, &config);
     use crate::ui::primitives::icon::Icon;
 
-    // Persist deploy target choice for watch command to use
-    {
-        use calvin::runtime_state::{RuntimeState, DeployTarget as RuntimeDeployTarget};
-        let mut state = RuntimeState::load(source);
-        let rt_target = match &target {
-            DeployTarget::Project => RuntimeDeployTarget::Project,
-            DeployTarget::Home => RuntimeDeployTarget::Home,
-            DeployTarget::Remote(_) => RuntimeDeployTarget::Remote,
-        };
-        state.set_deploy_target(rt_target, source);
-    }
-
     if json {
         let mut out = std::io::stdout().lock();
         let target_value = match &target {

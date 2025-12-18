@@ -1,11 +1,12 @@
 use std::path::Path;
 
-use anyhow::Result;
+use anyhow::{bail, Result};
 
 use crate::cli::ColorWhen;
 
 pub fn cmd_watch(source: &Path, home: bool, json: bool, color: Option<ColorWhen>, no_animation: bool) -> Result<()> {
     use calvin::watcher::{watch, WatchEvent, WatchOptions};
+    use calvin::config::DeployTargetConfig;
     use std::time::{SystemTime, UNIX_EPOCH};
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
@@ -21,13 +22,33 @@ pub fn cmd_watch(source: &Path, home: bool, json: bool, color: Option<ColorWhen>
     let config = calvin::config::Config::load(&config_path).unwrap_or_default();
     let ui = crate::ui::context::UiContext::new(json, 0, color, no_animation, &config);
 
-    // Determine deploy target: CLI flag > runtime state > config
+    // Determine deploy target: CLI flag > config
+    // If neither, show helpful error
     let deploy_to_home = if home {
         true
     } else {
-        use calvin::runtime_state::{RuntimeState, DeployTarget};
-        let state = RuntimeState::load(source);
-        state.last_deploy_target == DeployTarget::Home
+        match config.deploy.target {
+            DeployTargetConfig::Home => true,
+            DeployTargetConfig::Project => false,
+            DeployTargetConfig::Unset => {
+                if json {
+                    bail!("No deploy target configured. Add [deploy].target to config.toml or use --home flag.");
+                }
+                // Show helpful error message using Box widget
+                use crate::ui::widgets::r#box::{Box as UiBox, BoxStyle};
+                let mut b = UiBox::with_title("Configuration Required").style(BoxStyle::Warning);
+                b.add_line("No deploy target configured.");
+                b.add_empty();
+                b.add_line("Options:");
+                b.add_line("  1. Run 'calvin deploy' first to set up your target");
+                b.add_line("  2. Add to .promptpack/config.toml:");
+                b.add_line("       [deploy]");
+                b.add_line("       target = \"home\"   # or \"project\"");
+                b.add_line("  3. Use: calvin watch --home");
+                eprintln!("\n{}", b.render(ui.color, ui.unicode));
+                std::process::exit(1);
+            }
+        }
     };
 
     let target_label = if deploy_to_home { "Home (~/)" } else { "Project" };
