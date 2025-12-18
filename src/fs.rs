@@ -129,6 +129,63 @@ impl RemoteFileSystem {
     fn quote_path(path: &Path) -> String {
         format!("'{}'", path.to_string_lossy().replace("'", "'\\''"))
     }
+    
+    /// Batch check multiple files for existence and SHA-256 hash in a single SSH call
+    /// Returns a map of path -> (exists, hash_if_exists)
+    /// Hash format: `sha256:<64 hex digits>` (same as lockfile format)
+    pub fn batch_check_files(&self, paths: &[PathBuf]) -> CalvinResult<std::collections::HashMap<PathBuf, (bool, Option<String>)>> {
+        use std::collections::HashMap;
+        
+        if paths.is_empty() {
+            return Ok(HashMap::new());
+        }
+        
+        // Build a script that checks all files in one SSH call
+        // Output format: one line per file with either:
+        //   0 (not exists)
+        //   1 <sha256hash> (exists with hash)
+        let mut script = String::from("#!/bin/sh\n");
+        for path in paths {
+            let p = Self::quote_path(path);
+            // Check existence, then compute hash if exists
+            // Use sha256sum on Linux, shasum on macOS
+            script.push_str(&format!(
+                "if [ -e {} ]; then h=$(sha256sum {} 2>/dev/null | cut -d' ' -f1 || shasum -a 256 {} 2>/dev/null | cut -d' ' -f1); echo \"1 $h\"; else echo 0; fi\n",
+                p, p, p
+            ));
+        }
+        
+        let output = self.run_command("sh", Some(&script))?;
+        
+        let mut result = HashMap::new();
+        let lines: Vec<&str> = output.lines().collect();
+        
+        for (i, path) in paths.iter().enumerate() {
+            if let Some(line) = lines.get(i) {
+                let trimmed = line.trim();
+                if trimmed == "0" {
+                    result.insert(path.clone(), (false, None));
+                } else if trimmed.starts_with("1 ") {
+                    let hash_hex = trimmed.strip_prefix("1 ").unwrap_or("").trim();
+                    // Convert to lockfile format: sha256:<hex>
+                    let hash = if !hash_hex.is_empty() {
+                        Some(format!("sha256:{}", hash_hex))
+                    } else {
+                        None
+                    };
+                    result.insert(path.clone(), (true, hash));
+                } else {
+                    // Unexpected format, assume exists but no hash
+                    result.insert(path.clone(), (true, None));
+                }
+            } else {
+                // No output for this file, assume doesn't exist
+                result.insert(path.clone(), (false, None));
+            }
+        }
+        
+        Ok(result)
+    }
 }
 
 impl FileSystem for RemoteFileSystem {

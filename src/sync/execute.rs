@@ -6,6 +6,7 @@ use std::path::Path;
 
 use crate::adapters::OutputFile;
 use crate::error::CalvinResult;
+use crate::fs::FileSystem;
 use crate::sync::{SyncOptions, SyncResult, SyncEvent};
 use crate::sync::plan::{SyncPlan, SyncDestination};
 
@@ -76,6 +77,10 @@ where
             }
         }
         SyncDestination::Remote { host, path } => {
+            let fs = crate::fs::RemoteFileSystem::new(host);
+            // Expand ~ to actual home path for proper file operations
+            let expanded_path = fs.expand_home(path);
+            
             if use_rsync && callback.is_none() {
                 // Fast path: rsync to remote
                 let remote = format!("{}:{}", host, path.display());
@@ -88,8 +93,7 @@ where
                 crate::sync::remote::sync_remote_rsync(&remote, &plan.to_write, &options, false)
             } else {
                 // File-by-file via SSH with callback
-                let fs = crate::fs::RemoteFileSystem::new(host);
-                write_files_with_fs(path, &plan.to_write, &plan.to_skip, &fs, callback.as_mut())
+                write_files_with_fs(&expanded_path, &plan.to_write, &plan.to_skip, &fs, callback.as_mut())
             }
         }
     }

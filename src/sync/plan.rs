@@ -7,6 +7,7 @@ use std::path::PathBuf;
 
 use crate::adapters::OutputFile;
 use crate::error::CalvinResult;
+use crate::fs::FileSystem;
 use crate::sync::lockfile::Lockfile;
 
 /// Sync destination
@@ -139,6 +140,98 @@ pub fn plan_sync<FS: crate::fs::FileSystem + ?Sized>(
         } else {
             // New file, no conflict
             plan.to_write.push(output.clone());
+        }
+    }
+
+    Ok(plan)
+}
+
+/// Plan a sync operation for remote filesystem using batch SSH check
+///
+/// This is optimized for remote filesystems - uses a single SSH call to check
+/// all files instead of one SSH call per file.
+///
+/// Smart sync decision:
+/// - File doesn't exist → will be created
+/// - File exists, hash matches lockfile → skip (unchanged)
+/// - File exists, hash differs from lockfile → conflict (modified externally)
+/// - File exists, not in lockfile → conflict (untracked)
+/// - File exists, hash matches new content → skip (already up-to-date)
+pub fn plan_sync_remote(
+    outputs: &[OutputFile],
+    dest: &SyncDestination,
+    lockfile: &Lockfile,
+    fs: &crate::fs::RemoteFileSystem,
+) -> CalvinResult<SyncPlan> {
+    let mut plan = SyncPlan::new();
+    
+    let root = match dest {
+        SyncDestination::Local(p) => fs.expand_home(p),
+        SyncDestination::Remote { path, .. } => fs.expand_home(path),
+    };
+
+    // Collect all target paths for batch check
+    let target_paths: Vec<std::path::PathBuf> = outputs
+        .iter()
+        .map(|o| root.join(&o.path))
+        .collect();
+    
+    // Single SSH call to check all files (existence + hash)
+    let file_status = fs.batch_check_files(&target_paths)?;
+    
+    for output in outputs {
+        let target_path = root.join(&output.path);
+        let path_str = output.path.display().to_string();
+        
+        let (exists, remote_hash) = file_status.get(&target_path)
+            .cloned()
+            .unwrap_or((false, None));
+        
+        // Compute hash of new content we want to write
+        let new_content_hash = crate::sync::lockfile::hash_content(&output.content);
+        
+        if !exists {
+            // New file, no conflict
+            plan.to_write.push(output.clone());
+        } else if let Some(ref remote_h) = remote_hash {
+            // File exists with known hash
+            if remote_h == &new_content_hash {
+                // Remote already has the same content - skip
+                plan.to_skip.push(path_str);
+            } else if let Some(recorded_hash) = lockfile.get(&path_str) {
+                // File is tracked
+                if remote_h == recorded_hash {
+                    // Remote matches lockfile, safe to update
+                    plan.to_write.push(output.clone());
+                } else {
+                    // Remote was modified externally (differs from lockfile)
+                    plan.conflicts.push(Conflict {
+                        path: output.path.clone(),
+                        reason: ConflictReason::Modified,
+                        new_content: output.content.clone(),
+                    });
+                }
+            } else {
+                // File exists but not tracked - conflict
+                plan.conflicts.push(Conflict {
+                    path: output.path.clone(),
+                    reason: ConflictReason::Untracked,
+                    new_content: output.content.clone(),
+                });
+            }
+        } else {
+            // File exists but couldn't get hash - treat as potential conflict
+            if lockfile.get(&path_str).is_some() {
+                // Tracked file, assume safe to update
+                plan.to_write.push(output.clone());
+            } else {
+                // Untracked file
+                plan.conflicts.push(Conflict {
+                    path: output.path.clone(),
+                    reason: ConflictReason::Untracked,
+                    new_content: output.content.clone(),
+                });
+            }
         }
     }
 
