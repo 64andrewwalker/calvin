@@ -320,7 +320,7 @@ fn perform_sync_incremental(
     let outputs = compile_assets(&assets, &options.targets, &options.config)?;
     
     let sync_options = SyncOptions {
-        force: false,
+        force: true, // Watch mode always force-overwrites
         dry_run: false,
         interactive: false,
         targets: options.targets.clone(),
@@ -333,7 +333,12 @@ fn perform_sync_incremental(
         options.project_root.clone()
     };
     
-    sync_outputs(&dist_root, &outputs, &sync_options)
+    // Use rsync for fast batch sync if available (10x faster for 100+ files)
+    if crate::sync::remote::has_rsync() && outputs.len() > 10 {
+        crate::sync::remote::sync_local_rsync(&dist_root, &outputs, &sync_options, options.json)
+    } else {
+        sync_outputs(&dist_root, &outputs, &sync_options)
+    }
 }
 
 #[cfg(test)]
