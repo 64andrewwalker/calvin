@@ -213,6 +213,18 @@ pub fn cmd_deploy(
             ui.unicode,
         ));
     }
+    
+    // Save deploy target to config for watch command (only on success, not dry-run, local only)
+    if !dry_run && result.is_success() && runner.target().is_local() {
+        let config_path = source.join("config.toml");
+        let target_config = if home {
+            calvin::config::DeployTargetConfig::Home
+        } else {
+            calvin::config::DeployTargetConfig::Project
+        };
+        // Silently save - don't fail deploy if config save fails
+        let _ = calvin::config::Config::save_deploy_target(&config_path, target_config);
+    }
 
     Ok(())
 }
