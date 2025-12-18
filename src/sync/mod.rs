@@ -10,6 +10,8 @@ pub mod remote;
 pub mod plan;
 pub mod execute;
 pub mod engine;
+pub mod scope;
+pub mod pipeline;
 mod compile;
 mod conflict;
 
@@ -18,9 +20,11 @@ use std::path::{Path, PathBuf};
 use crate::error::{CalvinError, CalvinResult};
 use crate::models::Target;
 
-pub use lockfile::Lockfile;
+pub use lockfile::{Lockfile, LockfileNamespace, lockfile_key};
 pub use writer::atomic_write;
 pub use compile::compile_assets;
+pub use scope::{DeploymentTarget, ScopePolicy};
+pub use pipeline::AssetPipeline;
 
 // Re-export new two-stage sync API
 pub use plan::{SyncPlan, SyncDestination, Conflict, ConflictReason as PlanConflictReason, ResolveResult};

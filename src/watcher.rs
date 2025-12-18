@@ -16,7 +16,7 @@ use std::collections::{HashSet, HashMap};
 use notify::{Config, Event, RecommendedWatcher, RecursiveMode, Watcher};
 
 use crate::error::CalvinResult;
-use crate::sync::{compile_assets, SyncResult};
+use crate::sync::{AssetPipeline, ScopePolicy, SyncResult};
 use crate::parser::{parse_directory, parse_file};
 use crate::models::{PromptAsset, Target};
 
@@ -365,18 +365,17 @@ fn perform_sync_incremental(
 ) -> CalvinResult<SyncResult> {
     use crate::sync::engine::{SyncEngine, SyncEngineOptions};
     
-    // Use incremental parsing - only reparse changed files
-    let mut assets = parse_incremental(&options.source, changed_files, cache)?;
-    
-    // Apply scope policy: when deploying to home, force all assets to User scope
-    // This matches the ScopePolicy::ForceUser behavior in deploy --home
-    if options.deploy_to_home {
-        for asset in &mut assets {
-            asset.frontmatter.scope = crate::models::Scope::User;
-        }
-    }
-    
-    let outputs = compile_assets(&assets, &options.targets, &options.config)?;
+    let scope_policy = if options.deploy_to_home {
+        ScopePolicy::ForceUser
+    } else {
+        ScopePolicy::Keep
+    };
+
+    let pipeline = AssetPipeline::new(options.source.clone(), options.config.clone())
+        .with_scope_policy(scope_policy)
+        .with_targets(options.targets.clone());
+
+    let outputs = pipeline.compile_incremental(changed_files, cache)?;
     
     // Use SyncEngine for unified sync logic
     // - Incremental detection via lockfile

@@ -120,8 +120,8 @@ pub fn cmd_migrate(
     Ok(())
 }
 
-pub fn cmd_diff(source: &Path, json: bool) -> Result<()> {
-    use calvin::sync::compile_assets;
+pub fn cmd_diff(source: &Path, home: bool, json: bool) -> Result<()> {
+    use calvin::sync::{AssetPipeline, ScopePolicy};
     use std::fs;
 
     // Load configuration
@@ -133,7 +133,8 @@ pub fn cmd_diff(source: &Path, json: bool) -> Result<()> {
         crate::ui::json::emit(serde_json::json!({
             "event": "start",
             "command": "diff",
-            "source": source.display().to_string()
+            "source": source.display().to_string(),
+            "home": home
         }))?;
     } else {
         print!(
@@ -143,17 +144,27 @@ pub fn cmd_diff(source: &Path, json: bool) -> Result<()> {
     }
     print_config_warnings(&config_path, &warnings, &ui);
 
-    // Parse source directory
-    let assets = calvin::parser::parse_directory(source)?;
+    let scope_policy = if home {
+        ScopePolicy::ForceUser
+    } else {
+        ScopePolicy::ProjectOnly
+    };
 
-    // Compile to get expected outputs
-    let outputs = compile_assets(&assets, &[], &config)?;
+    let outputs = AssetPipeline::new(source.to_path_buf(), config.clone())
+        .with_scope_policy(scope_policy)
+        .compile()?;
 
     // Determine project root
     let project_root = source
         .parent()
         .map(|p| p.to_path_buf())
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+
+    let compare_root = if home {
+        dirs::home_dir().unwrap_or_default()
+    } else {
+        project_root
+    };
 
     let mut new_files = Vec::new();
     let mut modified_files = Vec::new();
@@ -166,41 +177,60 @@ pub fn cmd_diff(source: &Path, json: bool) -> Result<()> {
     };
 
     for output in &outputs {
-        let target_path = project_root.join(&output.path);
-        let path_str = output.path.display().to_string();
+        let output_path_str = output.path.display().to_string();
+        let path_str = if home {
+            if output_path_str.starts_with('~') {
+                output_path_str.clone()
+            } else {
+                format!("~/{}", output_path_str)
+            }
+        } else {
+            output_path_str.clone()
+        };
+
+        // Default diff is project-level only (skip explicit home outputs).
+        if !home && output_path_str.starts_with('~') {
+            continue;
+        }
+
+        let target_path = if output_path_str.starts_with('~') {
+            calvin::sync::expand_home_dir(&output.path)
+        } else {
+            compare_root.join(&output.path)
+        };
 
         if target_path.exists() {
             // Compare content
             let existing = fs::read_to_string(&target_path).unwrap_or_default();
             if existing == output.content {
-                unchanged_files.push(path_str);
+                unchanged_files.push(path_str.clone());
                 if let Some(out) = &mut json_out {
                     let _ = crate::ui::json::write_event(
                         out,
                         &serde_json::json!({
                             "event": "file",
                             "command": "diff",
-                            "path": output.path.display().to_string(),
+                            "path": path_str.as_str(),
                             "status": "unchanged"
                         }),
                     );
                 }
             } else {
-                modified_files.push(path_str);
+                modified_files.push(path_str.clone());
                 if let Some(out) = &mut json_out {
                     let _ = crate::ui::json::write_event(
                         out,
                         &serde_json::json!({
                             "event": "file",
                             "command": "diff",
-                            "path": output.path.display().to_string(),
+                            "path": path_str.as_str(),
                             "status": "modified"
                         }),
                     );
                 }
                 if !json {
                     rendered_diffs.push_str(&crate::ui::views::diff::render_file_diff(
-                        &output.path.display().to_string(),
+                        &path_str,
                         &existing,
                         &output.content,
                         ui.color,
@@ -209,21 +239,21 @@ pub fn cmd_diff(source: &Path, json: bool) -> Result<()> {
                 }
             }
         } else {
-            new_files.push(path_str);
+            new_files.push(path_str.clone());
             if let Some(out) = &mut json_out {
                 let _ = crate::ui::json::write_event(
                     out,
                     &serde_json::json!({
                         "event": "file",
                         "command": "diff",
-                        "path": output.path.display().to_string(),
+                        "path": path_str.as_str(),
                         "status": "new"
                     }),
                 );
             }
             if !json {
                 rendered_diffs.push_str(&crate::ui::views::diff::render_file_diff(
-                    &output.path.display().to_string(),
+                    &path_str,
                     "",
                     &output.content,
                     ui.color,

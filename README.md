@@ -119,6 +119,9 @@ calvin deploy
 # Preview what would change
 calvin diff
 
+# Preview what would change in home directory (~/...)
+calvin diff --home
+
 # Watch for changes and auto-recompile
 calvin watch
 

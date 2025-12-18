@@ -5,9 +5,10 @@ use std::path::Path;
 
 use anyhow::Result;
 use calvin::Target;
+use calvin::sync::ScopePolicy;
 use calvin::sync::SyncEvent;
 
-use super::targets::{DeployTarget, ScopePolicy};
+use super::targets::DeployTarget;
 use super::options::DeployOptions;
 use super::runner::DeployRunner;
 use crate::cli::ColorWhen;

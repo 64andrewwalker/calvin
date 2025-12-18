@@ -163,6 +163,10 @@ pub enum Commands {
         /// Path to .promptpack directory
         #[arg(short, long, default_value = ".promptpack")]
         source: PathBuf,
+
+        /// Diff against home directory outputs (~/...)
+        #[arg(long)]
+        home: bool,
     },
 
     /// Validate platform configurations
@@ -415,8 +419,19 @@ mod tests {
     #[test]
     fn test_cli_parse_diff() {
         let cli = Cli::try_parse_from(["calvin", "diff", "--source", "my-pack"]).unwrap();
-        if let Some(Commands::Diff { source }) = cli.command {
+        if let Some(Commands::Diff { source, home }) = cli.command {
             assert_eq!(source, PathBuf::from("my-pack"));
+            assert!(!home);
+        } else {
+            panic!("Expected Diff command");
+        }
+    }
+
+    #[test]
+    fn test_cli_parse_diff_home() {
+        let cli = Cli::try_parse_from(["calvin", "diff", "--home"]).unwrap();
+        if let Some(Commands::Diff { home, .. }) = cli.command {
+            assert!(home);
         } else {
             panic!("Expected Diff command");
         }

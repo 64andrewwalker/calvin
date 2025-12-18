@@ -51,12 +51,16 @@ where
         });
     }
 
+    // rsync can only sync to a single destination root; paths prefixed with `~`
+    // may resolve outside that root (home directory), so fall back to file-by-file.
+    let has_home_paths = plan.to_write.iter().any(|o| o.path.to_string_lossy().starts_with('~'));
+
     // Determine actual strategy
     let use_rsync = match strategy {
-        SyncStrategy::Rsync => true,
+        SyncStrategy::Rsync => !has_home_paths,
         SyncStrategy::FileByFile => false,
         SyncStrategy::Auto => {
-            plan.to_write.len() > 10 && crate::sync::remote::has_rsync()
+            plan.to_write.len() > 10 && crate::sync::remote::has_rsync() && !has_home_paths
         }
     };
 
@@ -141,7 +145,8 @@ where
             });
         }
 
-        let target_path = root.join(&output.path);
+        let expanded_output_path = fs.expand_home(&output.path);
+        let target_path = root.join(expanded_output_path);
         
         // Ensure parent directory exists
         if let Some(parent) = target_path.parent() {
@@ -260,12 +265,13 @@ mod tests {
     fn auto_strategy_uses_rsync_for_many_files() {
         // This is a design validation test
         let strategy = SyncStrategy::Auto;
+        let has_home_paths = false;
         
         // With 11 files and rsync available, should use rsync
         let use_rsync = match strategy {
             SyncStrategy::Rsync => true,
             SyncStrategy::FileByFile => false,
-            SyncStrategy::Auto => 11 > 10 && crate::sync::remote::has_rsync(),
+            SyncStrategy::Auto => 11 > 10 && crate::sync::remote::has_rsync() && !has_home_paths,
         };
         
         // On most Unix systems, rsync is available so this should be true

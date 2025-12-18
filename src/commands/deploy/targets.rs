@@ -62,27 +62,9 @@ impl DeployTarget {
         }
     }
 
-    /// Check if this is a local target
+/// Check if this is a local target
     pub fn is_local(&self) -> bool {
         !matches!(self, DeployTarget::Remote(_))
-    }
-}
-
-/// Scope policy for asset deployment
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[allow(dead_code)]
-pub enum ScopePolicy {
-    /// Keep original scope from asset definition
-    Keep,
-    /// Only deploy user-scoped assets
-    UserOnly,
-    /// Force all assets to user scope
-    ForceUser,
-}
-
-impl Default for ScopePolicy {
-    fn default() -> Self {
-        ScopePolicy::Keep
     }
 }
 

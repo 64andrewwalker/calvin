@@ -19,8 +19,8 @@ use std::path::{Path, PathBuf};
 use crate::adapters::OutputFile;
 use crate::error::CalvinResult;
 use crate::fs::{FileSystem, LocalFileSystem, RemoteFileSystem};
-use crate::sync::lockfile::Lockfile;
-use crate::sync::plan::{plan_sync, plan_sync_remote, SyncDestination, SyncPlan};
+use crate::sync::lockfile::{Lockfile, LockfileNamespace, lockfile_key};
+use crate::sync::plan::{plan_sync_remote_with_namespace, plan_sync_with_namespace, SyncDestination, SyncPlan};
 use crate::sync::execute::{execute_sync_with_callback, SyncStrategy};
 use crate::sync::{SyncResult, SyncEvent};
 
@@ -51,6 +51,7 @@ pub struct SyncEngine<'a, FS: FileSystem = LocalFileSystem> {
     outputs: &'a [OutputFile],
     destination: SyncDestination,
     lockfile_path: PathBuf,
+    lockfile_namespace: LockfileNamespace,
     options: SyncEngineOptions,
     fs: FS,
 }
@@ -68,6 +69,7 @@ impl<'a, FS: FileSystem> SyncEngine<'a, FS> {
             outputs,
             destination,
             lockfile_path,
+            lockfile_namespace: LockfileNamespace::Project,
             options,
             fs,
         }
@@ -100,7 +102,9 @@ impl<'a> SyncEngine<'a, LocalFileSystem> {
         let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
         // Use source-based lockfile for consistent tracking
         let lockfile_path = source.join(".calvin.lock");
-        Self::new(outputs, SyncDestination::Local(home), lockfile_path, options)
+        let mut engine = Self::new(outputs, SyncDestination::Local(home), lockfile_path, options);
+        engine.lockfile_namespace = LockfileNamespace::Home;
+        engine
     }
 
     /// Create for remote destination
@@ -136,11 +140,23 @@ impl<'a, FS: FileSystem> SyncEngine<'a, FS> {
 
         match &self.destination {
             SyncDestination::Local(_) => {
-                plan_sync(self.outputs, &self.destination, &lockfile, &self.fs)
+                plan_sync_with_namespace(
+                    self.outputs,
+                    &self.destination,
+                    &lockfile,
+                    &self.fs,
+                    self.lockfile_namespace,
+                )
             }
             SyncDestination::Remote { host, .. } => {
                 let remote_fs = RemoteFileSystem::new(host);
-                plan_sync_remote(self.outputs, &self.destination, &lockfile, &remote_fs)
+                plan_sync_remote_with_namespace(
+                    self.outputs,
+                    &self.destination,
+                    &lockfile,
+                    &remote_fs,
+                    self.lockfile_namespace,
+                )
             }
         }
     }
@@ -230,7 +246,8 @@ impl<'a, FS: FileSystem> SyncEngine<'a, FS> {
                 });
             }
 
-            let target_path = root.join(&output.path);
+            let expanded_output_path = self.fs.expand_home(&output.path);
+            let target_path = root.join(expanded_output_path);
             
             // Ensure parent directory exists
             if let Some(parent) = target_path.parent() {
@@ -359,7 +376,7 @@ impl<'a, FS: FileSystem> SyncEngine<'a, FS> {
             }
 
             // Read existing content for diff
-            let target_path = root.join(&conflict.path);
+            let target_path = root.join(self.fs.expand_home(&conflict.path));
             let existing_content = self.fs.read_to_string(&target_path).unwrap_or_default();
             
             // Map our ConflictReason to the resolver's expected type
@@ -438,7 +455,8 @@ impl<'a, FS: FileSystem> SyncEngine<'a, FS> {
                 // For both written and skipped: record the output content hash
                 // (skipped means target already has this content)
                 let hash = crate::sync::lockfile::hash_content(&output.content);
-                lockfile.set_hash(&path_str, &hash);
+                let key = lockfile_key(self.lockfile_namespace, &output.path);
+                lockfile.set_hash(&key, &hash);
             }
         }
 
@@ -547,7 +565,8 @@ mod tests {
         assert!(lockfile_path.exists(), "Lockfile should exist");
         
         let lockfile = Lockfile::load_or_new(&lockfile_path, &LocalFileSystem);
-        assert!(lockfile.get("test.md").is_some(), "Lockfile should have test.md entry");
+        let key = lockfile_key(LockfileNamespace::Project, Path::new("test.md"));
+        assert!(lockfile.get(&key).is_some(), "Lockfile should have test.md entry");
     }
 
     #[test]
@@ -700,7 +719,10 @@ mod tests {
         
         // Verify lockfile contains our file entry
         let lockfile_content = mock_fs.read_to_string(&lockfile_path).unwrap();
-        assert!(lockfile_content.contains(".claude/test.md"), "Lockfile should contain our file");
+        assert!(
+            lockfile_content.contains("project:.claude/test.md"),
+            "Lockfile should contain our file"
+        );
     }
     
     #[test]
@@ -1173,7 +1195,7 @@ hash = "sha256:abc123"
 
         // Lockfile should be updated and still readable
         let lockfile_content = fs::read_to_string(lockfile_dir.join(".calvin.lock")).unwrap();
-        assert!(lockfile_content.contains(".claude/test.md"));
+        assert!(lockfile_content.contains("project:.claude/test.md"));
     }
 
     #[test]
@@ -1388,4 +1410,3 @@ hash = "sha256:abc123"
         assert_eq!(engine.lockfile_path(), &expected);
     }
 }
-
