@@ -4,8 +4,9 @@ use anyhow::Result;
 
 use crate::cli::ColorWhen;
 
-pub fn cmd_watch(source: &Path, json: bool, color: Option<ColorWhen>, no_animation: bool) -> Result<()> {
+pub fn cmd_watch(source: &Path, home: bool, json: bool, color: Option<ColorWhen>, no_animation: bool) -> Result<()> {
     use calvin::watcher::{watch, WatchEvent, WatchOptions};
+    use calvin::config::DeployTargetConfig;
     use std::time::{SystemTime, UNIX_EPOCH};
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
@@ -21,12 +22,18 @@ pub fn cmd_watch(source: &Path, json: bool, color: Option<ColorWhen>, no_animati
     let config = calvin::config::Config::load(&config_path).unwrap_or_default();
     let ui = crate::ui::context::UiContext::new(json, 0, color, no_animation, &config);
 
+    // Determine deploy target: CLI flag overrides config
+    let deploy_to_home = home || config.deploy.target == DeployTargetConfig::Home;
+
+    let target_label = if deploy_to_home { "Home (~/)" } else { "Project" };
+
     let options = WatchOptions {
         source: source.to_path_buf(),
         project_root,
         targets: vec![],
         json,
         config,
+        deploy_to_home,
     };
 
     // Set up Ctrl+C handler
@@ -42,7 +49,12 @@ pub fn cmd_watch(source: &Path, json: bool, color: Option<ColorWhen>, no_animati
         let source_display = source.display().to_string();
         print!(
             "{}",
-            crate::ui::views::watch::render_watch_header(&source_display, ui.color, ui.unicode)
+            crate::ui::views::watch::render_watch_header_with_target(
+                &source_display,
+                target_label,
+                ui.color,
+                ui.unicode
+            )
         );
     }
 

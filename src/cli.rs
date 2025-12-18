@@ -152,6 +152,10 @@ pub enum Commands {
         /// Path to .promptpack directory
         #[arg(short, long, default_value = ".promptpack")]
         source: PathBuf,
+
+        /// Sync to user home directory (instead of project root)
+        #[arg(long)]
+        home: bool,
     },
 
     /// Preview changes without writing
@@ -421,7 +425,7 @@ mod tests {
     #[test]
     fn test_cli_parse_watch() {
         let cli = Cli::try_parse_from(["calvin", "watch", "--source", ".promptpack"]).unwrap();
-        if let Some(Commands::Watch { source }) = cli.command {
+        if let Some(Commands::Watch { source, .. }) = cli.command {
             assert_eq!(source, PathBuf::from(".promptpack"));
         } else {
             panic!("Expected Watch command");

@@ -157,6 +157,8 @@ pub struct WatchOptions {
     pub config: crate::config::Config,
     /// Output as NDJSON
     pub json: bool,
+    /// Deploy to home directory instead of project root
+    pub deploy_to_home: bool,
 }
 
 /// Watch event types for NDJSON output
@@ -324,7 +326,14 @@ fn perform_sync_incremental(
         targets: options.targets.clone(),
     };
     
-    sync_outputs(&options.project_root, &outputs, &sync_options)
+    // Determine sync destination based on config
+    let dist_root = if options.deploy_to_home {
+        dirs::home_dir().unwrap_or_else(|| options.project_root.clone())
+    } else {
+        options.project_root.clone()
+    };
+    
+    sync_outputs(&dist_root, &outputs, &sync_options)
 }
 
 #[cfg(test)]
@@ -454,6 +463,7 @@ mod tests {
             targets: vec![],
             config: crate::config::Config::default(),
             json: false,
+            deploy_to_home: false,
         };
         
         let events: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));

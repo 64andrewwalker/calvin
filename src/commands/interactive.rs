@@ -184,7 +184,7 @@ fn interactive_existing_project(
             )
         }
         3 => commands::debug::cmd_diff(&source, false),
-        4 => commands::watch::cmd_watch(&source, false, color, no_animation),
+        4 => commands::watch::cmd_watch(&source, false, false, color, no_animation),
         5 => commands::check::cmd_check("balanced", false, false, verbose, color, no_animation),
         6 => commands::explain::cmd_explain(false, false, verbose),
         _ => Ok(()),
