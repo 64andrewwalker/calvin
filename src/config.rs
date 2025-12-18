@@ -405,6 +405,81 @@ impl Config {
             self.targets.enabled.clone()
         }
     }
+    
+    /// Save deploy target to config file
+    /// 
+    /// Updates or creates the [deploy] section in config.toml with the target.
+    /// Preserves other settings in the file.
+    pub fn save_deploy_target(config_path: &Path, target: DeployTargetConfig) -> CalvinResult<()> {
+        use std::io::Write;
+        
+        // Don't save Unset
+        if target == DeployTargetConfig::Unset {
+            return Ok(());
+        }
+        
+        let target_str = match target {
+            DeployTargetConfig::Home => "home",
+            DeployTargetConfig::Project => "project",
+            DeployTargetConfig::Unset => return Ok(()),
+        };
+        
+        // Read existing config or start fresh
+        let existing = fs::read_to_string(config_path).unwrap_or_default();
+        
+        // Check if [deploy] section exists
+        if existing.contains("[deploy]") {
+            // Update existing deploy.target
+            let mut lines: Vec<String> = existing.lines().map(|s| s.to_string()).collect();
+            let mut in_deploy_section = false;
+            let mut target_updated = false;
+            
+            for line in &mut lines {
+                if line.trim() == "[deploy]" {
+                    in_deploy_section = true;
+                } else if line.starts_with('[') && in_deploy_section {
+                    // New section started, insert target before this
+                    if !target_updated {
+                        // This shouldn't happen if target exists, but handle it
+                    }
+                    in_deploy_section = false;
+                } else if in_deploy_section && line.trim().starts_with("target") {
+                    *line = format!("target = \"{}\"", target_str);
+                    target_updated = true;
+                }
+            }
+            
+            // If [deploy] section exists but no target line, add it
+            if !target_updated {
+                for (i, line) in lines.iter().enumerate() {
+                    if line.trim() == "[deploy]" {
+                        lines.insert(i + 1, format!("target = \"{}\"", target_str));
+                        break;
+                    }
+                }
+            }
+            
+            let new_content = lines.join("\n");
+            let mut file = fs::File::create(config_path)?;
+            file.write_all(new_content.as_bytes())?;
+        } else {
+            // Append [deploy] section
+            let mut file = fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(config_path)?;
+            
+            // Add newline if file doesn't end with one
+            if !existing.is_empty() && !existing.ends_with('\n') {
+                writeln!(file)?;
+            }
+            writeln!(file)?;
+            writeln!(file, "[deploy]")?;
+            writeln!(file, "target = \"{}\"", target_str)?;
+        }
+        
+        Ok(())
+    }
 }
 
 /// Get XDG config directory
