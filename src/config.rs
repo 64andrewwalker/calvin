@@ -147,6 +147,25 @@ fn default_true() -> bool {
     true
 }
 
+/// Deploy target configuration
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum DeployTargetConfig {
+    /// Deploy to project directory (default)
+    #[default]
+    Project,
+    /// Deploy to user home directory
+    Home,
+}
+
+/// Deploy configuration
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct DeployConfig {
+    /// Default deploy target (project or home)
+    #[serde(default)]
+    pub target: DeployTargetConfig,
+}
+
 /// Output configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OutputConfig {
@@ -241,6 +260,9 @@ pub struct Config {
 
     #[serde(default)]
     pub mcp: McpConfig,
+
+    #[serde(default)]
+    pub deploy: DeployConfig,
 }
 
 /// Non-fatal configuration warning surfaced to CLI users.

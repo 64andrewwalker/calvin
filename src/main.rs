@@ -98,7 +98,7 @@ fn dispatch(
                 no_animation,
             )
         }
-        Commands::Watch { source } => commands::watch::cmd_watch(&source, json, color, no_animation),
+        Commands::Watch { source, home } => commands::watch::cmd_watch(&source, home, json, color, no_animation),
         Commands::Diff { source } => commands::debug::cmd_diff(&source, json),
         Commands::Doctor { mode } => {
             if !json {
