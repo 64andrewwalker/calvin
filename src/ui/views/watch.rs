@@ -32,7 +32,7 @@ pub fn render_watch_event(
     let prefix = format!("[{}]", timestamp);
 
     match event {
-        WatchEvent::Started { source } => format!(
+        WatchEvent::WatchStarted { source } => format!(
             "{} {} Watching: {}\n",
             prefix,
             Icon::Watch.colored(supports_color, supports_unicode),
@@ -93,7 +93,7 @@ mod tests {
 
     #[test]
     fn renders_started_event_with_watch_icon() {
-        let event = WatchEvent::Started {
+        let event = WatchEvent::WatchStarted {
             source: ".promptpack".to_string(),
         };
         let rendered = render_watch_event("00:00:00", &event, false, false);

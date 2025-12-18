@@ -11,7 +11,7 @@ pub mod fs;
 pub mod models;
 pub mod parser;
 pub mod security;
-pub mod security_baseline;
+pub(crate) mod security_baseline;
 pub mod sync;
 pub mod watcher;
 
