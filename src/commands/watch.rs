@@ -6,7 +6,6 @@ use crate::cli::ColorWhen;
 
 pub fn cmd_watch(source: &Path, home: bool, json: bool, color: Option<ColorWhen>, no_animation: bool) -> Result<()> {
     use calvin::watcher::{watch, WatchEvent, WatchOptions};
-    use calvin::config::DeployTargetConfig;
     use std::time::{SystemTime, UNIX_EPOCH};
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
@@ -22,8 +21,14 @@ pub fn cmd_watch(source: &Path, home: bool, json: bool, color: Option<ColorWhen>
     let config = calvin::config::Config::load(&config_path).unwrap_or_default();
     let ui = crate::ui::context::UiContext::new(json, 0, color, no_animation, &config);
 
-    // Determine deploy target: CLI flag overrides config
-    let deploy_to_home = home || config.deploy.target == DeployTargetConfig::Home;
+    // Determine deploy target: CLI flag > runtime state > config
+    let deploy_to_home = if home {
+        true
+    } else {
+        use calvin::runtime_state::{RuntimeState, DeployTarget};
+        let state = RuntimeState::load(source);
+        state.last_deploy_target == DeployTarget::Home
+    };
 
     let target_label = if deploy_to_home { "Home (~/)" } else { "Project" };
 

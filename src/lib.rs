@@ -14,6 +14,7 @@ pub mod security;
 pub mod security_baseline;
 pub mod watcher;
 pub mod fs;
+pub mod runtime_state;
 
 // Re-exports for convenience
 pub use error::{CalvinError, CalvinResult};
