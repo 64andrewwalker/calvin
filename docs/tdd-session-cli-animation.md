@@ -204,3 +204,16 @@ Mode: RED → GREEN → REFACTOR, iterating until checklist completion.
 - Refactoring notes
   - `interactive.rs` step/section headings now render via `ui/views/interactive.rs` helpers.
   - `commands/debug.rs` non-JSON output now renders through `ui/views/{version,migrate,parse}.rs`.
+
+### Iteration 13 — Interactive intro view + transfer speed unit test (DC-1, Phase 1.5 polish)
+
+- Requirements covered
+  - Setup wizard intro line is rendered via a UI view (keeps `commands/*` free of ad-hoc presentation).
+  - Transfer stats formatting has explicit coverage for `GB/s` boundary output.
+- Tests written
+  - `src/ui/views/interactive.rs`: `render_setup_intro(...)` renders with themed borders.
+  - `src/ui/views/transfer.rs`: `GB/s` boundary speed unit test.
+- Implementation decisions
+  - Introduce `render_setup_intro(...)` as a small boxed banner at the start of the setup wizard.
+- Refactoring notes
+  - None.

@@ -12,6 +12,12 @@ pub fn render_banner(supports_color: bool, supports_unicode: bool) -> String {
     b.render(supports_color, supports_unicode)
 }
 
+pub fn render_setup_intro(supports_color: bool, supports_unicode: bool) -> String {
+    let mut b = Box::with_style(BoxStyle::Info);
+    b.add_line("Great! Let's set up Calvin in 3 quick steps.");
+    b.render(supports_color, supports_unicode)
+}
+
 pub fn render_step_header(
     step: u8,
     total: u8,
@@ -67,5 +73,12 @@ mod tests {
     fn step_header_uses_themed_borders() {
         let rendered = render_step_header(1, 3, "Choose targets", false, true);
         assert!(rendered.starts_with('╭'));
+    }
+
+    #[test]
+    fn setup_intro_uses_themed_borders() {
+        let rendered = render_setup_intro(false, true);
+        assert!(rendered.starts_with('╭'));
+        assert!(rendered.contains("Great! Let's set up Calvin"));
     }
 }
