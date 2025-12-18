@@ -140,8 +140,11 @@ pub fn parse_incremental(
         }
     }
 
-    // Return all cached assets
-    Ok(cache.cached_assets.values().cloned().collect())
+    // Return all cached assets, sorted by ID for deterministic output
+    // (HashMap iteration order is not stable, which would cause AGENTS.md etc. to have different hashes)
+    let mut assets: Vec<_> = cache.cached_assets.values().cloned().collect();
+    assets.sort_by(|a, b| a.id.cmp(&b.id));
+    Ok(assets)
 }
 
 /// Compute a simple hash of content for change detection
