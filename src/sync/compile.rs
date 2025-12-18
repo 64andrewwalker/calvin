@@ -94,4 +94,3 @@ pub fn compile_assets(
 
     Ok(outputs)
 }
-

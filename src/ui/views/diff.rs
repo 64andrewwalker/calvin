@@ -5,11 +5,7 @@ use crate::ui::components::diff::render_unified_diff_with_line_numbers;
 use crate::ui::primitives::icon::Icon;
 use crate::ui::widgets::r#box::{Box, BoxStyle};
 
-pub fn render_diff_header(
-    source: &Path,
-    supports_color: bool,
-    supports_unicode: bool,
-) -> String {
+pub fn render_diff_header(source: &Path, supports_color: bool, supports_unicode: bool) -> String {
     let mut header = CommandHeader::new(Icon::Diff, "Calvin Diff");
     header.add("Source", source.display().to_string());
     header.render(supports_color, supports_unicode)

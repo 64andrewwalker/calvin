@@ -40,4 +40,3 @@ fn test_check_json_emits_ndjson_event_stream() {
         "expected at least one check event, got:\n{stdout}"
     );
 }
-

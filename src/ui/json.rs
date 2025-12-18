@@ -13,4 +13,3 @@ pub fn emit(event: serde_json::Value) -> io::Result<()> {
     let mut out = io::stdout().lock();
     write_event(&mut out, &event)
 }
-

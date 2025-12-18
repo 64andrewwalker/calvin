@@ -75,7 +75,7 @@ impl TargetAdapter for CodexAdapter {
 
         // Check for named placeholders without documentation
         let content = &output.content;
-        
+
         // Find $KEY patterns (named arguments)
         let mut i = 0;
         let chars: Vec<char> = content.chars().collect();
@@ -89,7 +89,9 @@ impl TargetAdapter for CodexAdapter {
                 if end > start {
                     let key: String = chars[start..end].iter().collect();
                     // Skip common placeholders
-                    if !["ARGUMENTS", "1", "2", "3", "4", "5", "6", "7", "8", "9"].contains(&key.as_str()) {
+                    if !["ARGUMENTS", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
+                        .contains(&key.as_str())
+                    {
                         // This is a named placeholder - should be documented
                         if !content.contains(&format!("`{}`", key)) {
                             diagnostics.push(Diagnostic {
@@ -136,7 +138,7 @@ mod tests {
         );
 
         let outputs = adapter.compile(&asset).unwrap();
-        
+
         assert_eq!(outputs.len(), 1);
         assert_eq!(
             outputs[0].path,
@@ -144,7 +146,9 @@ mod tests {
         );
         // Frontmatter should be at the very beginning
         assert!(outputs[0].content.starts_with("---\n"));
-        assert!(outputs[0].content.contains("description: Generate unit tests"));
+        assert!(outputs[0]
+            .content
+            .contains("description: Generate unit tests"));
         // $ARGUMENTS should be right after frontmatter
         assert!(outputs[0].content.contains("---\n\n$ARGUMENTS"));
         // Footer should be at the end
@@ -164,7 +168,7 @@ mod tests {
         );
 
         let outputs = adapter.compile(&asset).unwrap();
-        
+
         assert_eq!(
             outputs[0].path,
             PathBuf::from(".codex/prompts/project-prompt.md")
@@ -180,7 +184,7 @@ mod tests {
         let asset = PromptAsset::new("test", "actions/test.md", fm, "Content");
 
         let frontmatter = adapter.generate_frontmatter(&asset);
-        
+
         assert!(frontmatter.starts_with("---\n"));
         assert!(frontmatter.ends_with("---\n"));
         assert!(frontmatter.contains("description: Test prompt"));
@@ -191,13 +195,10 @@ mod tests {
     #[test]
     fn test_codex_validate_undocumented_placeholder() {
         let adapter = CodexAdapter::new();
-        let output = OutputFile::new(
-            "test.md",
-            "Use $PROJECT_NAME for the project",
-        );
+        let output = OutputFile::new("test.md", "Use $PROJECT_NAME for the project");
 
         let diagnostics = adapter.validate(&output);
-        
+
         assert!(!diagnostics.is_empty());
         assert!(diagnostics[0].message.contains("PROJECT_NAME"));
     }
@@ -211,7 +212,7 @@ mod tests {
         );
 
         let diagnostics = adapter.validate(&output);
-        
+
         assert!(diagnostics.is_empty());
     }
 

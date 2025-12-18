@@ -5,9 +5,9 @@
 //! - Separates concerns into targets, options, runner
 //! - Uses plan -> resolve -> execute two-stage sync
 
-pub mod targets;
+pub mod cmd;
 pub mod options;
 pub mod runner;
-pub mod cmd;
+pub mod targets;
 
 pub use cmd::{cmd_deploy, cmd_install, cmd_sync};

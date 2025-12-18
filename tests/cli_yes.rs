@@ -66,4 +66,3 @@ Hello world.
     let after = fs::read_to_string(&output_path).unwrap();
     assert_eq!(after, original);
 }
-

@@ -3,9 +3,9 @@ use std::path::Path;
 use anyhow::Result;
 use dialoguer::{Confirm, Input, Select};
 
+use crate::cli::ColorWhen;
 use crate::commands;
 use crate::state::{detect_state, ProjectState};
-use crate::cli::ColorWhen;
 
 pub fn cmd_interactive(
     cwd: &Path,
@@ -51,14 +51,9 @@ pub fn cmd_interactive(
         ProjectState::EmptyPromptPack => {
             interactive_existing_project(cwd, None, &ui, verbose, color, no_animation)
         }
-        ProjectState::Configured(count) => interactive_existing_project(
-            cwd,
-            Some(count.total),
-            &ui,
-            verbose,
-            color,
-            no_animation,
-        ),
+        ProjectState::Configured(count) => {
+            interactive_existing_project(cwd, Some(count.total), &ui, verbose, color, no_animation)
+        }
     }
 }
 
@@ -201,7 +196,9 @@ fn deploy_both(
 ) -> Result<()> {
     use calvin::sync::ScopePolicy;
 
-    use crate::commands::deploy::{options::DeployOptions, runner::DeployRunner, targets::DeployTarget};
+    use crate::commands::deploy::{
+        options::DeployOptions, runner::DeployRunner, targets::DeployTarget,
+    };
     use crate::ui::views::deploy::{render_deploy_header, render_deploy_summary};
 
     let project_root = source.parent().unwrap_or(source).to_path_buf();
@@ -387,10 +384,7 @@ fn select_security_mode(ui: &crate::ui::context::UiContext) -> Result<SecurityCh
         "Minimal           I'll configure security myself",
     ];
 
-    let selection = Select::new()
-        .items(&items)
-        .default(0)
-        .interact()?;
+    let selection = Select::new().items(&items).default(0).interact()?;
 
     Ok(match selection {
         1 => SecurityChoice::Strict,
@@ -413,7 +407,11 @@ fn write_promptpack(
     Ok(())
 }
 
-fn write_config(promptpack: &Path, targets: &[calvin::Target], security: SecurityChoice) -> Result<()> {
+fn write_config(
+    promptpack: &Path,
+    targets: &[calvin::Target],
+    security: SecurityChoice,
+) -> Result<()> {
     let (mode, allow_naked) = match security {
         SecurityChoice::Balanced => ("balanced", false),
         SecurityChoice::Strict => ("strict", false),
@@ -512,7 +510,10 @@ fn target_kebab(target: calvin::Target) -> &'static str {
 }
 
 fn print_banner(ui: &crate::ui::context::UiContext) {
-    print!("{}", crate::ui::views::interactive::render_banner(ui.color, ui.unicode));
+    print!(
+        "{}",
+        crate::ui::views::interactive::render_banner(ui.color, ui.unicode)
+    );
 }
 
 fn print_learn(ui: &crate::ui::context::UiContext) {
@@ -528,7 +529,10 @@ fn print_learn(ui: &crate::ui::context::UiContext) {
     println!("You use AI coding assistants (Claude, Cursor, Copilot...).");
     println!("Each one stores rules/commands in different locations.");
     println!("Maintaining them separately is tedious and error-prone.\n");
-    print!("{}", crate::ui::views::interactive::render_section_header("The Solution", ui.color, ui.unicode));
+    print!(
+        "{}",
+        crate::ui::views::interactive::render_section_header("The Solution", ui.color, ui.unicode)
+    );
     println!();
     println!("With Calvin, you write once in `.promptpack/`, then deploy everywhere:");
     println!("  `calvin deploy`\n");

@@ -171,19 +171,28 @@ mod tests {
     #[test]
     fn test_escape_for_format_json() {
         let input = r#"say "hello""#;
-        assert_eq!(escape_for_format(input, OutputFormat::Json), r#"say \"hello\""#);
+        assert_eq!(
+            escape_for_format(input, OutputFormat::Json),
+            r#"say \"hello\""#
+        );
     }
 
     #[test]
     fn test_escape_for_format_markdown() {
         let input = r#"say "hello""#;
-        assert_eq!(escape_for_format(input, OutputFormat::Markdown), r#"say "hello""#);
+        assert_eq!(
+            escape_for_format(input, OutputFormat::Markdown),
+            r#"say "hello""#
+        );
     }
 
     #[test]
     fn test_escape_for_format_raw() {
         let input = r#"say "hello""#;
-        assert_eq!(escape_for_format(input, OutputFormat::Raw), r#"say "hello""#);
+        assert_eq!(
+            escape_for_format(input, OutputFormat::Raw),
+            r#"say "hello""#
+        );
     }
 
     // === Real-world Corruption Prevention Tests ===
@@ -193,10 +202,10 @@ mod tests {
         // This is the example from P2 pitfall documentation
         let input = r#"Check if variable is named "foo""#;
         let escaped = escape_json(input);
-        
+
         // Build a JSON object using the escaped value
         let json = format!(r#"{{"instruction": "{}"}}"#, escaped);
-        
+
         // Verify it's valid JSON
         let parsed: Result<serde_json::Value, _> = serde_json::from_str(&json);
         assert!(parsed.is_ok(), "JSON should be valid: {}", json);
@@ -207,7 +216,7 @@ mod tests {
         let input = r#"Use regex: "\\d+""#;
         let escaped = escape_json(input);
         let json = format!(r#"{{"pattern": "{}"}}"#, escaped);
-        
+
         let parsed: Result<serde_json::Value, _> = serde_json::from_str(&json);
         assert!(parsed.is_ok(), "JSON should be valid: {}", json);
     }

@@ -98,7 +98,9 @@ fn dispatch(
                 no_animation,
             )
         }
-        Commands::Watch { source, home } => commands::watch::cmd_watch(&source, home, json, color, no_animation),
+        Commands::Watch { source, home } => {
+            commands::watch::cmd_watch(&source, home, json, color, no_animation)
+        }
         Commands::Diff { source, home } => commands::debug::cmd_diff(&source, home, json),
         Commands::Doctor { mode } => {
             if !json {
@@ -146,7 +148,15 @@ fn dispatch(
             format,
             adapter,
             dry_run,
-        } => commands::debug::cmd_migrate(format, adapter, dry_run, json, verbose, color, no_animation),
+        } => commands::debug::cmd_migrate(
+            format,
+            adapter,
+            dry_run,
+            json,
+            verbose,
+            color,
+            no_animation,
+        ),
         Commands::Version => commands::debug::cmd_version(json, verbose, color, no_animation),
     }
 }

@@ -36,7 +36,9 @@ impl ErrorBlock {
 
     pub fn with_file_context(mut self, before: usize, after: usize) -> Self {
         let Some(line) = self.line else { return self };
-        let Some(ctx) = read_code_context(&self.file, line, before, after) else { return self };
+        let Some(ctx) = read_code_context(&self.file, line, before, after) else {
+            return self;
+        };
         self.code_context = Some(ctx);
         self
     }
@@ -79,7 +81,12 @@ impl ErrorBlock {
     }
 }
 
-fn read_code_context(file: &Path, line: usize, before: usize, after: usize) -> Option<Vec<(usize, String, bool)>> {
+fn read_code_context(
+    file: &Path,
+    line: usize,
+    before: usize,
+    after: usize,
+) -> Option<Vec<(usize, String, bool)>> {
     let content = std::fs::read_to_string(file).ok()?;
     let lines: Vec<&str> = content.lines().collect();
     if line == 0 || line > lines.len() {
@@ -112,10 +119,7 @@ mod tests {
             .with_file_context(1, 1)
             .render(false, true);
 
-        assert!(rendered.contains(&format!(
-            "{}    2 | second",
-            Icon::Pointer.render(true)
-        )));
+        assert!(rendered.contains(&format!("{}    2 | second", Icon::Pointer.render(true))));
     }
 
     #[test]
@@ -129,9 +133,6 @@ mod tests {
             .with_file_context(1, 1)
             .render(false, false);
 
-        assert!(rendered.contains(&format!(
-            "{}    2 | second",
-            Icon::Pointer.render(false)
-        )));
+        assert!(rendered.contains(&format!("{}    2 | second", Icon::Pointer.render(false))));
     }
 }

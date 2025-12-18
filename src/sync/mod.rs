@@ -4,36 +4,36 @@
 //! - TD-14: Atomic writes via tempfile + rename
 //! - TD-15: Lockfile system for change detection
 
-pub mod writer;
-pub mod lockfile;
-pub mod remote;
-pub mod plan;
-pub mod execute;
-pub mod engine;
-pub mod scope;
-pub mod pipeline;
 mod compile;
 mod conflict;
+pub mod engine;
+pub mod execute;
+pub mod lockfile;
+pub mod pipeline;
+pub mod plan;
+pub mod remote;
+pub mod scope;
+pub mod writer;
 
 use std::path::{Path, PathBuf};
 
 use crate::error::{CalvinError, CalvinResult};
 use crate::models::Target;
 
-pub use lockfile::{Lockfile, LockfileNamespace, lockfile_key};
-pub use writer::atomic_write;
 pub use compile::compile_assets;
-pub use scope::{DeploymentTarget, ScopePolicy};
+pub use lockfile::{lockfile_key, Lockfile, LockfileNamespace};
 pub use pipeline::AssetPipeline;
+pub use scope::{DeploymentTarget, ScopePolicy};
+pub use writer::atomic_write;
 
 // Re-export new two-stage sync API
-pub use plan::{SyncPlan, SyncDestination, Conflict, ConflictReason as PlanConflictReason, ResolveResult};
-pub use plan::{plan_sync, plan_sync_remote, resolve_conflicts_interactive};
-pub use execute::{execute_sync, execute_sync_with_callback, SyncStrategy};
 pub use engine::{SyncEngine, SyncEngineOptions};
+pub use execute::{execute_sync, execute_sync_with_callback, SyncStrategy};
+pub use plan::{plan_sync, plan_sync_remote, resolve_conflicts_interactive};
+pub use plan::{Conflict, ResolveResult, SyncDestination, SyncPlan};
 
-// Re-export conflict resolution types
-pub use conflict::{ConflictResolver, InteractiveResolver, ConflictChoice, ConflictReason};
+// Re-export conflict resolution types (ConflictReason is shared between plan and conflict modules)
+pub use conflict::{ConflictChoice, ConflictReason, ConflictResolver, InteractiveResolver};
 
 /// Expand ~/ prefix to user home directory
 pub fn expand_home_dir(path: &Path) -> PathBuf {
@@ -55,7 +55,7 @@ fn dirs_home() -> Option<PathBuf> {
 }
 
 /// Check if a path is safe (doesn't escape project root)
-/// 
+///
 /// Protects against path traversal attacks like `../../etc/passwd`
 pub fn validate_path_safety(path: &Path, project_root: &Path) -> CalvinResult<()> {
     // Skip paths starting with ~ (user-level paths are intentionally outside project)
@@ -63,7 +63,7 @@ pub fn validate_path_safety(path: &Path, project_root: &Path) -> CalvinResult<()
     if path_str.starts_with("~") {
         return Ok(());
     }
-    
+
     // Absolute paths output paths are dangerous as they ignore the project root when joined
     if path.is_absolute() {
         return Err(CalvinError::PathEscape {
@@ -72,13 +72,14 @@ pub fn validate_path_safety(path: &Path, project_root: &Path) -> CalvinResult<()
         });
     }
 
-    
     // Check for path traversal attempts
     if path_str.contains("..") {
         // Resolve to canonical form and check
         let resolved = project_root.join(path);
         if let Ok(canonical) = resolved.canonicalize() {
-            let root_canonical = project_root.canonicalize().unwrap_or_else(|_| project_root.to_path_buf());
+            let root_canonical = project_root
+                .canonicalize()
+                .unwrap_or_else(|_| project_root.to_path_buf());
             if !canonical.starts_with(&root_canonical) {
                 return Err(CalvinError::PathEscape {
                     path: path.to_path_buf(),
@@ -94,13 +95,12 @@ pub fn validate_path_safety(path: &Path, project_root: &Path) -> CalvinResult<()
             });
         }
     }
-    
+
     Ok(())
 }
 
 /// Options for sync operations
-#[derive(Debug, Clone)]
-#[derive(Default)]
+#[derive(Debug, Clone, Default)]
 pub struct SyncOptions {
     /// Force overwrite of modified files
     pub force: bool,
@@ -111,7 +111,6 @@ pub struct SyncOptions {
     /// Enabled targets (empty = all)
     pub targets: Vec<Target>,
 }
-
 
 /// Result of a sync operation
 #[derive(Debug, Clone)]
@@ -127,10 +126,23 @@ pub struct SyncResult {
 /// Progress callback event emitted while syncing outputs.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SyncEvent {
-    ItemStart { index: usize, path: String },
-    ItemWritten { index: usize, path: String },
-    ItemSkipped { index: usize, path: String },
-    ItemError { index: usize, path: String, message: String },
+    ItemStart {
+        index: usize,
+        path: String,
+    },
+    ItemWritten {
+        index: usize,
+        path: String,
+    },
+    ItemSkipped {
+        index: usize,
+        path: String,
+    },
+    ItemError {
+        index: usize,
+        path: String,
+        message: String,
+    },
 }
 
 impl SyncResult {
@@ -155,7 +167,7 @@ impl Default for SyncResult {
 
 // ============================================================================
 // DEPRECATED: Old sync functions removed
-// 
+//
 // The following functions have been removed in favor of SyncEngine:
 // - sync_outputs()
 // - sync_with_fs()

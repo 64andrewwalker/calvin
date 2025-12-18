@@ -120,4 +120,3 @@ mod tests {
         assert!(patterns.contains(&".env".to_string()));
     }
 }
-

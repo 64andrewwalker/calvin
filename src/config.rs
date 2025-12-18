@@ -7,9 +7,9 @@
 //! 4. User config (~/.config/calvin/config.toml)
 //! 5. Built-in defaults (lowest priority)
 
-use std::path::{Path, PathBuf};
-use std::fs;
 use std::collections::HashMap;
+use std::fs;
+use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
@@ -53,10 +53,10 @@ fn default_format_version() -> String {
 pub struct SecurityConfig {
     #[serde(default)]
     pub mode: SecurityMode,
-    
+
     #[serde(default)]
     pub deny: DenyConfig,
-    
+
     #[serde(default)]
     pub allow_naked: bool,
 
@@ -129,7 +129,7 @@ pub struct TargetsConfig {
 pub struct SyncConfig {
     #[serde(default = "default_true")]
     pub atomic_writes: bool,
-    
+
     #[serde(default = "default_true")]
     pub respect_lockfile: bool,
 }
@@ -247,16 +247,16 @@ pub struct McpConfig {
 pub struct Config {
     #[serde(default)]
     pub format: FormatConfig,
-    
+
     #[serde(default)]
     pub security: SecurityConfig,
-    
+
     #[serde(default)]
     pub targets: TargetsConfig,
-    
+
     #[serde(default)]
     pub sync: SyncConfig,
-    
+
     #[serde(default)]
     pub output: OutputConfig,
 
@@ -317,7 +317,7 @@ impl Config {
 
         Ok((config, warnings))
     }
-    
+
     /// Load from project config, user config, or defaults
     pub fn load_or_default(project_root: Option<&Path>) -> Self {
         // Try project config first
@@ -329,7 +329,7 @@ impl Config {
                 }
             }
         }
-        
+
         // Try user config
         if let Some(user_config_dir) = dirs_config_dir() {
             let user_config = user_config_dir.join("calvin/config.toml");
@@ -339,11 +339,11 @@ impl Config {
                 }
             }
         }
-        
+
         // Return defaults with env overrides
         Self::default().with_env_overrides()
     }
-    
+
     /// Apply environment variable overrides (CALVIN_* prefix)
     pub fn with_env_overrides(mut self) -> Self {
         // CALVIN_SECURITY_MODE
@@ -390,7 +390,7 @@ impl Config {
 
         self
     }
-    
+
     /// Get enabled targets (all if empty)
     pub fn enabled_targets(&self) -> Vec<Target> {
         if self.targets.enabled.is_empty() {
@@ -405,35 +405,35 @@ impl Config {
             self.targets.enabled.clone()
         }
     }
-    
+
     /// Save deploy target to config file
-    /// 
+    ///
     /// Updates or creates the [deploy] section in config.toml with the target.
     /// Preserves other settings in the file.
     pub fn save_deploy_target(config_path: &Path, target: DeployTargetConfig) -> CalvinResult<()> {
         use std::io::Write;
-        
+
         // Don't save Unset
         if target == DeployTargetConfig::Unset {
             return Ok(());
         }
-        
+
         let target_str = match target {
             DeployTargetConfig::Home => "home",
             DeployTargetConfig::Project => "project",
             DeployTargetConfig::Unset => return Ok(()),
         };
-        
+
         // Read existing config or start fresh
         let existing = fs::read_to_string(config_path).unwrap_or_default();
-        
+
         // Check if [deploy] section exists
         if existing.contains("[deploy]") {
             // Update existing deploy.target
             let mut lines: Vec<String> = existing.lines().map(|s| s.to_string()).collect();
             let mut in_deploy_section = false;
             let mut target_updated = false;
-            
+
             for line in &mut lines {
                 if line.trim() == "[deploy]" {
                     in_deploy_section = true;
@@ -448,7 +448,7 @@ impl Config {
                     target_updated = true;
                 }
             }
-            
+
             // If [deploy] section exists but no target line, add it
             if !target_updated {
                 for (i, line) in lines.iter().enumerate() {
@@ -458,7 +458,7 @@ impl Config {
                     }
                 }
             }
-            
+
             let new_content = lines.join("\n");
             let mut file = fs::File::create(config_path)?;
             file.write_all(new_content.as_bytes())?;
@@ -468,7 +468,7 @@ impl Config {
                 .create(true)
                 .append(true)
                 .open(config_path)?;
-            
+
             // Add newline if file doesn't end with one
             if !existing.is_empty() && !existing.ends_with('\n') {
                 writeln!(file)?;
@@ -477,7 +477,7 @@ impl Config {
             writeln!(file, "[deploy]")?;
             writeln!(file, "target = \"{}\"", target_str)?;
         }
-        
+
         Ok(())
     }
 }
@@ -488,7 +488,9 @@ fn dirs_config_dir() -> Option<PathBuf> {
         .ok()
         .map(PathBuf::from)
         .or_else(|| {
-            std::env::var("HOME").ok().map(|h| PathBuf::from(h).join(".config"))
+            std::env::var("HOME")
+                .ok()
+                .map(|h| PathBuf::from(h).join(".config"))
         })
 }
 
@@ -560,10 +562,8 @@ fn levenshtein(a: &str, b: &str) -> usize {
         curr[0] = i + 1;
         for (j, &bc) in b_bytes.iter().enumerate() {
             let cost = if ac == bc { 0 } else { 1 };
-            curr[j + 1] = std::cmp::min(
-                std::cmp::min(prev[j + 1] + 1, curr[j] + 1),
-                prev[j] + cost,
-            );
+            curr[j + 1] =
+                std::cmp::min(std::cmp::min(prev[j + 1] + 1, curr[j] + 1), prev[j] + cost);
         }
         prev.clone_from_slice(&curr);
     }
@@ -574,13 +574,13 @@ fn levenshtein(a: &str, b: &str) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::tempdir;
     use std::fs;
+    use tempfile::tempdir;
 
     #[test]
     fn test_config_default() {
         let config = Config::default();
-        
+
         assert_eq!(config.format.version, "1.0");
         assert_eq!(config.security.mode, SecurityMode::Balanced);
         assert!(config.sync.atomic_writes);
@@ -623,7 +623,7 @@ verbosity = "normal"
 "#;
 
         let config: Config = toml::from_str(toml).unwrap();
-        
+
         assert_eq!(config.format.version, "1.0");
         assert_eq!(config.security.mode, SecurityMode::Balanced);
         assert_eq!(config.targets.enabled.len(), 2);
@@ -634,7 +634,7 @@ verbosity = "normal"
     fn test_enabled_targets_default() {
         let config = Config::default();
         let targets = config.enabled_targets();
-        
+
         assert_eq!(targets.len(), 5);
     }
 
@@ -642,7 +642,7 @@ verbosity = "normal"
     fn test_enabled_targets_filtered() {
         let mut config = Config::default();
         config.targets.enabled = vec![Target::ClaudeCode, Target::Cursor];
-        
+
         let targets = config.enabled_targets();
         assert_eq!(targets.len(), 2);
     }
@@ -738,8 +738,14 @@ exclude = [".env.example"]
         let config: Config = toml::from_str(toml).unwrap();
         assert_eq!(config.security.mode, SecurityMode::Balanced);
         assert!(!config.security.allow_naked);
-        assert_eq!(config.security.deny.patterns, vec!["secrets/**".to_string()]);
-        assert_eq!(config.security.deny.exclude, vec![".env.example".to_string()]);
+        assert_eq!(
+            config.security.deny.patterns,
+            vec!["secrets/**".to_string()]
+        );
+        assert_eq!(
+            config.security.deny.exclude,
+            vec![".env.example".to_string()]
+        );
     }
 
     #[test]

@@ -32,4 +32,3 @@ mod tests {
         assert!(rendered.starts_with('╭'));
     }
 }
-

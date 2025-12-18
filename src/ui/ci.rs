@@ -42,7 +42,9 @@ pub fn github_actions_annotation(
 }
 
 fn escape_workflow_command_value(s: &str) -> String {
-    s.replace('%', "%25").replace('\r', "%0D").replace('\n', "%0A")
+    s.replace('%', "%25")
+        .replace('\r', "%0D")
+        .replace('\n', "%0A")
 }
 
 fn escape_workflow_command_message(s: &str) -> String {
@@ -66,4 +68,3 @@ mod tests {
         assert!(rendered.starts_with("::error "));
     }
 }
-

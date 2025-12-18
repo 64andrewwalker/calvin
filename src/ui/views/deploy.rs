@@ -1,9 +1,9 @@
 use std::path::Path;
 
-use calvin::SyncResult;
 use crate::ui::blocks::header::CommandHeader;
 use crate::ui::blocks::summary::ResultSummary;
 use crate::ui::primitives::icon::Icon;
+use calvin::SyncResult;
 
 pub fn render_deploy_header(
     action: &str,
@@ -39,11 +39,13 @@ pub fn render_deploy_summary(
     supports_unicode: bool,
 ) -> String {
     // Determine the overall status
-    let all_skipped = result.written.is_empty() && !result.skipped.is_empty() && result.errors.is_empty();
-    let nothing_to_do = result.written.is_empty() && result.skipped.is_empty() && result.errors.is_empty();
+    let all_skipped =
+        result.written.is_empty() && !result.skipped.is_empty() && result.errors.is_empty();
+    let nothing_to_do =
+        result.written.is_empty() && result.skipped.is_empty() && result.errors.is_empty();
     let has_errors = !result.errors.is_empty();
     let has_writes = !result.written.is_empty();
-    
+
     let title = if all_skipped || nothing_to_do {
         "Already Up-to-date".to_string()
     } else if has_errors {
@@ -67,14 +69,14 @@ pub fn render_deploy_summary(
 
     summary.add_stat(format!("assets → {} targets", target_count), asset_count);
     summary.add_stat("files written", result.written.len());
-    
+
     if all_skipped {
         // When all files are skipped because they're up-to-date, show a positive message
         summary.add_info(format!("{} files already up-to-date", result.skipped.len()));
     } else if !result.skipped.is_empty() {
         summary.add_stat("skipped", result.skipped.len());
     }
-    
+
     summary.add_stat("errors", result.errors.len());
 
     if !result.errors.is_empty() {

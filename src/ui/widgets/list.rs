@@ -72,7 +72,9 @@ impl StatusList {
             None => &self.items,
             Some(count) if self.items.len() <= count => &self.items,
             Some(count) => {
-                let anchor = self.anchor.unwrap_or_else(|| self.items.len().saturating_sub(1));
+                let anchor = self
+                    .anchor
+                    .unwrap_or_else(|| self.items.len().saturating_sub(1));
                 let end = (anchor + 1).min(self.items.len());
                 let start = end.saturating_sub(count);
                 &self.items[start..end]

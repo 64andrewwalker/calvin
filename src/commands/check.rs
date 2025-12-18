@@ -71,8 +71,8 @@ pub fn cmd_check(
             );
         })
     } else if ui.animation {
-        use crate::ui::live_region::LiveRegion;
         use crate::ui::components::stream::{ItemStatus, StreamOutput};
+        use crate::ui::live_region::LiveRegion;
 
         let mut list = StreamOutput::with_visible_count(10);
         let mut region = LiveRegion::new();
@@ -80,7 +80,10 @@ pub fn cmd_check(
 
         let report = run_doctor_with_callback(&project_root, security_mode, |check| {
             let index = list.len();
-            list.add(format!("{} {} - {}", check.platform, check.name, check.message));
+            list.add(format!(
+                "{} {} - {}",
+                check.platform, check.name, check.message
+            ));
             let status = match check.status {
                 CheckStatus::Pass => ItemStatus::Success,
                 CheckStatus::Warning => ItemStatus::Warning,
@@ -150,7 +153,13 @@ pub fn cmd_check(
             let title = format!("{} {}", check.platform, check.name);
             println!(
                 "{}",
-                crate::ui::ci::github_actions_annotation(level, &check.message, None, None, Some(&title))
+                crate::ui::ci::github_actions_annotation(
+                    level,
+                    &check.message,
+                    None,
+                    None,
+                    Some(&title)
+                )
             );
         }
     }
@@ -194,7 +203,10 @@ pub fn cmd_doctor(
 
     if !json {
         use crate::ui::primitives::icon::Icon;
-        println!("{} Calvin Doctor", Icon::Check.colored(ui.color, ui.unicode));
+        println!(
+            "{} Calvin Doctor",
+            Icon::Check.colored(ui.color, ui.unicode)
+        );
         println!("Mode: {:?}", security_mode);
         println!();
     }
@@ -245,7 +257,11 @@ pub fn cmd_doctor(
 
             if verbose > 0 && !check.details.is_empty() {
                 for detail in &check.details {
-                    println!("    {} {}", Icon::Arrow.colored(ui.color, ui.unicode), detail);
+                    println!(
+                        "    {} {}",
+                        Icon::Arrow.colored(ui.color, ui.unicode),
+                        detail
+                    );
                 }
             }
         }
@@ -272,7 +288,10 @@ pub fn cmd_doctor(
             );
         } else {
             println!();
-            println!("{} All checks passed!", Icon::Success.colored(ui.color, ui.unicode));
+            println!(
+                "{} All checks passed!",
+                Icon::Success.colored(ui.color, ui.unicode)
+            );
         }
     }
 
@@ -311,7 +330,10 @@ pub fn cmd_audit(
 
     if !json {
         use crate::ui::primitives::icon::Icon;
-        println!("{} Calvin Security Audit", Icon::Warning.colored(ui.color, ui.unicode));
+        println!(
+            "{} Calvin Security Audit",
+            Icon::Warning.colored(ui.color, ui.unicode)
+        );
         println!("Mode: {:?}", security_mode);
         if strict_warnings {
             println!("Strict: failing on warnings");
@@ -387,7 +409,10 @@ pub fn cmd_audit(
     Ok(())
 }
 
-fn parse_security_mode(mode: &str, default: calvin::config::SecurityMode) -> calvin::config::SecurityMode {
+fn parse_security_mode(
+    mode: &str,
+    default: calvin::config::SecurityMode,
+) -> calvin::config::SecurityMode {
     use calvin::config::SecurityMode;
 
     match mode {

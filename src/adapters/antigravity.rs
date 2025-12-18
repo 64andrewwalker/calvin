@@ -53,12 +53,7 @@ impl TargetAdapter for AntigravityAdapter {
         let path = base_path.join(format!("{}.md", asset.id));
         let frontmatter = self.generate_workflow_frontmatter(asset);
 
-        let content = format!(
-            "{}\n{}\n\n{}",
-            frontmatter,
-            asset.content.trim(),
-            footer
-        );
+        let content = format!("{}\n{}\n\n{}", frontmatter, asset.content.trim(), footer);
 
         outputs.push(OutputFile::new(path, content));
 
@@ -67,7 +62,7 @@ impl TargetAdapter for AntigravityAdapter {
 
     fn validate(&self, output: &OutputFile) -> Vec<Diagnostic> {
         let mut diagnostics = Vec::new();
-        
+
         if output.content.trim().is_empty() {
             diagnostics.push(Diagnostic {
                 severity: DiagnosticSeverity::Warning,
@@ -75,7 +70,7 @@ impl TargetAdapter for AntigravityAdapter {
                 file: Some(output.path.clone()),
             });
         }
-        
+
         diagnostics
     }
 
@@ -106,7 +101,7 @@ mod tests {
         );
 
         let outputs = adapter.compile(&asset).unwrap();
-        
+
         assert_eq!(outputs.len(), 1);
         assert_eq!(
             outputs[0].path,
@@ -133,7 +128,7 @@ mod tests {
         );
 
         let outputs = adapter.compile(&asset).unwrap();
-        
+
         assert_eq!(outputs.len(), 1);
         assert_eq!(
             outputs[0].path,
@@ -141,7 +136,9 @@ mod tests {
         );
         // Frontmatter should be at the very beginning
         assert!(outputs[0].content.starts_with("---\n"));
-        assert!(outputs[0].content.contains("description: Code review workflow"));
+        assert!(outputs[0]
+            .content
+            .contains("description: Code review workflow"));
         assert!(outputs[0].content.contains("# Review Process"));
         // Footer should be at the end
         assert!(outputs[0].content.ends_with("DO NOT EDIT. -->"));
@@ -160,7 +157,7 @@ mod tests {
         );
 
         let outputs = adapter.compile(&asset).unwrap();
-        
+
         assert_eq!(
             outputs[0].path,
             PathBuf::from(".agent/workflows/senior-reviewer.md")
@@ -180,7 +177,7 @@ mod tests {
         let asset = PromptAsset::new("test", "actions/test.md", fm, "");
 
         let frontmatter = adapter.generate_workflow_frontmatter(&asset);
-        
+
         assert!(frontmatter.starts_with("---\n"));
         assert!(frontmatter.ends_with("---\n"));
         assert!(frontmatter.contains("description: Test workflow"));

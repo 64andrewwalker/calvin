@@ -20,4 +20,3 @@ fn test_version_uses_box_borders() {
         stdout
     );
 }
-

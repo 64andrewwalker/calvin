@@ -21,22 +21,15 @@ pub enum CalvinError {
 
     /// Invalid frontmatter YAML
     #[error("invalid frontmatter in {file}: {message}")]
-    InvalidFrontmatter {
-        file: PathBuf,
-        message: String,
-    },
+    InvalidFrontmatter { file: PathBuf, message: String },
 
     /// No frontmatter found (missing `---` delimiters)
     #[error("no frontmatter found in {file} - file must start with '---'")]
-    NoFrontmatter {
-        file: PathBuf,
-    },
+    NoFrontmatter { file: PathBuf },
 
     /// Frontmatter not properly closed
     #[error("unclosed frontmatter in {file} - missing closing '---'")]
-    UnclosedFrontmatter {
-        file: PathBuf,
-    },
+    UnclosedFrontmatter { file: PathBuf },
 
     /// IO error
     #[error("IO error: {0}")]
@@ -48,23 +41,15 @@ pub enum CalvinError {
 
     /// Directory not found
     #[error("directory not found: {path}")]
-    DirectoryNotFound {
-        path: PathBuf,
-    },
+    DirectoryNotFound { path: PathBuf },
 
     /// Invalid asset kind
     #[error("invalid asset kind '{kind}' in {file}")]
-    InvalidAssetKind {
-        kind: String,
-        file: PathBuf,
-    },
+    InvalidAssetKind { kind: String, file: PathBuf },
 
     /// Path escapes project boundary (security issue)
     #[error("path '{path}' escapes project boundary '{root}'")]
-    PathEscape {
-        path: PathBuf,
-        root: PathBuf,
-    },
+    PathEscape { path: PathBuf, root: PathBuf },
 
     /// Sync was aborted by user in interactive mode
     #[error("sync aborted by user")]

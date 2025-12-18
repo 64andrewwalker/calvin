@@ -15,4 +15,3 @@ fn test_help_mentions_interactive_mode() {
         stdout
     );
 }
-

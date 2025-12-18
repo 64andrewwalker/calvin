@@ -1,5 +1,5 @@
-use crate::ui::widgets::r#box::{Box, BoxStyle};
 use crate::ui::primitives::icon::Icon;
+use crate::ui::widgets::r#box::{Box, BoxStyle};
 
 #[derive(Debug, Clone)]
 #[allow(dead_code)]

@@ -125,4 +125,3 @@ fn safety__allows_tilde_slash() {
     let root = Path::new("/project");
     assert!(validate_path_safety(Path::new("~/foo"), root).is_ok());
 }
-

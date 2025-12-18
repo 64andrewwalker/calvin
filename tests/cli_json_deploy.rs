@@ -67,4 +67,3 @@ Hello world.
         "expected at least one item_written event, got:\n{stdout}"
     );
 }
-

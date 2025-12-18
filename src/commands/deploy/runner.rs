@@ -5,14 +5,15 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use calvin::adapters::OutputFile;
 use calvin::config::Config;
-use calvin::sync::{
-    execute_sync_with_callback, plan_sync, plan_sync_remote, resolve_conflicts_interactive, AssetPipeline, Lockfile,
-    ResolveResult, ScopePolicy, SyncDestination, SyncEvent, SyncResult, SyncStrategy,
-};
 use calvin::fs::{LocalFileSystem, RemoteFileSystem};
+use calvin::sync::{
+    execute_sync_with_callback, plan_sync, plan_sync_remote, resolve_conflicts_interactive,
+    AssetPipeline, Lockfile, ResolveResult, ScopePolicy, SyncDestination, SyncEvent, SyncResult,
+    SyncStrategy,
+};
 
-use super::targets::DeployTarget;
 use super::options::DeployOptions;
+use super::targets::DeployTarget;
 use crate::ui::context::UiContext;
 
 /// Deploy runner using two-stage sync
@@ -40,7 +41,9 @@ impl DeployRunner {
         options: DeployOptions,
         ui: UiContext,
     ) -> Self {
-        let config = Config::load_or_default(Some(source.as_path()));
+        // Load config from project root (parent of .promptpack), not from source directly
+        let project_root = source.parent();
+        let config = Config::load_or_default(project_root);
         Self {
             source,
             target,
@@ -61,14 +64,9 @@ impl DeployRunner {
     where
         F: FnMut(SyncEvent),
     {
+        // Use CLI-specified targets, or fall back to config's enabled targets
         let targets = if self.options.targets.is_empty() {
-            vec![
-                calvin::Target::ClaudeCode,
-                calvin::Target::Cursor,
-                calvin::Target::VSCode,
-                calvin::Target::Antigravity,
-                calvin::Target::Codex,
-            ]
+            self.config.enabled_targets()
         } else {
             self.options.targets.clone()
         };
@@ -97,36 +95,34 @@ impl DeployRunner {
             DeployTarget::Project(_) | DeployTarget::Home => {
                 self.sync_local_with_engine(outputs, callback)
             }
-            DeployTarget::Remote(_) => {
-                self.sync_remote(outputs, callback)
-            }
+            DeployTarget::Remote(_) => self.sync_remote(outputs, callback),
         }
     }
-    
+
     /// Sync to local target using SyncEngine
-    fn sync_local_with_engine<F>(&self, outputs: &[OutputFile], callback: Option<F>) -> Result<SyncResult>
+    fn sync_local_with_engine<F>(
+        &self,
+        outputs: &[OutputFile],
+        callback: Option<F>,
+    ) -> Result<SyncResult>
     where
         F: FnMut(SyncEvent),
     {
         use calvin::sync::engine::{SyncEngine, SyncEngineOptions};
-        
+
         let engine_options = SyncEngineOptions {
             force: self.options.force,
             interactive: self.options.interactive,
             dry_run: self.options.dry_run,
             verbose: false,
         };
-        
+
         let engine = match &self.target {
-            DeployTarget::Project(root) => {
-                SyncEngine::local(outputs, root.clone(), engine_options)
-            }
-            DeployTarget::Home => {
-                SyncEngine::home(outputs, self.source.clone(), engine_options)
-            }
+            DeployTarget::Project(root) => SyncEngine::local(outputs, root.clone(), engine_options),
+            DeployTarget::Home => SyncEngine::home(outputs, self.source.clone(), engine_options),
             _ => unreachable!("sync_local_with_engine called with non-local target"),
         };
-        
+
         // Use callback if provided
         if callback.is_some() {
             Ok(engine.sync_with_callback(callback)?)
@@ -134,14 +130,14 @@ impl DeployRunner {
             Ok(engine.sync()?)
         }
     }
-    
+
     /// Sync to remote target (keep existing optimized logic)
     fn sync_remote<F>(&self, outputs: &[OutputFile], callback: Option<F>) -> Result<SyncResult>
     where
         F: FnMut(SyncEvent),
     {
         let dest = self.target.to_sync_destination();
-        
+
         // Fast path: Remote + force mode -> skip planning, use rsync directly
         // Planning for remote is slow because it requires SSH per-file checks
         if self.options.force {
@@ -151,14 +147,14 @@ impl DeployRunner {
             self.update_lockfile(&lockfile_path, outputs, &result);
             return Ok(result);
         }
-        
+
         // Load or create lockfile
         let lockfile_path = self.get_lockfile_path();
         let lockfile = self.load_lockfile(&lockfile_path);
-        
+
         // Stage 1: Plan (detect conflicts)
         let plan = self.plan_sync(outputs, &dest, &lockfile)?;
-        
+
         // Stage 2: Resolve conflicts
         let final_plan = if plan.conflicts.is_empty() {
             // No conflicts
@@ -178,7 +174,9 @@ impl DeployRunner {
         // Dry run - just return what would be done
         if self.options.dry_run {
             return Ok(SyncResult {
-                written: final_plan.to_write.iter()
+                written: final_plan
+                    .to_write
+                    .iter()
                     .map(|o| o.path.display().to_string())
                     .collect(),
                 skipped: final_plan.to_skip,
@@ -189,14 +187,14 @@ impl DeployRunner {
         // Stage 3: Execute (batch transfer using optimal strategy)
         let strategy = self.select_strategy(&final_plan);
         let result = execute_sync_with_callback(&final_plan, &dest, strategy, callback)?;
-        
+
         // Update lockfile with new hashes
         // Use final_plan.to_write because it includes resolved conflicts
         self.update_lockfile(&lockfile_path, &final_plan.to_write, &result);
-        
+
         Ok(result)
     }
-    
+
     /// Fast path for remote + force: skip planning, use rsync directly
     fn sync_remote_fast<F>(&self, outputs: &[OutputFile], callback: Option<F>) -> Result<SyncResult>
     where
@@ -206,22 +204,23 @@ impl DeployRunner {
             DeployTarget::Remote(r) => r.clone(),
             _ => unreachable!("sync_remote_fast called with non-remote target"),
         };
-        
+
         if self.options.dry_run {
             return Ok(SyncResult {
-                written: outputs.iter()
+                written: outputs
+                    .iter()
                     .map(|o| o.path.display().to_string())
                     .collect(),
                 skipped: vec![],
                 errors: vec![],
             });
         }
-        
+
         let has_home_paths = outputs
             .iter()
             .any(|o| o.path.to_string_lossy().starts_with('~'));
         let use_rsync = calvin::sync::remote::has_rsync() && callback.is_none() && !has_home_paths;
-        
+
         if use_rsync {
             // Fast path: rsync batch transfer
             let options = calvin::sync::SyncOptions {
@@ -230,18 +229,28 @@ impl DeployRunner {
                 interactive: false,
                 targets: vec![],
             };
-            Ok(calvin::sync::remote::sync_remote_rsync(&remote_str, outputs, &options, self.options.json)?)
+            Ok(calvin::sync::remote::sync_remote_rsync(
+                &remote_str,
+                outputs,
+                &options,
+                self.options.json,
+            )?)
         } else {
             // File-by-file via SSH with callback
             let dest = self.target.to_sync_destination();
             let mut plan = calvin::sync::SyncPlan::new();
             plan.to_write = outputs.to_vec();
-            Ok(execute_sync_with_callback(&plan, &dest, SyncStrategy::FileByFile, callback)?)
+            Ok(execute_sync_with_callback(
+                &plan,
+                &dest,
+                SyncStrategy::FileByFile,
+                callback,
+            )?)
         }
     }
 
     /// Get lockfile path based on target
-    /// 
+    ///
     /// Uses source-based lockfile strategy for all targets.
     /// This allows version control and team sharing.
     fn get_lockfile_path(&self) -> PathBuf {
@@ -321,8 +330,8 @@ impl DeployRunner {
         // 2. rsync is available
         // 3. Not in JSON mode (rsync output would interfere)
         // 4. No home-prefixed paths (rsync can't fan-out to multiple roots)
-        if plan.to_write.len() > 10 
-            && calvin::sync::remote::has_rsync() 
+        if plan.to_write.len() > 10
+            && calvin::sync::remote::has_rsync()
             && !self.options.json
             && !has_home_paths
         {
@@ -334,18 +343,18 @@ impl DeployRunner {
 
     /// Update lockfile after successful sync
     fn update_lockfile(&self, path: &Path, outputs: &[OutputFile], result: &SyncResult) {
+        use calvin::sync::{lockfile_key, LockfileNamespace};
         use std::collections::HashSet;
-        use calvin::sync::{LockfileNamespace, lockfile_key};
-        
+
         // Load existing lockfile
         let fs = LocalFileSystem;
         let mut lockfile = Lockfile::load_or_new(path, &fs);
-        
+
         // Build set of written paths for fast lookup
         let written_set: HashSet<&str> = result.written.iter().map(|s| s.as_str()).collect();
-        
+
         let mut updated_count = 0;
-        
+
         // Update hashes for written files
         for output in outputs {
             let path_str = output.path.display().to_string();
@@ -357,7 +366,7 @@ impl DeployRunner {
                 updated_count += 1;
             }
         }
-        
+
         // Save lockfile if any updates were made
         if updated_count > 0 {
             if let Err(e) = lockfile.save(path, &fs) {
@@ -368,11 +377,15 @@ impl DeployRunner {
     }
 
     // Getters for UI rendering
-    pub fn source(&self) -> &Path { &self.source }
-    pub fn target(&self) -> &DeployTarget { &self.target }
-    #[allow(dead_code)]
-    pub fn options(&self) -> &DeployOptions { &self.options }
-    pub fn ui(&self) -> &UiContext { &self.ui }
+    pub fn source(&self) -> &Path {
+        &self.source
+    }
+    pub fn target(&self) -> &DeployTarget {
+        &self.target
+    }
+    pub fn ui(&self) -> &UiContext {
+        &self.ui
+    }
 }
 
 #[cfg(test)]
@@ -412,7 +425,7 @@ mod tests {
             options,
             ui,
         );
-        
+
         assert!(runner.target.is_local());
     }
 
@@ -427,7 +440,7 @@ mod tests {
             options,
             ui,
         );
-        
+
         assert!(!runner.target.is_local());
     }
 }

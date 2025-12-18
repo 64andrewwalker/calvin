@@ -38,4 +38,3 @@ fn test_parse_avoids_legacy_box_drawing_chars() {
         stdout
     );
 }
-
