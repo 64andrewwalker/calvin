@@ -291,7 +291,8 @@ fn check_claude_code(root: &Path, mode: SecurityMode, config: &Config, sink: &mu
         let count = std::fs::read_dir(&commands_dir)
             .map(|rd| rd.count())
             .unwrap_or(0);
-        sink.add_pass(platform, "commands", &format!("{} commands synced", count));
+        let msg = if count == 0 { "OK".to_string() } else { format!("{} synced", count) };
+        sink.add_pass(platform, "commands", &msg);
     } else {
         sink.add_warning(platform, "commands", "No commands directory found", 
             Some("Run `calvin deploy` to generate commands"));
@@ -424,7 +425,8 @@ fn check_cursor(root: &Path, mode: SecurityMode, config: &Config, sink: &mut imp
         let count = std::fs::read_dir(&rules_dir)
             .map(|rd| rd.count())
             .unwrap_or(0);
-        sink.add_pass(platform, "rules", &format!("{} rules synced", count));
+        let msg = if count == 0 { "OK".to_string() } else { format!("{} synced", count) };
+        sink.add_pass(platform, "rules", &msg);
     } else {
         sink.add_warning(platform, "rules", "No rules directory found",
             Some("Run `calvin deploy` to generate rules"));
@@ -570,7 +572,8 @@ fn check_antigravity(root: &Path, mode: SecurityMode, sink: &mut impl DoctorSink
         let count = std::fs::read_dir(&rules_dir)
             .map(|rd| rd.count())
             .unwrap_or(0);
-        sink.add_pass(platform, "rules", &format!("{} rules synced", count));
+        let msg = if count == 0 { "OK".to_string() } else { format!("{} synced", count) };
+        sink.add_pass(platform, "rules", &msg);
     } else {
         sink.add_warning(platform, "rules", "No rules directory found",
             Some("Run `calvin deploy` to generate rules"));
@@ -582,7 +585,8 @@ fn check_antigravity(root: &Path, mode: SecurityMode, sink: &mut impl DoctorSink
         let count = std::fs::read_dir(&workflows_dir)
             .map(|rd| rd.count())
             .unwrap_or(0);
-        sink.add_pass(platform, "workflows", &format!("{} workflows synced", count));
+        let msg = if count == 0 { "OK".to_string() } else { format!("{} synced", count) };
+        sink.add_pass(platform, "workflows", &msg);
     }
 
     // Turbo mode warning (would need to check user settings)
@@ -606,7 +610,8 @@ fn check_codex(root: &Path, _mode: SecurityMode, sink: &mut impl DoctorSink) {
                     .count()
             })
             .unwrap_or(0);
-        sink.add_pass(platform, "prompts", &format!("{} prompts synced", count));
+        let msg = if count == 0 { "OK".to_string() } else { format!("{} synced", count) };
+        sink.add_pass(platform, "prompts", &msg);
         return;
     }
 
@@ -655,9 +660,9 @@ fn check_claude_code_user(home: &Path, _mode: SecurityMode, _config: &Config, si
             .unwrap_or(0);
         if count > 0 {
             let msg = if count > EXPECTED_PROMPT_COUNT {
-                format!("{} user commands installed ({} extra)", count, count - EXPECTED_PROMPT_COUNT)
+                format!("{} installed (+{} manual)", count, count - EXPECTED_PROMPT_COUNT)
             } else {
-                format!("{} user commands installed", count)
+                format!("{} installed", count)
             };
             sink.add_pass(platform, "commands", &msg);
         }
@@ -676,9 +681,9 @@ fn check_cursor_user(home: &Path, _mode: SecurityMode, sink: &mut impl DoctorSin
             .unwrap_or(0);
         if count > 0 {
             let msg = if count > EXPECTED_PROMPT_COUNT {
-                format!("{} user rules installed ({} extra)", count, count - EXPECTED_PROMPT_COUNT)
+                format!("{} installed (+{} manual)", count, count - EXPECTED_PROMPT_COUNT)
             } else {
-                format!("{} user rules installed", count)
+                format!("{} installed", count)
             };
             sink.add_pass(platform, "rules", &msg);
         }
@@ -697,9 +702,9 @@ fn check_antigravity_user(home: &Path, _mode: SecurityMode, sink: &mut impl Doct
             .unwrap_or(0);
         if count > 0 {
             let msg = if count > EXPECTED_PROMPT_COUNT {
-                format!("{} global workflows installed ({} extra)", count, count - EXPECTED_PROMPT_COUNT)
+                format!("{} installed (+{} manual)", count, count - EXPECTED_PROMPT_COUNT)
             } else {
-                format!("{} global workflows installed", count)
+                format!("{} installed", count)
             };
             sink.add_pass(platform, "workflows", &msg);
         }
