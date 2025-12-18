@@ -25,7 +25,7 @@ pub use compile::compile_assets;
 
 // Re-export new two-stage sync API
 pub use plan::{SyncPlan, SyncDestination, Conflict, ConflictReason as PlanConflictReason, ResolveResult};
-pub use plan::{plan_sync, resolve_conflicts_interactive};
+pub use plan::{plan_sync, plan_sync_remote, resolve_conflicts_interactive};
 pub use execute::{execute_sync, execute_sync_with_callback, SyncStrategy};
 
 use conflict::{ConflictChoice, ConflictReason, StdioPrompter, SyncPrompter};

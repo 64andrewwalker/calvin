@@ -38,13 +38,27 @@ pub fn render_deploy_summary(
     supports_color: bool,
     supports_unicode: bool,
 ) -> String {
-    let title = if result.is_success() && result.skipped.is_empty() {
+    // Determine the overall status
+    let all_skipped = result.written.is_empty() && !result.skipped.is_empty() && result.errors.is_empty();
+    let has_errors = !result.errors.is_empty();
+    let has_writes = !result.written.is_empty();
+    
+    let title = if all_skipped {
+        "Already Up-to-date".to_string()
+    } else if has_errors {
+        format!("{action} Results")
+    } else if has_writes && result.skipped.is_empty() {
         format!("{action} Complete")
     } else {
         format!("{action} Results")
     };
 
-    let mut summary = if result.is_success() && result.skipped.is_empty() {
+    let mut summary = if all_skipped {
+        // All files already match - this is success, not a warning
+        ResultSummary::success(title)
+    } else if has_errors {
+        ResultSummary::partial(title)
+    } else if has_writes && result.skipped.is_empty() {
         ResultSummary::success(title)
     } else {
         ResultSummary::partial(title)
@@ -52,12 +66,16 @@ pub fn render_deploy_summary(
 
     summary.add_stat(format!("assets → {} targets", target_count), asset_count);
     summary.add_stat("files written", result.written.len());
-    summary.add_stat("skipped", result.skipped.len());
+    
+    if all_skipped {
+        // When all files are skipped because they're up-to-date, show a positive message
+        summary.add_info(format!("{} files already up-to-date", result.skipped.len()));
+    } else if !result.skipped.is_empty() {
+        summary.add_stat("skipped", result.skipped.len());
+    }
+    
     summary.add_stat("errors", result.errors.len());
 
-    if !result.skipped.is_empty() {
-        summary.add_warning(format!("{} files skipped", result.skipped.len()));
-    }
     if !result.errors.is_empty() {
         summary.add_warning(format!("{} errors encountered", result.errors.len()));
     }

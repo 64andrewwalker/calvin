@@ -130,14 +130,15 @@ impl Lockfile {
     }
 }
 
-/// Compute a simple hash of content for comparison
+/// Compute SHA-256 hash of content for comparison
+///
+/// Returns the hash in format: `sha256:<64 hex digits>`
+/// This format is compatible with remote `sha256sum` output.
 pub fn hash_content(content: &str) -> String {
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
+    use sha2::{Sha256, Digest};
     
-    let mut hasher = DefaultHasher::new();
-    content.hash(&mut hasher);
-    format!("sha256:{:x}", hasher.finish())
+    let hash = Sha256::digest(content.as_bytes());
+    format!("sha256:{:x}", hash)
 }
 
 /// Get current timestamp in ISO 8601 format

@@ -8,8 +8,8 @@ use calvin::config::Config;
 use calvin::models::PromptAsset;
 use calvin::parser::parse_directory;
 use calvin::sync::{
-    compile_assets, execute_sync, plan_sync, resolve_conflicts_interactive,
-    Lockfile, ResolveResult, SyncDestination, SyncResult, SyncStrategy,
+    compile_assets, execute_sync_with_callback, plan_sync, plan_sync_remote, resolve_conflicts_interactive,
+    Lockfile, ResolveResult, SyncDestination, SyncEvent, SyncResult, SyncStrategy,
 };
 use calvin::fs::{LocalFileSystem, RemoteFileSystem};
 
@@ -55,6 +55,14 @@ impl DeployRunner {
 
     /// Run the deploy operation
     pub fn run(&self) -> Result<SyncResult> {
+        self.run_with_callback::<fn(SyncEvent)>(None)
+    }
+
+    /// Run the deploy operation with a callback for sync events
+    pub fn run_with_callback<F>(&self, callback: Option<F>) -> Result<SyncResult>
+    where
+        F: FnMut(SyncEvent),
+    {
         // Step 1: Scan and parse assets
         let assets = self.scan_assets()?;
         
@@ -62,7 +70,7 @@ impl DeployRunner {
         let outputs = self.compile_outputs(&assets)?;
         
         // Step 3: Two-stage sync
-        let result = self.sync_outputs(&outputs)?;
+        let result = self.sync_outputs(&outputs, callback)?;
         
         Ok(result)
     }
@@ -106,8 +114,21 @@ impl DeployRunner {
     }
 
     /// Two-stage sync: plan -> resolve -> execute
-    fn sync_outputs(&self, outputs: &[OutputFile]) -> Result<SyncResult> {
+    fn sync_outputs<F>(&self, outputs: &[OutputFile], callback: Option<F>) -> Result<SyncResult>
+    where
+        F: FnMut(SyncEvent),
+    {
         let dest = self.target.to_sync_destination();
+        
+        // Fast path: Remote + force mode -> skip planning, use rsync directly
+        // Planning for remote is slow because it requires SSH per-file checks
+        if matches!(&self.target, DeployTarget::Remote(_)) && self.options.force {
+            let result = self.sync_remote_fast(outputs, callback)?;
+            // Update lockfile for fast path too
+            let lockfile_path = self.get_lockfile_path();
+            self.update_lockfile(&lockfile_path, outputs, &result);
+            return Ok(result);
+        }
         
         // Load or create lockfile
         let lockfile_path = self.get_lockfile_path();
@@ -145,12 +166,53 @@ impl DeployRunner {
 
         // Stage 3: Execute (batch transfer using optimal strategy)
         let strategy = self.select_strategy(&final_plan);
-        let result = execute_sync(&final_plan, &dest, strategy)?;
+        let result = execute_sync_with_callback(&final_plan, &dest, strategy, callback)?;
         
         // Update lockfile with new hashes
-        self.update_lockfile(&lockfile_path, &result);
+        // Use final_plan.to_write because it includes resolved conflicts
+        self.update_lockfile(&lockfile_path, &final_plan.to_write, &result);
         
         Ok(result)
+    }
+    
+    /// Fast path for remote + force: skip planning, use rsync directly
+    fn sync_remote_fast<F>(&self, outputs: &[OutputFile], callback: Option<F>) -> Result<SyncResult>
+    where
+        F: FnMut(SyncEvent),
+    {
+        let remote_str = match &self.target {
+            DeployTarget::Remote(r) => r.clone(),
+            _ => unreachable!("sync_remote_fast called with non-remote target"),
+        };
+        
+        if self.options.dry_run {
+            return Ok(SyncResult {
+                written: outputs.iter()
+                    .map(|o| o.path.display().to_string())
+                    .collect(),
+                skipped: vec![],
+                errors: vec![],
+            });
+        }
+        
+        let use_rsync = calvin::sync::remote::has_rsync() && callback.is_none();
+        
+        if use_rsync {
+            // Fast path: rsync batch transfer
+            let options = calvin::sync::SyncOptions {
+                force: true,
+                dry_run: false,
+                interactive: false,
+                targets: vec![],
+            };
+            Ok(calvin::sync::remote::sync_remote_rsync(&remote_str, outputs, &options, self.options.json)?)
+        } else {
+            // File-by-file via SSH with callback
+            let dest = self.target.to_sync_destination();
+            let mut plan = calvin::sync::SyncPlan::new();
+            plan.to_write = outputs.to_vec();
+            Ok(execute_sync_with_callback(&plan, &dest, SyncStrategy::FileByFile, callback)?)
+        }
     }
 
     /// Get lockfile path based on target
@@ -171,21 +233,10 @@ impl DeployRunner {
 
     /// Load lockfile using appropriate filesystem
     fn load_lockfile(&self, path: &Path) -> Lockfile {
-        match &self.target {
-            DeployTarget::Remote(remote) => {
-                let (host, _) = if let Some((h, p)) = remote.split_once(':') {
-                    (h, p)
-                } else {
-                    (remote.as_str(), ".")
-                };
-                let fs = RemoteFileSystem::new(host);
-                Lockfile::load_or_new(path, &fs)
-            }
-            _ => {
-                let fs = LocalFileSystem;
-                Lockfile::load_or_new(path, &fs)
-            }
-        }
+        // Lockfile is always stored locally (even for remote targets)
+        // For remote targets, the lockfile path points to local source directory
+        let fs = LocalFileSystem;
+        Lockfile::load_or_new(path, &fs)
     }
 
     /// Plan sync using appropriate filesystem
@@ -203,7 +254,8 @@ impl DeployRunner {
                     (remote.as_str(), ".")
                 };
                 let fs = RemoteFileSystem::new(host);
-                Ok(plan_sync(outputs, dest, lockfile, &fs)?)
+                // Use batch version for remote - single SSH call instead of per-file
+                Ok(plan_sync_remote(outputs, dest, lockfile, &fs)?)
             }
             _ => {
                 let fs = LocalFileSystem;
@@ -252,10 +304,36 @@ impl DeployRunner {
     }
 
     /// Update lockfile after successful sync
-    fn update_lockfile(&self, path: &Path, result: &SyncResult) {
-        // For now, skip lockfile update
-        // TODO: Implement proper lockfile update with new hashes
-        let _ = (path, result);
+    fn update_lockfile(&self, path: &Path, outputs: &[OutputFile], result: &SyncResult) {
+        use std::collections::HashSet;
+        
+        // Load existing lockfile
+        let fs = LocalFileSystem;
+        let mut lockfile = Lockfile::load_or_new(path, &fs);
+        
+        // Build set of written paths for fast lookup
+        let written_set: HashSet<&str> = result.written.iter().map(|s| s.as_str()).collect();
+        
+        let mut updated_count = 0;
+        
+        // Update hashes for written files
+        for output in outputs {
+            let path_str = output.path.display().to_string();
+            if written_set.contains(path_str.as_str()) {
+                // This file was written, update its hash
+                let hash = calvin::sync::lockfile::hash_content(&output.content);
+                lockfile.set_hash(&path_str, &hash);
+                updated_count += 1;
+            }
+        }
+        
+        // Save lockfile if any updates were made
+        if updated_count > 0 {
+            if let Err(e) = lockfile.save(path, &fs) {
+                // Log error but don't fail the deploy
+                eprintln!("Warning: Failed to update lockfile: {}", e);
+            }
+        }
     }
 
     // Getters for UI rendering

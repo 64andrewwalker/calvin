@@ -7,6 +7,7 @@ pub struct ResultSummary {
     title: String,
     success: bool,
     stats: Vec<(String, usize)>,
+    infos: Vec<String>,
     warnings: Vec<String>,
     next_step: Option<String>,
 }
@@ -17,6 +18,7 @@ impl ResultSummary {
             title: title.into(),
             success: true,
             stats: Vec::new(),
+            infos: Vec::new(),
             warnings: Vec::new(),
             next_step: None,
         }
@@ -27,6 +29,7 @@ impl ResultSummary {
             title: title.into(),
             success: false,
             stats: Vec::new(),
+            infos: Vec::new(),
             warnings: Vec::new(),
             next_step: None,
         }
@@ -34,6 +37,11 @@ impl ResultSummary {
 
     pub fn add_stat(&mut self, label: impl Into<String>, count: usize) {
         self.stats.push((label.into(), count));
+    }
+
+    /// Add an informational message (shown with success icon)
+    pub fn add_info(&mut self, message: impl Into<String>) {
+        self.infos.push(message.into());
     }
 
     pub fn add_warning(&mut self, message: impl Into<String>) {
@@ -72,6 +80,17 @@ impl ResultSummary {
 
         for (label, count) in &self.stats {
             b.add_line(format!("{} {}", count, label));
+        }
+
+        if !self.infos.is_empty() {
+            b.add_empty();
+            for info in &self.infos {
+                b.add_line(format!(
+                    "{} {}",
+                    Icon::Success.colored(supports_color, supports_unicode),
+                    info
+                ));
+            }
         }
 
         if !self.warnings.is_empty() {
