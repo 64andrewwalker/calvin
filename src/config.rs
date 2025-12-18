@@ -151,8 +151,10 @@ fn default_true() -> bool {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum DeployTargetConfig {
-    /// Deploy to project directory (default)
+    /// Not configured (user needs to choose)
     #[default]
+    Unset,
+    /// Deploy to project directory
     Project,
     /// Deploy to user home directory
     Home,
