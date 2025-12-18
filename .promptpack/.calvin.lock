@@ -441,7 +441,7 @@ hash = "sha256:951bc83c6090539f0e50c4706d62029e3bc30e361d1101d855544dcbe9ec9afc"
 hash = "sha256:c5a2043523a1852d158f3fe0ac0b75bfe85760f52228d88adc00bf9a01a8bcf3"
 
 [files."AGENTS.md"]
-hash = "sha256:020f40435b1a01f22241b03adf3e7b00a70e40c6c9c4b6b37cff8434118f6c5a"
+hash = "sha256:f8938aa9eb258ad443b402240c93fcb0b862ad2c1ec72c2927f05049e9beeb6f"
 
 [files."~/.codex/prompts/0-disc-analyze-project.md"]
 hash = "sha256:eac874156f671aaed389cdd28bc05ad66fa82e8f9424ece6c3dbfaafce9394cf"
