@@ -81,6 +81,32 @@ cargo install calvin
 # Or download pre-built binaries from Releases
 ```
 
+## Building from Source
+
+Calvin is written in Rust. To build from source:
+
+```bash
+# Prerequisites: Rust 1.70+ (https://rustup.rs)
+
+# Clone the repository
+git clone https://github.com/your-org/calvin.git
+cd calvin
+
+# Build debug version
+cargo build
+
+# Build release version (optimized, ~1.1MB binary)
+cargo build --release
+
+# Run tests
+cargo test
+
+# Install locally
+cargo install --path .
+```
+
+The compiled binary will be at `target/release/calvin`.
+
 ## Quick Start
 
 ```bash
@@ -114,9 +140,16 @@ calvin deploy --remote user@host:/path/to/project
 
 ## Project Status
 
-**Stage**: v0.2.0 Refactor in progress
+**Version**: v0.2.0  
+**Stage**: Feature complete, polish in progress
 
-Phases 0–4 are complete and documentation cleanup is ongoing. See [docs/calvin/TODO.md](docs/calvin/TODO.md) for the current status.
+Recent additions:
+- ✅ Modular CLI animation system with consistent UI
+- ✅ SSH remote sync with rsync acceleration
+- ✅ User-scope installations (`--home` flag)
+- ✅ Security health checks (`check` command)
+
+See [docs/calvin/TODO.md](docs/calvin/TODO.md) for detailed roadmap.
 
 ## Philosophy
 
