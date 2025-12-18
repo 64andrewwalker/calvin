@@ -120,3 +120,61 @@
 - 磁盘满/权限拒绝场景
 - 网络失败模拟 (remote)
 
+
+## ScopePolicy 变体测试
+
+### `apply__empty_input_returns_empty`
+- **场景:** 输入为空列表
+- **覆盖:** 基础边界条件
+- **预期:** 返回空列表
+
+### `apply__project_only_on_user_only_input__returns_empty`
+- **场景:** 输入仅包含 Scope::User 资产，策略为 ProjectOnly
+- **覆盖:** 过滤逻辑正确性
+- **预期:** 返回空列表
+
+## Lockfile 变体测试
+
+### `key__absolute_path__uses_namespace`
+- **场景:** 绝对路径输入
+- **覆盖:** 路径命名空间隔离，防止绝对路径冲突
+- **预期:** 生成带 namespace 前缀的 key
+
+### `key__parent_traversal__is_preserved_in_key`
+- **场景:** 路径包含 `..`
+- **覆盖:** Key 生成稳定性
+- **预期:** 保留 `..` 不做解析（仅作为字符串 ID）
+
+### `key__empty_path__handled`
+- **场景:** 空路径字符串
+- **覆盖:** 边界值
+- **预期:** 生成仅含前缀的 key
+
+## Pipeline 变体测试
+
+### `pipeline__compile_incremental_no_changes_after_initial__returns_empty`
+- **场景:** 增量编译无变更
+- **覆盖:** 幂等性与缓存命中
+- **预期:** 返回完整资产列表（幂等）
+
+### `pipeline__error_on_nonexistent_source`
+- **场景:** 源目录不存在
+- **覆盖:** 错误传播
+- **预期:** 返回错误
+
+## 安全性变体测试 (Validation)
+
+### `safety__rejects_dotdot_at_start`
+- **场景:** 路径以 `..` 开头
+- **覆盖:** 路径穿越防御
+- **预期:** 返回错误
+
+### `safety__rejects_absolute_paths_outside_root`
+- **场景:** 绝对路径指向项目外
+- **覆盖:** 越权访问防御
+- **预期:** 返回错误
+
+### `safety__allows_tilde_slash`
+- **场景:** `~/` 开头的路径
+- **覆盖:** 用户目录特权允许
+- **预期:** 允许通过

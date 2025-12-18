@@ -130,5 +130,22 @@ mod tests {
         assert_eq!(out.len(), 2);
         assert!(out.iter().all(|a| a.frontmatter.scope == Scope::Project));
     }
+
+    // --- Variants ---
+
+    #[test]
+    fn apply__empty_input_returns_empty() {
+        let assets = vec![];
+        let out = ScopePolicy::ForceUser.apply(assets);
+        assert!(out.is_empty());
+    }
+
+    #[test]
+    fn apply__project_only_on_user_only_input__returns_empty() {
+        let assets = vec![make_asset("a", Scope::User), make_asset("b", Scope::User)];
+        let out = ScopePolicy::ProjectOnly.apply(assets);
+        assert!(out.is_empty());
+    }
+
 }
 
