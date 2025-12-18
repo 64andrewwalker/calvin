@@ -8,7 +8,9 @@
 pub mod targets;
 pub mod options;
 pub mod runner;
+pub mod cmd;
 
 pub use targets::{DeployTarget, ScopePolicy};
 pub use options::DeployOptions;
 pub use runner::DeployRunner;
+pub use cmd::cmd_deploy_v2;
