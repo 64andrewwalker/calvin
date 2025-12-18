@@ -580,10 +580,20 @@ fn run_deploy(
             }
         }
         DeployTarget::Remote(remote_str) => {
-            // Prefer SSH-based syncing when we need structured progress (TTY animations or JSON events).
-            let use_ssh_fs = json || ui.animation;
-
-            if use_ssh_fs {
+            // When force=true or non-interactive, use rsync for fast batch transfer
+            // Only use SSH per-file when we need interactive conflict resolution
+            let use_rsync = force && calvin::sync::remote::has_rsync();
+            
+            if use_rsync {
+                // Fast path: rsync batch transfer
+                if !json {
+                    println!(
+                        "\n{} Using rsync for fast batch transfer...",
+                        Icon::Remote.colored(ui.color, ui.unicode)
+                    );
+                }
+                calvin::sync::remote::sync_remote_rsync(&remote_str, &outputs, &options, json)?
+            } else if json || ui.animation {
                 let (host, path) = if let Some((h, p)) = remote_str.split_once(':') {
                     (h, p)
                 } else {
