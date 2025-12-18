@@ -23,6 +23,11 @@ pub use lockfile::Lockfile;
 pub use writer::atomic_write;
 pub use compile::compile_assets;
 
+// Re-export new two-stage sync API
+pub use plan::{SyncPlan, SyncDestination, Conflict, ConflictReason as PlanConflictReason, ResolveResult};
+pub use plan::{plan_sync, resolve_conflicts_interactive};
+pub use execute::{execute_sync, execute_sync_with_callback, SyncStrategy};
+
 use conflict::{ConflictChoice, ConflictReason, StdioPrompter, SyncPrompter};
 
 /// Expand ~/ prefix to user home directory

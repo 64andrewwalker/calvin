@@ -145,6 +145,121 @@ pub fn plan_sync<FS: crate::fs::FileSystem + ?Sized>(
     Ok(plan)
 }
 
+/// Result of interactive conflict resolution
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ResolveResult {
+    /// All conflicts resolved, plan is ready
+    Resolved,
+    /// User chose to abort
+    Aborted,
+}
+
+/// Interactively resolve conflicts in a sync plan
+///
+/// Prompts user for each conflict. Returns updated plan and resolution status.
+pub fn resolve_conflicts_interactive<FS: crate::fs::FileSystem + ?Sized>(
+    mut plan: SyncPlan,
+    dest: &SyncDestination,
+    fs: &FS,
+) -> (SyncPlan, ResolveResult) {
+    use std::io::{self, Write};
+    use super::conflict::unified_diff;
+    
+    if plan.conflicts.is_empty() {
+        return (plan, ResolveResult::Resolved);
+    }
+
+    let root = match dest {
+        SyncDestination::Local(p) => p.clone(),
+        SyncDestination::Remote { path, .. } => path.clone(),
+    };
+
+    let mut apply_all: Option<bool> = None; // true = overwrite all, false = skip all
+    let conflicts: Vec<Conflict> = plan.conflicts.drain(..).collect();
+    
+    for conflict in conflicts {
+        let path_str = conflict.path.display().to_string();
+        
+        // If apply_all is set, use that
+        if let Some(overwrite) = apply_all {
+            if overwrite {
+                plan.to_write.push(conflict.into_output());
+            } else {
+                plan.to_skip.push(path_str);
+            }
+            continue;
+        }
+
+        // Read existing content for diff
+        let target_path = root.join(&conflict.path);
+        let existing_content = fs.read_to_string(&target_path).unwrap_or_default();
+        
+        loop {
+            let reason_msg = match conflict.reason {
+                ConflictReason::Modified => "was modified externally",
+                ConflictReason::Untracked => "exists but is not tracked by Calvin",
+            };
+
+            eprintln!("\nConflict: {} {}", path_str, reason_msg);
+            eprint!("[o]verwrite / [s]kip / [d]iff / [a]bort / [A]ll? ");
+            let _ = io::stderr().flush();
+
+            let mut input = String::new();
+            if io::stdin().read_line(&mut input).is_err() {
+                return (plan, ResolveResult::Aborted);
+            }
+
+            match input.trim() {
+                "o" | "O" => {
+                    plan.to_write.push(conflict.into_output());
+                    break;
+                }
+                "s" | "S" => {
+                    plan.to_skip.push(path_str);
+                    break;
+                }
+                "d" | "D" => {
+                    let diff = unified_diff(&path_str, &existing_content, &conflict.new_content);
+                    eprintln!("\n{}", diff);
+                }
+                "a" => {
+                    return (plan, ResolveResult::Aborted);
+                }
+                "A" => {
+                    loop {
+                        eprint!("Apply to all conflicts: [o]verwrite / [s]kip / [a]bort? ");
+                        let _ = io::stderr().flush();
+                        let mut all = String::new();
+                        if io::stdin().read_line(&mut all).is_err() {
+                            return (plan, ResolveResult::Aborted);
+                        }
+                        match all.trim() {
+                            "o" | "O" => {
+                                apply_all = Some(true);
+                                plan.to_write.push(conflict.into_output());
+                                break;
+                            }
+                            "s" | "S" => {
+                                apply_all = Some(false);
+                                plan.to_skip.push(path_str);
+                                break;
+                            }
+                            "a" => {
+                                return (plan, ResolveResult::Aborted);
+                            }
+                            _ => continue,
+                        }
+                    }
+                    break;
+                }
+                _ => continue,
+            }
+        }
+    }
+
+    (plan, ResolveResult::Resolved)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
