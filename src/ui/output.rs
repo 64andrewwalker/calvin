@@ -4,6 +4,9 @@ use crate::ui::blocks::warning::WarningBlock;
 use crate::ui::context::UiContext;
 use crate::ui::primitives::icon::Icon;
 
+/// Warn if security.allow_naked is set to true
+/// Currently not wired up - reserved for future use
+#[allow(dead_code)]
 pub fn maybe_warn_allow_naked(config: &calvin::config::Config, ui: &UiContext) {
     if !config.security.allow_naked {
         return;
@@ -37,7 +40,8 @@ pub fn maybe_warn_allow_naked(config: &calvin::config::Config, ui: &UiContext) {
     eprint!("{rendered}");
 }
 
-pub fn format_allow_naked_warning(supports_color: bool, supports_unicode: bool) -> String {
+#[allow(dead_code)]
+fn format_allow_naked_warning(supports_color: bool, supports_unicode: bool) -> String {
     let mut block = WarningBlock::new("Security protections disabled!");
     block.add_line("You have set security.allow_naked = true.");
     block.add_line(".env, private keys, and .git may be visible to AI assistants.");

@@ -6,7 +6,6 @@ pub mod theme;
 pub mod render;
 pub mod primitives;
 pub mod widgets;
-pub mod animation;
 pub mod components;
 pub mod context;
 pub mod live_region;

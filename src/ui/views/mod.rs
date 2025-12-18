@@ -6,4 +6,3 @@ pub mod watch;
 pub mod version;
 pub mod migrate;
 pub mod parse;
-pub mod transfer;

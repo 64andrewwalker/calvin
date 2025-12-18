@@ -35,6 +35,7 @@ impl DeployOptions {
     }
 
     /// Should use rsync for batch transfer?
+    #[allow(dead_code)]
     pub fn should_use_rsync(&self) -> bool {
         (self.force || !self.interactive) && calvin::sync::remote::has_rsync()
     }

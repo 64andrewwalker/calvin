@@ -157,6 +157,15 @@ pub fn sync_local_rsync(
         });
     }
 
+    // Early return if no files to transfer
+    if staged_files.is_empty() {
+        return Ok(SyncResult {
+            written: vec![],
+            skipped: vec![],
+            errors: vec![],
+        });
+    }
+
     // Build rsync command for local sync
     // -a: archive mode (recursive, preserve permissions)
     // -v: verbose

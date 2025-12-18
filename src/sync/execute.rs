@@ -188,7 +188,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::fs::MockFileSystem;
+    
     use std::path::PathBuf;
 
     fn make_output(path: &str, content: &str) -> OutputFile {

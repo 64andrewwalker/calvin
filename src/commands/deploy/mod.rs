@@ -10,7 +10,4 @@ pub mod options;
 pub mod runner;
 pub mod cmd;
 
-pub use targets::{DeployTarget, ScopePolicy};
-pub use options::DeployOptions;
-pub use runner::DeployRunner;
 pub use cmd::{cmd_deploy, cmd_install, cmd_sync};
