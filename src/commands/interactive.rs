@@ -192,7 +192,11 @@ fn interactive_existing_project(
 }
 
 fn setup_wizard(cwd: &Path, ui: &crate::ui::context::UiContext) -> Result<()> {
-    println!("Great! Let's set up Calvin in 3 quick steps.\n");
+    print!(
+        "{}",
+        crate::ui::views::interactive::render_setup_intro(ui.color, ui.unicode)
+    );
+    println!();
 
     let targets = select_targets()?;
     let templates = select_templates(ui)?;

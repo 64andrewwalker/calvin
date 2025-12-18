@@ -100,5 +100,11 @@ mod tests {
         let line = render_transfer_stats(0, 2048, Duration::from_secs(1), false, true);
         assert_eq!(line, "Speed: --  |  ETA: --");
     }
-}
 
+    #[test]
+    fn transfer_stats_speed_units_include_gb_per_second_at_boundary() {
+        let gib = 1024_u64 * 1024 * 1024;
+        let line = render_transfer_stats(gib, gib * 2, Duration::from_secs(1), false, true);
+        assert!(line.contains("GB/s"), "got: {}", line);
+    }
+}
