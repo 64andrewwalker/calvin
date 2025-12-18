@@ -9,15 +9,14 @@ pub mod lockfile;
 pub mod remote;
 pub mod plan;
 pub mod execute;
+pub mod engine;
 mod compile;
 mod conflict;
 
 use std::path::{Path, PathBuf};
 
-use crate::adapters::OutputFile;
 use crate::error::{CalvinError, CalvinResult};
 use crate::models::Target;
-use crate::parser::parse_directory;
 
 pub use lockfile::Lockfile;
 pub use writer::atomic_write;
@@ -27,8 +26,10 @@ pub use compile::compile_assets;
 pub use plan::{SyncPlan, SyncDestination, Conflict, ConflictReason as PlanConflictReason, ResolveResult};
 pub use plan::{plan_sync, plan_sync_remote, resolve_conflicts_interactive};
 pub use execute::{execute_sync, execute_sync_with_callback, SyncStrategy};
+pub use engine::{SyncEngine, SyncEngineOptions};
 
-use conflict::{ConflictChoice, ConflictReason, StdioPrompter, SyncPrompter};
+// Re-export conflict resolution types
+pub use conflict::{ConflictResolver, InteractiveResolver, ConflictChoice, ConflictReason};
 
 /// Expand ~/ prefix to user home directory
 pub fn expand_home_dir(path: &Path) -> PathBuf {
@@ -139,265 +140,21 @@ impl Default for SyncResult {
     }
 }
 
-/// Sync compiled outputs to the filesystem
-/// Sync compiled outputs to the filesystem
-pub fn sync_outputs(
-    project_root: &Path,
-    outputs: &[OutputFile],
-    options: &SyncOptions,
-) -> CalvinResult<SyncResult> {
-    sync_with_fs(project_root, outputs, options, &crate::fs::LocalFileSystem)
-}
-
-/// Sync compiled outputs using provided file system
-pub fn sync_with_fs<FS: crate::fs::FileSystem + ?Sized>(
-    project_root: &Path,
-    outputs: &[OutputFile],
-    options: &SyncOptions,
-    fs: &FS,
-) -> CalvinResult<SyncResult> {
-    let mut prompter = StdioPrompter::new();
-    sync_with_fs_with_prompter(project_root, outputs, options, fs, &mut prompter, None)
-}
-
-fn sync_with_fs_with_prompter<FS: crate::fs::FileSystem + ?Sized, P: SyncPrompter>(
-    project_root: &Path,
-    outputs: &[OutputFile],
-    options: &SyncOptions,
-    fs: &FS,
-    prompter: &mut P,
-    mut callback: Option<&mut dyn FnMut(SyncEvent)>,
-) -> CalvinResult<SyncResult> {
-    let mut result = SyncResult::new();
-
-    // Expand project_root if it contains ~ (for remote deployments)
-    let project_root = fs.expand_home(project_root);
-
-    // Load or create lockfile
-    let lockfile_path = project_root.join(".promptpack/.calvin.lock");
-    let mut lockfile = Lockfile::load_or_new(&lockfile_path, fs);
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    enum ApplyAll {
-        Overwrite,
-        Skip,
-    }
-    let mut apply_all: Option<ApplyAll> = None;
-
-    let mut aborted = false;
-
-    'files: for (index, output) in outputs.iter().enumerate() {
-        // Validate path safety (prevent path traversal attacks)
-        validate_path_safety(&output.path, &project_root)?;
-
-        // Expand home directory if needed
-        let output_path = fs.expand_home(&output.path);
-        let target_path = if output_path.starts_with("~") || output_path.is_absolute() {
-            output_path.clone()
-        } else {
-            project_root.join(&output_path)
-        };
-        let path_str = output.path.display().to_string();
-
-        if let Some(cb) = callback.as_mut() {
-            cb(SyncEvent::ItemStart {
-                index,
-                path: path_str.clone(),
-            });
-        }
-
-        // Check if file exists and was modified
-        let mut file_current_in_fs = false;
-        let conflict_reason = if fs.exists(&target_path) {
-            if let Some(recorded_hash) = lockfile.get_hash(&path_str) {
-                let current_hash = fs.hash_file(&target_path)?;
-                if current_hash != recorded_hash {
-                    Some(ConflictReason::Modified)
-                } else {
-                    file_current_in_fs = true;
-                    None
-                }
-            } else {
-                Some(ConflictReason::Untracked)
-            }
-        } else {
-            None
-        };
-
-        if let Some(reason) = conflict_reason {
-            if !options.force {
-                if options.interactive {
-                    let mut choice = match apply_all {
-                        Some(ApplyAll::Overwrite) => ConflictChoice::Overwrite,
-                        Some(ApplyAll::Skip) => ConflictChoice::Skip,
-                        None => prompter.prompt_conflict(&path_str, reason),
-                    };
-
-                    loop {
-                        match choice {
-                            ConflictChoice::Diff => {
-                                let existing = fs.read_to_string(&target_path).unwrap_or_default();
-                                let diff = conflict::unified_diff(&path_str, &existing, &output.content);
-                                prompter.show_diff(&diff);
-                                choice = prompter.prompt_conflict(&path_str, reason);
-                                continue;
-                            }
-                            ConflictChoice::Skip => {
-                                result.skipped.push(path_str.clone());
-                                if let Some(cb) = callback.as_mut() {
-                                    cb(SyncEvent::ItemSkipped {
-                                        index,
-                                        path: path_str.clone(),
-                                    });
-                                }
-                                continue 'files;
-                            }
-                            ConflictChoice::Overwrite => break,
-                            ConflictChoice::Abort => {
-                                aborted = true;
-                                break 'files;
-                            }
-                            ConflictChoice::OverwriteAll => {
-                                apply_all = Some(ApplyAll::Overwrite);
-                                break;
-                            }
-                            ConflictChoice::SkipAll => {
-                                apply_all = Some(ApplyAll::Skip);
-                                result.skipped.push(path_str.clone());
-                                if let Some(cb) = callback.as_mut() {
-                                    cb(SyncEvent::ItemSkipped {
-                                        index,
-                                        path: path_str.clone(),
-                                    });
-                                }
-                                continue 'files;
-                            }
-                        }
-                    }
-                } else {
-                    result.skipped.push(path_str.clone());
-                    if let Some(cb) = callback.as_mut() {
-                        cb(SyncEvent::ItemSkipped {
-                            index,
-                            path: path_str.clone(),
-                        });
-                    }
-                    continue;
-                }
-            }
-        }
-
-        if options.dry_run {
-            result.written.push(path_str.clone());
-            if let Some(cb) = callback.as_mut() {
-                cb(SyncEvent::ItemWritten {
-                    index,
-                    path: path_str.clone(),
-                });
-            }
-            continue;
-        }
-
-        // Check if content actually changed (skip if hash matches lockfile)
-        let new_hash = writer::hash_content(output.content.as_bytes());
-        if file_current_in_fs {
-            if let Some(recorded_hash) = lockfile.get_hash(&path_str) {
-                if recorded_hash == new_hash {
-                    // Content unchanged and file matches lockfile, skip write
-                    result.skipped.push(path_str);
-                    if let Some(cb) = callback.as_mut() {
-                        cb(SyncEvent::ItemSkipped {
-                            index,
-                            path: output.path.display().to_string(),
-                        });
-                    }
-                    continue;
-                }
-            }
-        }
-
-        // Create parent directories
-        if let Some(parent) = target_path.parent() {
-            fs.create_dir_all(parent)?;
-        }
-
-        // Write file atomically (using string content)
-        match fs.write_atomic(&target_path, &output.content) {
-            Ok(()) => {
-                // Update lockfile with new hash
-                lockfile.set_hash(&path_str, &new_hash);
-                result.written.push(path_str);
-                if let Some(cb) = callback.as_mut() {
-                    cb(SyncEvent::ItemWritten {
-                        index,
-                        path: output.path.display().to_string(),
-                    });
-                }
-            }
-            Err(e) => {
-                let message = format!("{}: {}", path_str, e);
-                result.errors.push(message.clone());
-                if let Some(cb) = callback.as_mut() {
-                    cb(SyncEvent::ItemError {
-                        index,
-                        path: output.path.display().to_string(),
-                        message,
-                    });
-                }
-            }
-        }
-    }
-
-    // Save lockfile (unless dry run)
-    if !options.dry_run {
-        lockfile.save(&lockfile_path, fs)?;
-    }
-
-    if aborted {
-        return Err(CalvinError::SyncAborted);
-    }
-
-    Ok(result)
-}
-
-/// Sync compiled outputs using provided file system, emitting progress events.
-pub fn sync_with_fs_with_callback<FS: crate::fs::FileSystem + ?Sized>(
-    project_root: &Path,
-    outputs: &[OutputFile],
-    options: &SyncOptions,
-    fs: &FS,
-    callback: &mut dyn FnMut(SyncEvent),
-) -> CalvinResult<SyncResult> {
-    let mut prompter = StdioPrompter::new();
-    sync_with_fs_with_prompter(project_root, outputs, options, fs, &mut prompter, Some(callback))
-}
-
-/// Sync compiled outputs to the filesystem, emitting progress events.
-pub fn sync_outputs_with_callback(
-    project_root: &Path,
-    outputs: &[OutputFile],
-    options: &SyncOptions,
-    callback: &mut dyn FnMut(SyncEvent),
-) -> CalvinResult<SyncResult> {
-    sync_with_fs_with_callback(project_root, outputs, options, &crate::fs::LocalFileSystem, callback)
-}
-
-/// Full sync pipeline: parse → compile → write
-pub fn sync(
-    source_dir: &Path,
-    project_root: &Path,
-    options: &SyncOptions,
-    config: &crate::config::Config,
-) -> CalvinResult<SyncResult> {
-    // Parse source directory
-    let assets = parse_directory(source_dir)?;
-    
-    // Compile to all targets
-    let outputs = compile_assets(&assets, &options.targets, config)?;
-    
-    // Write outputs
-    sync_outputs(project_root, &outputs, options)
-}
+// ============================================================================
+// DEPRECATED: Old sync functions removed
+// 
+// The following functions have been removed in favor of SyncEngine:
+// - sync_outputs()
+// - sync_with_fs()
+// - sync_with_fs_with_prompter()
+// - sync_with_fs_with_callback()
+// - sync_outputs_with_callback()
+// - sync()
+//
+// Use SyncEngine instead:
+//   let engine = SyncEngine::local(&outputs, root, options);
+//   let result = engine.sync()?;
+// ============================================================================
 
 #[cfg(test)]
 mod tests;

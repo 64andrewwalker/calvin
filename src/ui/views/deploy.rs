@@ -40,25 +40,26 @@ pub fn render_deploy_summary(
 ) -> String {
     // Determine the overall status
     let all_skipped = result.written.is_empty() && !result.skipped.is_empty() && result.errors.is_empty();
+    let nothing_to_do = result.written.is_empty() && result.skipped.is_empty() && result.errors.is_empty();
     let has_errors = !result.errors.is_empty();
     let has_writes = !result.written.is_empty();
     
-    let title = if all_skipped {
+    let title = if all_skipped || nothing_to_do {
         "Already Up-to-date".to_string()
     } else if has_errors {
         format!("{action} Results")
-    } else if has_writes && result.skipped.is_empty() {
+    } else if has_writes {
         format!("{action} Complete")
     } else {
         format!("{action} Results")
     };
 
-    let mut summary = if all_skipped {
-        // All files already match - this is success, not a warning
+    let mut summary = if all_skipped || nothing_to_do {
+        // All files already match or nothing to process - this is success
         ResultSummary::success(title)
     } else if has_errors {
         ResultSummary::partial(title)
-    } else if has_writes && result.skipped.is_empty() {
+    } else if has_writes {
         ResultSummary::success(title)
     } else {
         ResultSummary::partial(title)

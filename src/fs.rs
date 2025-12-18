@@ -245,16 +245,19 @@ impl FileSystem for RemoteFileSystem {
 }
 
 /// Mock file system for testing
+/// 
+/// Uses `Arc<Mutex<>>` internally so it can be cloned and shared.
 #[cfg(test)]
+#[derive(Clone)]
 pub struct MockFileSystem {
-    pub files: std::sync::Mutex<std::collections::HashMap<PathBuf, String>>,
+    pub files: std::sync::Arc<std::sync::Mutex<std::collections::HashMap<PathBuf, String>>>,
 }
 
 #[cfg(test)]
 impl MockFileSystem {
     pub fn new() -> Self {
         Self {
-            files: std::sync::Mutex::new(std::collections::HashMap::new()),
+            files: std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
         }
     }
 }

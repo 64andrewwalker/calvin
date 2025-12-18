@@ -80,10 +80,12 @@ pub fn cmd_deploy(
     // Render header
     if !json {
         let action = if dry_run { "Deploy (dry run)" } else { "Deploy" };
-        let modes = if interactive { 
-            vec!["Interactive".to_string()] 
-        } else { 
+        let modes = if force { 
             vec!["Force".to_string()] 
+        } else if interactive {
+            vec!["Interactive".to_string()]
+        } else {
+            vec!["Auto".to_string()]  // --yes mode: skip conflicts silently
         };
         let (target_display, remote_display) = match runner.target() {
             DeployTarget::Remote(r) => (None, Some(r.as_str())),

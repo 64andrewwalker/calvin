@@ -92,7 +92,14 @@ impl SyncPlan {
 
 /// Plan a sync operation by detecting conflicts
 ///
-/// This stage does NOT write any files - it only checks for conflicts
+/// This stage does NOT write any files - it only checks for conflicts.
+///
+/// Smart sync decision:
+/// - File doesn't exist → will be created
+/// - File exists, content matches new content → skip (already up-to-date)
+/// - File exists, hash matches lockfile → safe to update
+/// - File exists, hash differs from lockfile → conflict (modified externally)
+/// - File exists, not in lockfile → conflict (untracked)
 pub fn plan_sync<FS: crate::fs::FileSystem + ?Sized>(
     outputs: &[OutputFile],
     dest: &SyncDestination,
@@ -102,24 +109,34 @@ pub fn plan_sync<FS: crate::fs::FileSystem + ?Sized>(
     let mut plan = SyncPlan::new();
     
     let root = match dest {
-        SyncDestination::Local(p) => p.clone(),
-        SyncDestination::Remote { path, .. } => path.clone(),
+        SyncDestination::Local(p) => fs.expand_home(p),
+        SyncDestination::Remote { path, .. } => fs.expand_home(path),
     };
 
     for output in outputs {
         let target_path = root.join(&output.path);
         let path_str = output.path.display().to_string();
         
+        // Compute hash of new content we want to write
+        let new_content_hash = crate::sync::lockfile::hash_content(&output.content);
+        
         // Check if file exists
         if fs.exists(&target_path) {
+            // Read current file content and hash
+            let current_content = fs.read_to_string(&target_path)?;
+            let current_hash = crate::sync::lockfile::hash_content(&current_content);
+            
+            // If current content matches new content, skip (already up-to-date)
+            if current_hash == new_content_hash {
+                plan.to_skip.push(path_str);
+                continue;
+            }
+            
             // Check lockfile for tracking status
-            if let Some(hash) = lockfile.get(&path_str) {
-                // File is tracked - check if modified
-                let current_content = fs.read_to_string(&target_path)?;
-                let current_hash = crate::sync::lockfile::hash_content(&current_content);
-                
-                if current_hash == *hash {
-                    // Not modified, safe to overwrite
+            if let Some(recorded_hash) = lockfile.get(&path_str) {
+                // File is tracked
+                if current_hash == *recorded_hash {
+                    // Current file matches lockfile, safe to update
                     plan.to_write.push(output.clone());
                 } else {
                     // Modified since last sync - conflict

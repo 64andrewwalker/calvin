@@ -20,7 +20,7 @@ pub use error::{CalvinError, CalvinResult};
 pub use models::{Frontmatter, PromptAsset, AssetKind, Scope, Target};
 pub use parser::parse_frontmatter;
 pub use adapters::{TargetAdapter, OutputFile, all_adapters, get_adapter};
-pub use sync::{SyncOptions, SyncResult, compile_assets, sync_outputs};
+pub use sync::{SyncOptions, SyncResult, compile_assets, SyncEngine, SyncEngineOptions};
 pub use config::{Config, SecurityMode};
 pub use security::{DoctorReport, run_doctor};
 pub use watcher::{WatchOptions, WatchEvent, watch, IncrementalCache, parse_incremental};

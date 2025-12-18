@@ -16,7 +16,7 @@ use std::collections::{HashSet, HashMap};
 use notify::{Config, Event, RecommendedWatcher, RecursiveMode, Watcher};
 
 use crate::error::CalvinResult;
-use crate::sync::{compile_assets, sync_outputs, SyncOptions, SyncResult};
+use crate::sync::{compile_assets, SyncResult};
 use crate::parser::{parse_directory, parse_file};
 use crate::models::{PromptAsset, Target};
 
@@ -315,30 +315,30 @@ fn perform_sync_incremental(
     changed_files: &[PathBuf],
     cache: &mut IncrementalCache,
 ) -> CalvinResult<SyncResult> {
+    use crate::sync::engine::{SyncEngine, SyncEngineOptions};
+    
     // Use incremental parsing - only reparse changed files
     let assets = parse_incremental(&options.source, changed_files, cache)?;
     let outputs = compile_assets(&assets, &options.targets, &options.config)?;
     
-    let sync_options = SyncOptions {
-        force: true, // Watch mode always force-overwrites
-        dry_run: false,
+    // Use SyncEngine for unified sync logic
+    // - Incremental detection via lockfile
+    // - Proper "X written, Y skipped" reporting
+    // - Automatic lockfile updates
+    let engine_options = SyncEngineOptions {
+        force: true, // Watch mode always force-overwrites (no conflict prompts)
         interactive: false,
-        targets: options.targets.clone(),
+        dry_run: false,
+        verbose: false,
     };
     
-    // Determine sync destination based on config
-    let dist_root = if options.deploy_to_home {
-        dirs::home_dir().unwrap_or_else(|| options.project_root.clone())
+    let engine = if options.deploy_to_home {
+        SyncEngine::home(&outputs, options.source.clone(), engine_options)
     } else {
-        options.project_root.clone()
+        SyncEngine::local(&outputs, options.project_root.clone(), engine_options)
     };
     
-    // Use rsync for fast batch sync if available (10x faster for 100+ files)
-    if crate::sync::remote::has_rsync() && outputs.len() > 10 {
-        crate::sync::remote::sync_local_rsync(&dist_root, &outputs, &sync_options, options.json)
-    } else {
-        sync_outputs(&dist_root, &outputs, &sync_options)
-    }
+    engine.sync()
 }
 
 #[cfg(test)]

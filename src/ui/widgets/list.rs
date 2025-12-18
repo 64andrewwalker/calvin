@@ -1,6 +1,7 @@
 use crate::ui::primitives::icon::Icon;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum ItemStatus {
     Pending,
     InProgress,
@@ -45,6 +46,7 @@ impl StatusList {
         self.anchor = Some(self.items.len().saturating_sub(1));
     }
 
+    #[allow(dead_code)]
     pub fn set_anchor(&mut self, index: usize) {
         if index < self.items.len() {
             self.anchor = Some(index);

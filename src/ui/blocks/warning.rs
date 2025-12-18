@@ -2,6 +2,7 @@ use crate::ui::widgets::r#box::{Box, BoxStyle};
 use crate::ui::primitives::icon::Icon;
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct WarningBlock {
     title: String,
     lines: Vec<String>,

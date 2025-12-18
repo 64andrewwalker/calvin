@@ -16,6 +16,7 @@ pub enum DeployTarget {
 
 impl DeployTarget {
     /// Get target name for display
+    #[allow(dead_code)]
     pub fn display_name(&self) -> &'static str {
         match self {
             DeployTarget::Project(_) => "project",
@@ -53,6 +54,7 @@ impl DeployTarget {
     }
 
     /// Get remote string if this is a remote target
+    #[allow(dead_code)]
     pub fn remote_str(&self) -> Option<&str> {
         match self {
             DeployTarget::Remote(r) => Some(r.as_str()),
@@ -68,6 +70,7 @@ impl DeployTarget {
 
 /// Scope policy for asset deployment
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum ScopePolicy {
     /// Keep original scope from asset definition
     Keep,
