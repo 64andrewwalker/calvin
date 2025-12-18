@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use crate::adapters::OutputFile;
 use crate::error::CalvinResult;
 use crate::fs::FileSystem;
-use crate::sync::lockfile::Lockfile;
+use crate::sync::lockfile::{Lockfile, LockfileNamespace, lockfile_key};
 
 /// Sync destination
 #[derive(Debug, Clone)]
@@ -106,6 +106,16 @@ pub fn plan_sync<FS: crate::fs::FileSystem + ?Sized>(
     lockfile: &Lockfile,
     fs: &FS,
 ) -> CalvinResult<SyncPlan> {
+    plan_sync_with_namespace(outputs, dest, lockfile, fs, LockfileNamespace::Project)
+}
+
+pub(crate) fn plan_sync_with_namespace<FS: crate::fs::FileSystem + ?Sized>(
+    outputs: &[OutputFile],
+    dest: &SyncDestination,
+    lockfile: &Lockfile,
+    fs: &FS,
+    namespace: LockfileNamespace,
+) -> CalvinResult<SyncPlan> {
     let mut plan = SyncPlan::new();
     
     let root = match dest {
@@ -114,8 +124,12 @@ pub fn plan_sync<FS: crate::fs::FileSystem + ?Sized>(
     };
 
     for output in outputs {
-        let target_path = root.join(&output.path);
         let path_str = output.path.display().to_string();
+        let lock_key = lockfile_key(namespace, &output.path);
+
+        // Expand ~ in the *output* path too so `~/.foo` writes to the real home directory.
+        let expanded_output_path = fs.expand_home(&output.path);
+        let target_path = root.join(expanded_output_path);
         
         // Compute hash of new content we want to write
         let new_content_hash = crate::sync::lockfile::hash_content(&output.content);
@@ -132,8 +146,11 @@ pub fn plan_sync<FS: crate::fs::FileSystem + ?Sized>(
                 continue;
             }
             
-            // Check lockfile for tracking status
-            if let Some(recorded_hash) = lockfile.get(&path_str) {
+            // Check lockfile for tracking status (new key first, then legacy).
+            if let Some(recorded_hash) = lockfile
+                .get(&lock_key)
+                .or_else(|| lockfile.get(&path_str))
+            {
                 // File is tracked
                 if current_hash == *recorded_hash {
                     // Current file matches lockfile, safe to update
@@ -180,6 +197,16 @@ pub fn plan_sync_remote(
     lockfile: &Lockfile,
     fs: &crate::fs::RemoteFileSystem,
 ) -> CalvinResult<SyncPlan> {
+    plan_sync_remote_with_namespace(outputs, dest, lockfile, fs, LockfileNamespace::Project)
+}
+
+pub(crate) fn plan_sync_remote_with_namespace(
+    outputs: &[OutputFile],
+    dest: &SyncDestination,
+    lockfile: &Lockfile,
+    fs: &crate::fs::RemoteFileSystem,
+    namespace: LockfileNamespace,
+) -> CalvinResult<SyncPlan> {
     let mut plan = SyncPlan::new();
     
     let root = match dest {
@@ -190,15 +217,17 @@ pub fn plan_sync_remote(
     // Collect all target paths for batch check
     let target_paths: Vec<std::path::PathBuf> = outputs
         .iter()
-        .map(|o| root.join(&o.path))
+        .map(|o| root.join(fs.expand_home(&o.path)))
         .collect();
     
     // Single SSH call to check all files (existence + hash)
     let file_status = fs.batch_check_files(&target_paths)?;
     
     for output in outputs {
-        let target_path = root.join(&output.path);
         let path_str = output.path.display().to_string();
+        let lock_key = lockfile_key(namespace, &output.path);
+
+        let target_path = root.join(fs.expand_home(&output.path));
         
         let (exists, remote_hash) = file_status.get(&target_path)
             .cloned()
@@ -215,7 +244,10 @@ pub fn plan_sync_remote(
             if remote_h == &new_content_hash {
                 // Remote already has the same content - skip
                 plan.to_skip.push(path_str);
-            } else if let Some(recorded_hash) = lockfile.get(&path_str) {
+            } else if let Some(recorded_hash) = lockfile
+                .get(&lock_key)
+                .or_else(|| lockfile.get(&path_str))
+            {
                 // File is tracked
                 if remote_h == recorded_hash {
                     // Remote matches lockfile, safe to update
@@ -238,7 +270,7 @@ pub fn plan_sync_remote(
             }
         } else {
             // File exists but couldn't get hash - treat as potential conflict
-            if lockfile.get(&path_str).is_some() {
+            if lockfile.get(&lock_key).is_some() || lockfile.get(&path_str).is_some() {
                 // Tracked file, assume safe to update
                 plan.to_write.push(output.clone());
             } else {
@@ -374,6 +406,8 @@ pub fn resolve_conflicts_interactive<FS: crate::fs::FileSystem + ?Sized>(
 mod tests {
     use super::*;
     use crate::fs::MockFileSystem;
+    use crate::sync::lockfile::{LockfileNamespace, lockfile_key};
+    use std::path::Path;
 
     fn make_output(path: &str, content: &str) -> OutputFile {
         OutputFile::new(PathBuf::from(path), content.to_string())
@@ -426,7 +460,10 @@ mod tests {
         // Create lockfile with original hash
         let mut lockfile = Lockfile::new();
         let original_hash = crate::sync::lockfile::hash_content("original");
-        lockfile.set_hash("tracked.md", &original_hash);
+        lockfile.set_hash(
+            &lockfile_key(LockfileNamespace::Project, Path::new("tracked.md")),
+            &original_hash,
+        );
 
         // File exists with modified content
         let fs = MockFileSystem::new();
@@ -454,7 +491,10 @@ mod tests {
         let current_content = "current content";
         let mut lockfile = Lockfile::new();
         let hash = crate::sync::lockfile::hash_content(current_content);
-        lockfile.set_hash("tracked.md", &hash);
+        lockfile.set_hash(
+            &lockfile_key(LockfileNamespace::Project, Path::new("tracked.md")),
+            &hash,
+        );
 
         // File exists with same content as lockfile
         let fs = MockFileSystem::new();
@@ -468,6 +508,37 @@ mod tests {
 
         let plan = plan_sync(&outputs, &dest, &lockfile, &fs).unwrap();
 
+        assert_eq!(plan.to_write.len(), 1);
+        assert!(plan.conflicts.is_empty());
+    }
+
+    #[test]
+    fn plan_expands_explicit_home_paths() {
+        let outputs = vec![make_output("~/.codex/prompts/test.md", "new content")];
+        let dest = SyncDestination::Local(PathBuf::from("/project"));
+
+        // File exists with same content as lockfile (but different from new output).
+        let current_content = "current content";
+        let mut lockfile = Lockfile::new();
+        let hash = crate::sync::lockfile::hash_content(current_content);
+        lockfile.set_hash(
+            &lockfile_key(
+                LockfileNamespace::Project,
+                Path::new("~/.codex/prompts/test.md"),
+            ),
+            &hash,
+        );
+
+        let fs = MockFileSystem::new();
+        {
+            let mut files = fs.files.lock().unwrap();
+            files.insert(
+                PathBuf::from("/mock/home/.codex/prompts/test.md"),
+                current_content.to_string(),
+            );
+        }
+
+        let plan = plan_sync(&outputs, &dest, &lockfile, &fs).unwrap();
         assert_eq!(plan.to_write.len(), 1);
         assert!(plan.conflicts.is_empty());
     }

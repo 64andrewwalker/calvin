@@ -122,12 +122,13 @@ fn interactive_existing_project(
     let items = vec![
         "[1] Deploy to this project",
         "[2] Deploy to home directory",
-        "[3] Deploy to remote server",
-        "[4] Preview changes",
-        "[5] Watch mode",
-        "[6] Check configuration",
-        "[7] Explain yourself",
-        "[8] Quit",
+        "[3] Deploy to project + home (by scope)",
+        "[4] Deploy to remote server",
+        "[5] Preview changes",
+        "[6] Watch mode",
+        "[7] Check configuration",
+        "[8] Explain yourself",
+        "[9] Quit",
     ];
 
     let selection = Select::new()
@@ -165,7 +166,8 @@ fn interactive_existing_project(
             color,
             no_animation,
         ),
-        2 => {
+        2 => deploy_both(&source, verbose, color, no_animation),
+        3 => {
             let remote: String = Input::new()
                 .with_prompt("Remote destination (user@host:/path)")
                 .interact_text()?;
@@ -183,12 +185,94 @@ fn interactive_existing_project(
                 no_animation,
             )
         }
-        3 => commands::debug::cmd_diff(&source, false),
-        4 => commands::watch::cmd_watch(&source, false, false, color, no_animation),
-        5 => commands::check::cmd_check("balanced", false, false, verbose, color, no_animation),
-        6 => commands::explain::cmd_explain(false, false, verbose),
+        4 => commands::debug::cmd_diff(&source, false, false),
+        5 => commands::watch::cmd_watch(&source, false, false, color, no_animation),
+        6 => commands::check::cmd_check("balanced", false, false, verbose, color, no_animation),
+        7 => commands::explain::cmd_explain(false, false, verbose),
         _ => Ok(()),
     }
+}
+
+fn deploy_both(
+    source: &Path,
+    verbose: u8,
+    color: Option<ColorWhen>,
+    no_animation: bool,
+) -> Result<()> {
+    use calvin::sync::ScopePolicy;
+
+    use crate::commands::deploy::{options::DeployOptions, runner::DeployRunner, targets::DeployTarget};
+    use crate::ui::views::deploy::{render_deploy_header, render_deploy_summary};
+
+    let project_root = source.parent().unwrap_or(source).to_path_buf();
+    let config = calvin::config::Config::load_or_default(Some(source));
+    let ui = crate::ui::context::UiContext::new(false, verbose, color, no_animation, &config);
+
+    let mut options = DeployOptions::new();
+    options.force = false;
+    options.interactive = true;
+    options.dry_run = false;
+    options.json = false;
+    options.verbose = verbose;
+    options.no_animation = no_animation;
+
+    // One header, two deploy phases.
+    print!(
+        "{}",
+        render_deploy_header(
+            "Deploy (Both)",
+            source,
+            Some("Project + Home"),
+            None,
+            &[String::from("Interactive")],
+            ui.color,
+            ui.unicode,
+        )
+    );
+
+    let runner_project = DeployRunner::new(
+        source.to_path_buf(),
+        DeployTarget::Project(project_root),
+        ScopePolicy::ProjectOnly,
+        options.clone(),
+        ui,
+    );
+    let result_project = runner_project.run()?;
+    let asset_count_project = result_project.written.len() / 4;
+    print!(
+        "{}",
+        render_deploy_summary(
+            "Deploy (Project)",
+            asset_count_project,
+            5,
+            &result_project,
+            ui.color,
+            ui.unicode,
+        )
+    );
+
+    let runner_home = DeployRunner::new(
+        source.to_path_buf(),
+        DeployTarget::Home,
+        ScopePolicy::UserOnly,
+        options,
+        ui,
+    );
+    let result_home = runner_home.run()?;
+    let asset_count_home = result_home.written.len() / 4;
+    print!(
+        "{}",
+        render_deploy_summary(
+            "Deploy (Home)",
+            asset_count_home,
+            5,
+            &result_home,
+            ui.color,
+            ui.unicode,
+        )
+    );
+
+    Ok(())
 }
 
 fn setup_wizard(cwd: &Path, ui: &crate::ui::context::UiContext) -> Result<()> {

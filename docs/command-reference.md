@@ -136,6 +136,7 @@ calvin diff [OPTIONS]
 | Option | Short | Description |
 |--------|-------|-------------|
 | `--source <PATH>` | `-s` | Path to `.promptpack` directory (default: `.promptpack`) |
+| `--home` | - | Preview changes for home directory outputs (~/...) |
 
 ---
 

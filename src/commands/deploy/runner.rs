@@ -5,15 +5,13 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use calvin::adapters::OutputFile;
 use calvin::config::Config;
-use calvin::models::PromptAsset;
-use calvin::parser::parse_directory;
 use calvin::sync::{
-    compile_assets, execute_sync_with_callback, plan_sync, plan_sync_remote, resolve_conflicts_interactive,
-    Lockfile, ResolveResult, SyncDestination, SyncEvent, SyncResult, SyncStrategy,
+    execute_sync_with_callback, plan_sync, plan_sync_remote, resolve_conflicts_interactive, AssetPipeline, Lockfile,
+    ResolveResult, ScopePolicy, SyncDestination, SyncEvent, SyncResult, SyncStrategy,
 };
 use calvin::fs::{LocalFileSystem, RemoteFileSystem};
 
-use super::targets::{DeployTarget, ScopePolicy};
+use super::targets::DeployTarget;
 use super::options::DeployOptions;
 use crate::ui::context::UiContext;
 
@@ -63,41 +61,6 @@ impl DeployRunner {
     where
         F: FnMut(SyncEvent),
     {
-        // Step 1: Scan and parse assets
-        let assets = self.scan_assets()?;
-        
-        // Step 2: Compile to output files
-        let outputs = self.compile_outputs(&assets)?;
-        
-        // Step 3: Two-stage sync
-        let result = self.sync_outputs(&outputs, callback)?;
-        
-        Ok(result)
-    }
-
-    /// Scan source directory for assets
-    fn scan_assets(&self) -> Result<Vec<PromptAsset>> {
-        let assets = parse_directory(&self.source)?;
-        
-        // Apply scope policy
-        let filtered = match self.scope_policy {
-            ScopePolicy::Keep => assets,
-            ScopePolicy::UserOnly => assets.into_iter()
-                .filter(|a| a.frontmatter.scope == calvin::models::Scope::User)
-                .collect(),
-            ScopePolicy::ForceUser => assets.into_iter()
-                .map(|mut a| {
-                    a.frontmatter.scope = calvin::models::Scope::User;
-                    a
-                })
-                .collect(),
-        };
-        
-        Ok(filtered)
-    }
-
-    /// Compile assets to output files
-    fn compile_outputs(&self, assets: &[PromptAsset]) -> Result<Vec<OutputFile>> {
         let targets = if self.options.targets.is_empty() {
             vec![
                 calvin::Target::ClaudeCode,
@@ -109,8 +72,18 @@ impl DeployRunner {
         } else {
             self.options.targets.clone()
         };
-        
-        Ok(compile_assets(assets, &targets, &self.config)?)
+
+        // Step 1: Parse + apply scope policy + compile.
+        let pipeline = AssetPipeline::new(self.source.clone(), self.config.clone())
+            .with_scope_policy(self.scope_policy)
+            .with_targets(targets);
+
+        let outputs = pipeline.compile()?;
+
+        // Step 2: Two-stage sync.
+        let result = self.sync_outputs(&outputs, callback)?;
+
+        Ok(result)
     }
 
     /// Two-stage sync: plan -> resolve -> execute
@@ -244,7 +217,10 @@ impl DeployRunner {
             });
         }
         
-        let use_rsync = calvin::sync::remote::has_rsync() && callback.is_none();
+        let has_home_paths = outputs
+            .iter()
+            .any(|o| o.path.to_string_lossy().starts_with('~'));
+        let use_rsync = calvin::sync::remote::has_rsync() && callback.is_none() && !has_home_paths;
         
         if use_rsync {
             // Fast path: rsync batch transfer
@@ -336,13 +312,19 @@ impl DeployRunner {
 
     /// Select sync strategy based on options and file count
     fn select_strategy(&self, plan: &calvin::sync::SyncPlan) -> SyncStrategy {
+        let has_home_paths = plan
+            .to_write
+            .iter()
+            .any(|o| o.path.to_string_lossy().starts_with('~'));
         // Use rsync for batch transfer when:
         // 1. More than 10 files
         // 2. rsync is available
         // 3. Not in JSON mode (rsync output would interfere)
+        // 4. No home-prefixed paths (rsync can't fan-out to multiple roots)
         if plan.to_write.len() > 10 
             && calvin::sync::remote::has_rsync() 
-            && !self.options.json 
+            && !self.options.json
+            && !has_home_paths
         {
             SyncStrategy::Rsync
         } else {
@@ -353,6 +335,7 @@ impl DeployRunner {
     /// Update lockfile after successful sync
     fn update_lockfile(&self, path: &Path, outputs: &[OutputFile], result: &SyncResult) {
         use std::collections::HashSet;
+        use calvin::sync::{LockfileNamespace, lockfile_key};
         
         // Load existing lockfile
         let fs = LocalFileSystem;
@@ -369,7 +352,8 @@ impl DeployRunner {
             if written_set.contains(path_str.as_str()) {
                 // This file was written, update its hash
                 let hash = calvin::sync::lockfile::hash_content(&output.content);
-                lockfile.set_hash(&path_str, &hash);
+                let key = lockfile_key(LockfileNamespace::Project, &output.path);
+                lockfile.set_hash(&key, &hash);
                 updated_count += 1;
             }
         }

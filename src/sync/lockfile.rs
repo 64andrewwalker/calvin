@@ -9,6 +9,16 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::CalvinResult;
 
+/// Lockfile key namespace.
+///
+/// This allows a single lockfile to track multiple deployment destinations
+/// without key collisions (e.g., `.claude/settings.json` in project vs home).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LockfileNamespace {
+    Project,
+    Home,
+}
+
 /// Calvin lockfile
 ///
 /// Tracks generated file hashes to detect user modifications.
@@ -135,6 +145,22 @@ pub fn hash_content(content: &str) -> String {
     format!("sha256:{:x}", hash)
 }
 
+/// Build a stable lockfile key for an output path under a given namespace.
+///
+/// - Explicit home paths (`~/<...>`) always use the `home:` namespace.
+/// - Relative paths are keyed under `project:` or `home:` depending on the namespace.
+pub fn lockfile_key(namespace: LockfileNamespace, output_path: &Path) -> String {
+    let path_str = output_path.display().to_string();
+    if path_str == "~" || path_str.starts_with("~/") {
+        return format!("home:{path_str}");
+    }
+
+    match namespace {
+        LockfileNamespace::Project => format!("project:{path_str}"),
+        LockfileNamespace::Home => format!("home:~/{path_str}"),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -224,6 +250,30 @@ mod tests {
         assert!(toml.contains("version = 1"));
         assert!(toml.contains("[files.\"test.txt\"]"));
         assert!(toml.contains("hash = \"sha256:abc\""));
+    }
+
+    #[test]
+    fn lockfile_key_prefixes_project_paths() {
+        assert_eq!(
+            lockfile_key(LockfileNamespace::Project, Path::new(".claude/settings.json")),
+            "project:.claude/settings.json"
+        );
+    }
+
+    #[test]
+    fn lockfile_key_prefixes_home_relative_paths_with_tilde() {
+        assert_eq!(
+            lockfile_key(LockfileNamespace::Home, Path::new(".claude/settings.json")),
+            "home:~/.claude/settings.json"
+        );
+    }
+
+    #[test]
+    fn lockfile_key_keeps_explicit_home_paths() {
+        assert_eq!(
+            lockfile_key(LockfileNamespace::Project, Path::new("~/.codex/prompts/test.md")),
+            "home:~/.codex/prompts/test.md"
+        );
     }
 
 }
