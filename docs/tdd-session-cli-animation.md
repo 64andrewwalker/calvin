@@ -1,14 +1,16 @@
 # TDD Session Log: CLI Animation (v0.3.0)
 
 Date: 2025-12-17  
-Scope: `docs/cli-animation/*` (Phase 0 → Phase 3)  
+Scope: CLI animation system (Phase 0 → Phase 3)  
 Mode: RED → GREEN → REFACTOR, iterating until checklist completion.
 
 ## Requirements (source of truth)
 
-- `docs/cli-animation/TODO.md`
-- `docs/cli-animation/design-principles.md`
-- `docs/cli-animation/ui-components-spec.md`
+> **Note**: Original design docs have been archived during documentation reorganization.
+> See `docs/archive/cli-animation-design.md` for design principles.
+
+- `docs/ui-components-spec.md` (moved from cli-animation/)
+- `docs/archive/cli-animation-design.md` (archived)
 
 ## Iterations
 

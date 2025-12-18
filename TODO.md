@@ -247,6 +247,20 @@
 
 ---
 
+## Refactoring (Maintenance) 🔙 IN PROGRESS
+
+> Refactoring tasks are tracked per `docs/REFACTOR_SCOPE_POLICY.md`. See `docs/refactoring-plan.md`.
+
+- [ ] P0.1 Fix clippy warnings (deploy targets)
+- [ ] P0.2 Parser ID derivation cleanup
+- [ ] P0.3 Doctor sink dedup
+- [ ] P1.4 Conflict-resolution consolidation
+- [ ] P1.5 Security module split
+- [ ] P1.6 Watch incremental parsing improvements
+- [ ] P2.7 Workspace rustfmt pass
+
+---
+
 ## Summary
 
 | Phase | Status | Key Items |
