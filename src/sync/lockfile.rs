@@ -118,6 +118,26 @@ impl Lockfile {
     pub fn paths(&self) -> impl Iterator<Item = &str> {
         self.files.keys().map(|s| s.as_str())
     }
+
+    /// Simple accessor for entries (used by plan module)
+    pub fn get(&self, path: &str) -> Option<&String> {
+        self.files.get(path).map(|e| &e.hash)
+    }
+
+    /// Expose entries for iteration
+    pub fn entries(&self) -> &HashMap<String, FileEntry> {
+        &self.files
+    }
+}
+
+/// Compute a simple hash of content for comparison
+pub fn hash_content(content: &str) -> String {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    
+    let mut hasher = DefaultHasher::new();
+    content.hash(&mut hasher);
+    format!("sha256:{:x}", hasher.finish())
 }
 
 /// Get current timestamp in ISO 8601 format
