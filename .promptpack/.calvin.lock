@@ -331,3 +331,114 @@ hash = "sha256:951bc83c6090539f0e50c4706d62029e3bc30e361d1101d855544dcbe9ec9afc"
 
 [files."home:~/.gemini/antigravity/global_workflows/x-util-worktree-review.md"]
 hash = "sha256:c5a2043523a1852d158f3fe0ac0b75bfe85760f52228d88adc00bf9a01a8bcf3"
+
+[files."home:~/.vscode/instructions/0-disc-analyze-project.instructions.md"]
+hash = "sha256:9529c5bff78e216fc395b4ba462a87233852de299e7d59356629fad8e2ba7440"
+
+[files."home:~/.vscode/instructions/0-disc-sync-docs-code.instructions.md"]
+hash = "sha256:17887b0050a5c5aaafb57b3f6a428912f3f54c77dc90065cdfc9249579d6b7d3"
+
+[files."home:~/.vscode/instructions/1-plan-api-versioning.instructions.md"]
+hash = "sha256:e394942ba606ce49250534e741513ed4b1f752db028cdd3eccb1bc668131355b"
+
+[files."home:~/.vscode/instructions/1-plan-cache-strategy.instructions.md"]
+hash = "sha256:4f54f748a6939e018c9e7210cf4c92a5b7d5711373c983d3a1537ca674fa5a79"
+
+[files."home:~/.vscode/instructions/1-plan-db-optimize.instructions.md"]
+hash = "sha256:2e2e6c6aed3081bcaf2d50c531c60e3e2395ae56172fc3019abdb58989faedde"
+
+[files."home:~/.vscode/instructions/1-plan-frontend-redesign.instructions.md"]
+hash = "sha256:58f71a422d0e3716ba52f65d9a010e96c67d271bec2241e7fa1766c9fb064db5"
+
+[files."home:~/.vscode/instructions/1-plan-init-project.instructions.md"]
+hash = "sha256:987d8214950042c529aa1fe9396a4f85f18c8b273c609f4fece0c6ab55a5fba0"
+
+[files."home:~/.vscode/instructions/1-plan-redesign-arch.instructions.md"]
+hash = "sha256:acb38d0f9e5eaf64e3d139af5fc23c96ff7d43efdfe4c3c49c5bf26f89c6d6fe"
+
+[files."home:~/.vscode/instructions/2-init-cicd-setup.instructions.md"]
+hash = "sha256:e58342b4fe9504337adcb495914e084849c8394e0aced8bf30b01464c999d3ed"
+
+[files."home:~/.vscode/instructions/2-init-containerize.instructions.md"]
+hash = "sha256:4ffc1e025da303b12e1c84542f6c4d860c3eee62f89d8222d81cf948b6ebd3b7"
+
+[files."home:~/.vscode/instructions/2-init-env-config.instructions.md"]
+hash = "sha256:4fe13a4ab5791b6ca589258915d566cc2a8736246c21e845cf095299c0a65eb7"
+
+[files."home:~/.vscode/instructions/2-init-i18n-setup.instructions.md"]
+hash = "sha256:84defd57a63dc96c997e0a34ea4e3a4fc3e3fd525561d342487fe6d83cf6b940"
+
+[files."home:~/.vscode/instructions/2-init-monorepo-setup.instructions.md"]
+hash = "sha256:6f9f573ead41974d6953148f42275f1c6de466e30c0245b52478491857982c66"
+
+[files."home:~/.vscode/instructions/2-init-observability.instructions.md"]
+hash = "sha256:3d79e27a8e36fb281fcb8df438d0999647cc27a02b1d89794e586dfad3215398"
+
+[files."home:~/.vscode/instructions/3-dev-error-handling.instructions.md"]
+hash = "sha256:df8b9a47620cd63effffaea59692e2d5833c82d7c98d3ca4eab7470129260d97"
+
+[files."home:~/.vscode/instructions/3-dev-legacy-modernize.instructions.md"]
+hash = "sha256:132c5de8bda92224557de08ecbeacf7a65e4d9b9a6be015bc61fdbf36a582029"
+
+[files."home:~/.vscode/instructions/3-dev-migrate-framework.instructions.md"]
+hash = "sha256:c8ec02b542ab072aab48a4b5a06f3db8b4552e197c3de42ac7419bc2dff7df41"
+
+[files."home:~/.vscode/instructions/3-dev-refactoring.instructions.md"]
+hash = "sha256:d24d92801284f2394956b4d036ba93a53fc508b846630d659449901760500a5e"
+
+[files."home:~/.vscode/instructions/4-test-critical.instructions.md"]
+hash = "sha256:3c3543d4f141602b6a97022fae69ddd6e8d5bb6762bc8938803551b0e79fb6bf"
+
+[files."home:~/.vscode/instructions/4-test-fix.instructions.md"]
+hash = "sha256:cbc73541a6f43e0409fd1ece7e9d41cfa209692d0f9233fb8afc37f84e15e059"
+
+[files."home:~/.vscode/instructions/4-test-full.instructions.md"]
+hash = "sha256:57184fb33c7de064f0afa8c18cd4a9ef91fc1aebaf2d65dad33872590047f9aa"
+
+[files."home:~/.vscode/instructions/4-test-regression.instructions.md"]
+hash = "sha256:662ce127d8bf32f2558497ca4b9d7e691a63164096f6a81b4fda49eba40b93c0"
+
+[files."home:~/.vscode/instructions/4-test-tdd.instructions.md"]
+hash = "sha256:756f7c2b40d5db8f438d0099309b1ca9784c965f3f6cdda07939e96da5c16799"
+
+[files."home:~/.vscode/instructions/4-test-variants.instructions.md"]
+hash = "sha256:686bc27937c0537118f447cd8ef008595fb3cdea02c11d8f64d4d544bbe8d135"
+
+[files."home:~/.vscode/instructions/5-qa-a11y-audit.instructions.md"]
+hash = "sha256:1bfe241509eed318af74d5f07f737edbfdc83d2f5d79f4c905e2c0af1b6566a1"
+
+[files."home:~/.vscode/instructions/5-qa-api-review.instructions.md"]
+hash = "sha256:2d140b9e940455057aad1964d59c950aa6dcfff4e140b713a230b34925a55ce6"
+
+[files."home:~/.vscode/instructions/5-qa-dep-audit.instructions.md"]
+hash = "sha256:23801dc2bc7e0078363d4b6c18911ec2d2a3db780838bb8068313c5e07aebae9"
+
+[files."home:~/.vscode/instructions/5-qa-perf-profile.instructions.md"]
+hash = "sha256:9f64abbffd4ee799fc776f0b70539077fe18803f5cbb057c4f6341dab51c5ee6"
+
+[files."home:~/.vscode/instructions/5-qa-security-audit.instructions.md"]
+hash = "sha256:5e9eed26b187ef7d1b853208056884c8cc97ed8f87c1591b299d7fe805102084"
+
+[files."home:~/.vscode/instructions/6-rel-changelog.instructions.md"]
+hash = "sha256:934a11dff36ca05219386346c638ce18276bf0d3d6062934cc9fdc5f4f8b87d7"
+
+[files."home:~/.vscode/instructions/6-rel-organize-docs.instructions.md"]
+hash = "sha256:f209569038d2eef57e6af88abae7efdfb73ad7a0e8862aa51cd7e12137e78a1f"
+
+[files."home:~/.vscode/instructions/m-maint-codebase-cleanup.instructions.md"]
+hash = "sha256:b486aa7d6db3a48570061077ebf7145940ffd70270cc69ed9932e32d146920b7"
+
+[files."home:~/.vscode/instructions/m-maint-dep-cleanup.instructions.md"]
+hash = "sha256:a469913cac907769764da63bfe5978ad90ff88a434d7039f39292b821b3b287a"
+
+[files."home:~/.vscode/instructions/m-maint-git-audit.instructions.md"]
+hash = "sha256:043dbe00ae768b797c2579cd66e6d85d9995cb2823113f87a711cbe48f3fb8b8"
+
+[files."home:~/.vscode/instructions/x-util-debug-exception.instructions.md"]
+hash = "sha256:951bc83c6090539f0e50c4706d62029e3bc30e361d1101d855544dcbe9ec9afc"
+
+[files."home:~/.vscode/instructions/x-util-worktree-review.instructions.md"]
+hash = "sha256:c5a2043523a1852d158f3fe0ac0b75bfe85760f52228d88adc00bf9a01a8bcf3"
+
+[files."home:~/AGENTS.md"]
+hash = "sha256:020f40435b1a01f22241b03adf3e7b00a70e40c6c9c4b6b37cff8434118f6c5a"
