@@ -103,6 +103,15 @@ pub struct SyncResult {
     pub errors: Vec<String>,
 }
 
+/// Progress callback event emitted while syncing outputs.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SyncEvent {
+    ItemStart { index: usize, path: String },
+    ItemWritten { index: usize, path: String },
+    ItemSkipped { index: usize, path: String },
+    ItemError { index: usize, path: String, message: String },
+}
+
 impl SyncResult {
     pub fn new() -> Self {
         Self {
@@ -141,7 +150,7 @@ pub fn sync_with_fs<FS: crate::fs::FileSystem + ?Sized>(
     fs: &FS,
 ) -> CalvinResult<SyncResult> {
     let mut prompter = StdioPrompter::new();
-    sync_with_fs_with_prompter(project_root, outputs, options, fs, &mut prompter)
+    sync_with_fs_with_prompter(project_root, outputs, options, fs, &mut prompter, None)
 }
 
 fn sync_with_fs_with_prompter<FS: crate::fs::FileSystem + ?Sized, P: SyncPrompter>(
@@ -150,6 +159,7 @@ fn sync_with_fs_with_prompter<FS: crate::fs::FileSystem + ?Sized, P: SyncPrompte
     options: &SyncOptions,
     fs: &FS,
     prompter: &mut P,
+    mut callback: Option<&mut dyn FnMut(SyncEvent)>,
 ) -> CalvinResult<SyncResult> {
     let mut result = SyncResult::new();
 
@@ -169,7 +179,7 @@ fn sync_with_fs_with_prompter<FS: crate::fs::FileSystem + ?Sized, P: SyncPrompte
 
     let mut aborted = false;
 
-    'files: for output in outputs {
+    'files: for (index, output) in outputs.iter().enumerate() {
         // Validate path safety (prevent path traversal attacks)
         validate_path_safety(&output.path, &project_root)?;
 
@@ -182,13 +192,22 @@ fn sync_with_fs_with_prompter<FS: crate::fs::FileSystem + ?Sized, P: SyncPrompte
         };
         let path_str = output.path.display().to_string();
 
+        if let Some(cb) = callback.as_mut() {
+            cb(SyncEvent::ItemStart {
+                index,
+                path: path_str.clone(),
+            });
+        }
+
         // Check if file exists and was modified
+        let mut file_current_in_fs = false;
         let conflict_reason = if fs.exists(&target_path) {
             if let Some(recorded_hash) = lockfile.get_hash(&path_str) {
                 let current_hash = fs.hash_file(&target_path)?;
                 if current_hash != recorded_hash {
                     Some(ConflictReason::Modified)
                 } else {
+                    file_current_in_fs = true;
                     None
                 }
             } else {
@@ -218,6 +237,12 @@ fn sync_with_fs_with_prompter<FS: crate::fs::FileSystem + ?Sized, P: SyncPrompte
                             }
                             ConflictChoice::Skip => {
                                 result.skipped.push(path_str.clone());
+                                if let Some(cb) = callback.as_mut() {
+                                    cb(SyncEvent::ItemSkipped {
+                                        index,
+                                        path: path_str.clone(),
+                                    });
+                                }
                                 continue 'files;
                             }
                             ConflictChoice::Overwrite => break,
@@ -232,12 +257,24 @@ fn sync_with_fs_with_prompter<FS: crate::fs::FileSystem + ?Sized, P: SyncPrompte
                             ConflictChoice::SkipAll => {
                                 apply_all = Some(ApplyAll::Skip);
                                 result.skipped.push(path_str.clone());
+                                if let Some(cb) = callback.as_mut() {
+                                    cb(SyncEvent::ItemSkipped {
+                                        index,
+                                        path: path_str.clone(),
+                                    });
+                                }
                                 continue 'files;
                             }
                         }
                     }
                 } else {
                     result.skipped.push(path_str.clone());
+                    if let Some(cb) = callback.as_mut() {
+                        cb(SyncEvent::ItemSkipped {
+                            index,
+                            path: path_str.clone(),
+                        });
+                    }
                     continue;
                 }
             }
@@ -245,16 +282,30 @@ fn sync_with_fs_with_prompter<FS: crate::fs::FileSystem + ?Sized, P: SyncPrompte
 
         if options.dry_run {
             result.written.push(path_str.clone());
+            if let Some(cb) = callback.as_mut() {
+                cb(SyncEvent::ItemWritten {
+                    index,
+                    path: path_str.clone(),
+                });
+            }
             continue;
         }
 
         // Check if content actually changed (skip if hash matches lockfile)
         let new_hash = writer::hash_content(output.content.as_bytes());
-        if let Some(recorded_hash) = lockfile.get_hash(&path_str) {
-            if recorded_hash == new_hash {
-                // Content unchanged, skip write
-                result.skipped.push(path_str);
-                continue;
+        if file_current_in_fs {
+            if let Some(recorded_hash) = lockfile.get_hash(&path_str) {
+                if recorded_hash == new_hash {
+                    // Content unchanged and file matches lockfile, skip write
+                    result.skipped.push(path_str);
+                    if let Some(cb) = callback.as_mut() {
+                        cb(SyncEvent::ItemSkipped {
+                            index,
+                            path: output.path.display().to_string(),
+                        });
+                    }
+                    continue;
+                }
             }
         }
 
@@ -269,9 +320,23 @@ fn sync_with_fs_with_prompter<FS: crate::fs::FileSystem + ?Sized, P: SyncPrompte
                 // Update lockfile with new hash
                 lockfile.set_hash(&path_str, &new_hash);
                 result.written.push(path_str);
+                if let Some(cb) = callback.as_mut() {
+                    cb(SyncEvent::ItemWritten {
+                        index,
+                        path: output.path.display().to_string(),
+                    });
+                }
             }
             Err(e) => {
-                result.errors.push(format!("{}: {}", path_str, e));
+                let message = format!("{}: {}", path_str, e);
+                result.errors.push(message.clone());
+                if let Some(cb) = callback.as_mut() {
+                    cb(SyncEvent::ItemError {
+                        index,
+                        path: output.path.display().to_string(),
+                        message,
+                    });
+                }
             }
         }
     }
@@ -286,6 +351,28 @@ fn sync_with_fs_with_prompter<FS: crate::fs::FileSystem + ?Sized, P: SyncPrompte
     }
 
     Ok(result)
+}
+
+/// Sync compiled outputs using provided file system, emitting progress events.
+pub fn sync_with_fs_with_callback<FS: crate::fs::FileSystem + ?Sized>(
+    project_root: &Path,
+    outputs: &[OutputFile],
+    options: &SyncOptions,
+    fs: &FS,
+    callback: &mut dyn FnMut(SyncEvent),
+) -> CalvinResult<SyncResult> {
+    let mut prompter = StdioPrompter::new();
+    sync_with_fs_with_prompter(project_root, outputs, options, fs, &mut prompter, Some(callback))
+}
+
+/// Sync compiled outputs to the filesystem, emitting progress events.
+pub fn sync_outputs_with_callback(
+    project_root: &Path,
+    outputs: &[OutputFile],
+    options: &SyncOptions,
+    callback: &mut dyn FnMut(SyncEvent),
+) -> CalvinResult<SyncResult> {
+    sync_with_fs_with_callback(project_root, outputs, options, &crate::fs::LocalFileSystem, callback)
 }
 
 /// Full sync pipeline: parse → compile → write

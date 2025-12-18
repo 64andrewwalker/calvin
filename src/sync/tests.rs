@@ -173,6 +173,33 @@ fn test_sync_with_mock_fs() {
     assert!(mock_fs.exists(Path::new("/mock/root/.promptpack/.calvin.lock")));
 }
 
+#[test]
+fn test_sync_with_callback_emits_written_events() {
+    use crate::fs::MockFileSystem;
+
+    let mock_fs = MockFileSystem::new();
+    let outputs = vec![
+        OutputFile::new(".claude/a.md", "a"),
+        OutputFile::new(".claude/b.md", "b"),
+    ];
+    let options = SyncOptions {
+        force: true,
+        dry_run: false,
+        interactive: false,
+        targets: vec![],
+    };
+    let root = Path::new("/mock/root");
+
+    let mut events = Vec::new();
+    let result = sync_with_fs_with_callback(root, &outputs, &options, &mock_fs, &mut |e| {
+        events.push(e);
+    })
+    .unwrap();
+
+    assert_eq!(result.written.len(), 2);
+    assert!(events.iter().any(|e| matches!(e, SyncEvent::ItemWritten { path, .. } if path == ".claude/a.md")));
+}
+
 // === TDD: US-4 Interactive sync confirmation (Sprint 1 / P0) ===
 
 #[test]
@@ -223,7 +250,7 @@ fn test_sync_interactive_overwrite_modified_file() {
     };
 
     let mut prompter = Prompt { calls: 0 };
-    let result = sync_with_fs_with_prompter(root, &outputs_v2, &options, &mock_fs, &mut prompter)
+    let result = sync_with_fs_with_prompter(root, &outputs_v2, &options, &mock_fs, &mut prompter, None)
         .unwrap();
 
     assert_eq!(prompter.calls, 1);
@@ -278,7 +305,7 @@ fn test_sync_interactive_skip_modified_file() {
     };
 
     let mut prompter = Prompt;
-    let result = sync_with_fs_with_prompter(root, &outputs_v2, &options, &mock_fs, &mut prompter)
+    let result = sync_with_fs_with_prompter(root, &outputs_v2, &options, &mock_fs, &mut prompter, None)
         .unwrap();
 
     assert_eq!(result.written.len(), 0);
@@ -345,7 +372,7 @@ fn test_sync_interactive_diff_then_overwrite() {
         step: 0,
         diffs: Vec::new(),
     };
-    sync_with_fs_with_prompter(root, &outputs_v2, &options, &mock_fs, &mut prompter).unwrap();
+    sync_with_fs_with_prompter(root, &outputs_v2, &options, &mock_fs, &mut prompter, None).unwrap();
 
     assert_eq!(prompter.diffs.len(), 1);
     assert!(prompter.diffs[0].contains("-user edit"));
@@ -401,7 +428,7 @@ fn test_sync_interactive_overwrite_all_applies_to_multiple_conflicts() {
     };
 
     let mut prompter = Prompt { calls: 0 };
-    sync_with_fs_with_prompter(root, &outputs_v2, &options, &mock_fs, &mut prompter).unwrap();
+    sync_with_fs_with_prompter(root, &outputs_v2, &options, &mock_fs, &mut prompter, None).unwrap();
 
     // Only the first conflict should prompt when using "all".
     assert_eq!(prompter.calls, 1);
@@ -454,8 +481,7 @@ fn test_sync_interactive_abort_returns_error() {
     };
 
     let mut prompter = Prompt;
-    let err = sync_with_fs_with_prompter(root, &outputs_v2, &options, &mock_fs, &mut prompter)
+    let err = sync_with_fs_with_prompter(root, &outputs_v2, &options, &mock_fs, &mut prompter, None)
         .expect_err("should abort");
     assert!(err.to_string().to_lowercase().contains("abort"));
 }
-

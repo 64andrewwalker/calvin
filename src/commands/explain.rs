@@ -2,6 +2,13 @@ use anyhow::Result;
 
 pub fn cmd_explain(brief: bool, json: bool, verbose: u8) -> Result<()> {
     if json {
+        crate::ui::json::emit(serde_json::json!({
+            "event": "start",
+            "command": "explain",
+            "brief": brief,
+            "verbose": verbose
+        }))?;
+
         let output = serde_json::json!({
             "name": "calvin",
             "version": env!("CARGO_PKG_VERSION"),
@@ -35,7 +42,11 @@ pub fn cmd_explain(brief: bool, json: bool, verbose: u8) -> Result<()> {
             }
         });
 
-        println!("{}", serde_json::to_string_pretty(&output)?);
+        crate::ui::json::emit(serde_json::json!({
+            "event": "complete",
+            "command": "explain",
+            "data": output
+        }))?;
         return Ok(());
     }
 

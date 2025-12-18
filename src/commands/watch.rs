@@ -2,8 +2,11 @@ use std::path::Path;
 
 use anyhow::Result;
 
-pub fn cmd_watch(source: &Path, json: bool) -> Result<()> {
+use crate::cli::ColorWhen;
+
+pub fn cmd_watch(source: &Path, json: bool, color: Option<ColorWhen>, no_animation: bool) -> Result<()> {
     use calvin::watcher::{watch, WatchEvent, WatchOptions};
+    use std::time::{SystemTime, UNIX_EPOCH};
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
 
@@ -16,6 +19,7 @@ pub fn cmd_watch(source: &Path, json: bool) -> Result<()> {
     // Load configuration
     let config_path = source.join("config.toml");
     let config = calvin::config::Config::load(&config_path).unwrap_or_default();
+    let ui = crate::ui::context::UiContext::new(json, 0, color, no_animation, &config);
 
     let options = WatchOptions {
         source: source.to_path_buf(),
@@ -35,9 +39,11 @@ pub fn cmd_watch(source: &Path, json: bool) -> Result<()> {
     .expect("Error setting Ctrl+C handler");
 
     if !json {
-        println!("👀 Calvin Watch");
-        println!("Source: {}", source.display());
-        println!("Press Ctrl+C to stop\n");
+        let source_display = source.display().to_string();
+        print!(
+            "{}",
+            crate::ui::views::watch::render_watch_header(&source_display, ui.color, ui.unicode)
+        );
     }
 
     // Start watching
@@ -45,37 +51,26 @@ pub fn cmd_watch(source: &Path, json: bool) -> Result<()> {
         if json {
             println!("{}", event.to_json());
         } else {
+            let timestamp = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map(|d| {
+                    let secs = d.as_secs() % 86_400;
+                    let h = secs / 3600;
+                    let m = (secs % 3600) / 60;
+                    let s = secs % 60;
+                    format!("{:02}:{:02}:{:02}", h, m, s)
+                })
+                .unwrap_or_else(|_| "00:00:00".to_string());
+
+            let rendered =
+                crate::ui::views::watch::render_watch_event(&timestamp, &event, ui.color, ui.unicode);
+
             match event {
-                WatchEvent::Started { source } => {
-                    println!("📂 Watching: {}", source);
-                }
-                WatchEvent::FileChanged { path } => {
-                    println!("📝 Changed: {}", path);
-                }
-                WatchEvent::SyncStarted => {
-                    println!("🔄 Syncing...");
-                }
-                WatchEvent::SyncComplete {
-                    written,
-                    skipped,
-                    errors,
-                } => {
-                    if errors > 0 {
-                        println!("⚠ Sync: {} written, {} skipped, {} errors", written, skipped, errors);
-                    } else {
-                        println!("✓ Sync: {} written, {} skipped", written, skipped);
-                    }
-                }
-                WatchEvent::Error { message } => {
-                    eprintln!("✗ Error: {}", message);
-                }
-                WatchEvent::Shutdown => {
-                    println!("\n👋 Shutting down...");
-                }
+                WatchEvent::Error { .. } => eprint!("{rendered}"),
+                _ => print!("{rendered}"),
             }
         }
     })?;
 
     Ok(())
 }
-

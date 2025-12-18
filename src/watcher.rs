@@ -160,7 +160,8 @@ pub struct WatchOptions {
 }
 
 /// Watch event types for NDJSON output
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(tag = "event", rename_all = "snake_case")]
 pub enum WatchEvent {
     Started { source: String },
     FileChanged { path: String },
@@ -172,29 +173,7 @@ pub enum WatchEvent {
 
 impl WatchEvent {
     pub fn to_json(&self) -> String {
-        match self {
-            WatchEvent::Started { source } => {
-                format!(r#"{{"event":"started","source":"{}"}}"#, source)
-            }
-            WatchEvent::FileChanged { path } => {
-                format!(r#"{{"event":"file_changed","path":"{}"}}"#, path)
-            }
-            WatchEvent::SyncStarted => {
-                r#"{"event":"sync_started"}"#.to_string()
-            }
-            WatchEvent::SyncComplete { written, skipped, errors } => {
-                format!(
-                    r#"{{"event":"sync_complete","written":{},"skipped":{},"errors":{}}}"#,
-                    written, skipped, errors
-                )
-            }
-            WatchEvent::Error { message } => {
-                format!(r#"{{"event":"error","message":"{}"}}"#, message.replace('"', "\\\""))
-            }
-            WatchEvent::Shutdown => {
-                r#"{"event":"shutdown"}"#.to_string()
-            }
-        }
+        serde_json::to_string(self).unwrap_or_else(|_| "{}".to_string())
     }
 }
 

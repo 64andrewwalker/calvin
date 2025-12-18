@@ -25,10 +25,12 @@ pkg-fmt = "zip"
 anyhow = "1"
 atty = "0.2"
 clap = { version = "4", default-features = false, features = ["std", "derive", "help"] }
+crossterm = "0.28"
 ctrlc = "3"
 dialoguer = { version = "0.11", default-features = false, features = ["fuzzy-select"] }
 dirs = "6.0.0"
 notify = { version = "8", default-features = false, features = ["macos_kqueue"] }
+owo-colors = "4"
 serde = { version = "1", default-features = false, features = ["derive"] }
 serde_ignored = "0.1"
 serde_json = { version = "1", default-features = false, features = ["std"] }
@@ -38,6 +40,7 @@ similar = "2"
 tempfile = "3"
 thiserror = "2"
 toml = "0.8"
+unicode-width = "0.2"
 which = "8"
 
 [features]

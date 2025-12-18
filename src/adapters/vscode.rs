@@ -248,7 +248,7 @@ mod tests {
         let post_outputs = adapter.post_compile(&[asset]).unwrap();
         
         let copilot_file = post_outputs.iter()
-            .find(|o| o.path == PathBuf::from(".github/copilot-instructions.md"));
+            .find(|o| o.path == std::path::Path::new(".github/copilot-instructions.md"));
         assert!(copilot_file.is_some(), "Should generate copilot-instructions.md");
         assert!(copilot_file.unwrap().content.contains("## Code style rules"));
     }

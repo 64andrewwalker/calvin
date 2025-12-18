@@ -8,6 +8,11 @@ pub fn cmd_version(json: bool) -> Result<()> {
     let adapters = calvin::adapters::all_adapters();
 
     if json {
+        crate::ui::json::emit(serde_json::json!({
+            "event": "start",
+            "command": "version"
+        }))?;
+
         let adapter_info: Vec<_> = adapters
             .iter()
             .map(|a| {
@@ -23,7 +28,11 @@ pub fn cmd_version(json: bool) -> Result<()> {
             "source_format": "1.0",
             "adapters": adapter_info
         });
-        println!("{}", serde_json::to_string_pretty(&output)?);
+        crate::ui::json::emit(serde_json::json!({
+            "event": "complete",
+            "command": "version",
+            "data": output
+        }))?;
     } else {
         println!("Calvin v{}", env!("CARGO_PKG_VERSION"));
         println!("Source Format: 1.0\n");
@@ -36,8 +45,16 @@ pub fn cmd_version(json: bool) -> Result<()> {
 }
 
 pub fn cmd_migrate(format: Option<String>, adapter: Option<String>, dry_run: bool, json: bool) -> Result<()> {
-    if !json {
-        println!("🔄 Calvin Migrate");
+    if json {
+        crate::ui::json::emit(serde_json::json!({
+            "event": "start",
+            "command": "migrate",
+            "format": format,
+            "adapter": adapter,
+            "dry_run": dry_run
+        }))?;
+    } else {
+        println!("Calvin Migrate");
         if let Some(f) = &format {
             println!("Target Format: {}", f);
         }
@@ -53,14 +70,22 @@ pub fn cmd_migrate(format: Option<String>, adapter: Option<String>, dry_run: boo
     // Currently only version 1.0 exists.
 
     if json {
-        let output = serde_json::json!({
+        crate::ui::json::emit(serde_json::json!({
+            "event": "complete",
+            "command": "migrate",
             "status": "success",
             "message": "Already at latest version (1.0). No migration needed.",
             "changes": []
-        });
-        println!("{}", serde_json::to_string(&output)?);
+        }))?;
     } else {
-        println!("\n✅ Already at latest version (1.0). No migration needed.");
+        let caps = crate::ui::terminal::detect_capabilities();
+        println!(
+            "\n{} Already at latest version (1.0). No migration needed.",
+            crate::ui::primitives::icon::Icon::Success.colored(
+                caps.supports_color,
+                caps.supports_unicode
+            )
+        );
     }
 
     Ok(())
@@ -70,19 +95,24 @@ pub fn cmd_diff(source: &Path, json: bool) -> Result<()> {
     use calvin::sync::compile_assets;
     use std::fs;
 
-    if !json {
-        println!("📊 Calvin Diff");
-        println!("Source: {}", source.display());
-        println!();
-    }
-
     // Load configuration
     let config_path = source.join("config.toml");
     let (config, warnings) = calvin::config::Config::load_with_warnings(&config_path)
         .unwrap_or((calvin::config::Config::default(), Vec::new()));
-    if !json {
-        print_config_warnings(&config_path, &warnings);
+    let ui = crate::ui::context::UiContext::new(json, 0, None, true, &config);
+    if json {
+        crate::ui::json::emit(serde_json::json!({
+            "event": "start",
+            "command": "diff",
+            "source": source.display().to_string()
+        }))?;
+    } else {
+        print!(
+            "{}",
+            crate::ui::views::diff::render_diff_header(source, ui.color, ui.unicode)
+        );
     }
+    print_config_warnings(&config_path, &warnings, &ui);
 
     // Parse source directory
     let assets = calvin::parser::parse_directory(source)?;
@@ -99,6 +129,12 @@ pub fn cmd_diff(source: &Path, json: bool) -> Result<()> {
     let mut new_files = Vec::new();
     let mut modified_files = Vec::new();
     let mut unchanged_files = Vec::new();
+    let mut rendered_diffs = String::new();
+    let mut json_out = if json {
+        Some(std::io::stdout().lock())
+    } else {
+        None
+    };
 
     for output in &outputs {
         let target_path = project_root.join(&output.path);
@@ -109,49 +145,91 @@ pub fn cmd_diff(source: &Path, json: bool) -> Result<()> {
             let existing = fs::read_to_string(&target_path).unwrap_or_default();
             if existing == output.content {
                 unchanged_files.push(path_str);
+                if let Some(out) = &mut json_out {
+                    let _ = crate::ui::json::write_event(
+                        out,
+                        &serde_json::json!({
+                            "event": "file",
+                            "command": "diff",
+                            "path": output.path.display().to_string(),
+                            "status": "unchanged"
+                        }),
+                    );
+                }
             } else {
                 modified_files.push(path_str);
+                if let Some(out) = &mut json_out {
+                    let _ = crate::ui::json::write_event(
+                        out,
+                        &serde_json::json!({
+                            "event": "file",
+                            "command": "diff",
+                            "path": output.path.display().to_string(),
+                            "status": "modified"
+                        }),
+                    );
+                }
+                if !json {
+                    rendered_diffs.push_str(&crate::ui::views::diff::render_file_diff(
+                        &output.path.display().to_string(),
+                        &existing,
+                        &output.content,
+                        ui.color,
+                    ));
+                    rendered_diffs.push('\n');
+                }
             }
         } else {
             new_files.push(path_str);
+            if let Some(out) = &mut json_out {
+                let _ = crate::ui::json::write_event(
+                    out,
+                    &serde_json::json!({
+                        "event": "file",
+                        "command": "diff",
+                        "path": output.path.display().to_string(),
+                        "status": "new"
+                    }),
+                );
+            }
+            if !json {
+                rendered_diffs.push_str(&crate::ui::views::diff::render_file_diff(
+                    &output.path.display().to_string(),
+                    "",
+                    &output.content,
+                    ui.color,
+                ));
+                rendered_diffs.push('\n');
+            }
         }
     }
 
     if json {
-        let output = serde_json::json!({
-            "event": "diff",
-            "new": new_files.len(),
-            "modified": modified_files.len(),
-            "unchanged": unchanged_files.len()
-        });
-        println!("{}", serde_json::to_string(&output)?);
+        let mut out = std::io::stdout().lock();
+        let _ = crate::ui::json::write_event(
+            &mut out,
+            &serde_json::json!({
+                "event": "complete",
+                "command": "diff",
+                "new": new_files.len(),
+                "modified": modified_files.len(),
+                "unchanged": unchanged_files.len()
+            }),
+        );
     } else {
-        if !new_files.is_empty() {
-            println!("📁 New files ({}):", new_files.len());
-            for path in &new_files {
-                println!("  + {}", path);
-            }
-            println!();
+        if !rendered_diffs.is_empty() {
+            print!("{rendered_diffs}");
         }
 
-        if !modified_files.is_empty() {
-            println!("📝 Modified files ({}):", modified_files.len());
-            for path in &modified_files {
-                println!("  ~ {}", path);
-            }
-            println!();
-        }
-
-        if !unchanged_files.is_empty() {
-            println!("✓ Unchanged files: {}", unchanged_files.len());
-        }
-
-        println!();
-        println!(
-            "Summary: {} new, {} modified, {} unchanged",
-            new_files.len(),
-            modified_files.len(),
-            unchanged_files.len()
+        print!(
+            "{}",
+            crate::ui::views::diff::render_diff_summary(
+                new_files.len(),
+                modified_files.len(),
+                unchanged_files.len(),
+                ui.color,
+                ui.unicode
+            )
         );
     }
 
@@ -159,8 +237,14 @@ pub fn cmd_diff(source: &Path, json: bool) -> Result<()> {
 }
 
 pub fn cmd_parse(source: &Path, json: bool) -> Result<()> {
-    if !json {
-        println!("🔍 Parsing PromptPack: {}", source.display());
+    if json {
+        crate::ui::json::emit(serde_json::json!({
+            "event": "start",
+            "command": "parse",
+            "source": source.display().to_string()
+        }))?;
+    } else {
+        println!("Parsing PromptPack: {}", source.display());
     }
 
     let assets = calvin::parser::parse_directory(source)?;
@@ -175,8 +259,13 @@ pub fn cmd_parse(source: &Path, json: bool) -> Result<()> {
                 "scope": format!("{:?}", asset.frontmatter.scope),
                 "path": asset.source_path.display().to_string(),
             });
-            println!("{}", serde_json::to_string(&output)?);
+            crate::ui::json::emit(output)?;
         }
+        crate::ui::json::emit(serde_json::json!({
+            "event": "complete",
+            "command": "parse",
+            "assets": assets.len()
+        }))?;
     } else {
         println!("\nFound {} assets:\n", assets.len());
         for asset in &assets {
@@ -197,4 +286,3 @@ pub fn cmd_parse(source: &Path, json: bool) -> Result<()> {
 
     Ok(())
 }
-

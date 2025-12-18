@@ -45,7 +45,7 @@ impl SyncPrompter for StdioPrompter {
         };
 
         loop {
-            eprintln!("\n⚠ {} {}", path, reason_msg);
+            eprintln!("\nConflict: {} {}", path, reason_msg);
             eprint!("[o]verwrite / [s]kip / [d]iff / [a]bort / [A]ll? ");
             let _ = io::stderr().flush();
 
@@ -82,4 +82,3 @@ impl SyncPrompter for StdioPrompter {
         eprintln!("\n{}", diff);
     }
 }
-

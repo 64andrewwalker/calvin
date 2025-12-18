@@ -32,7 +32,7 @@ pub fn sync_remote_rsync(
 
     // Create temp directory for staging files
     let temp_dir = tempfile::tempdir()
-        .map_err(|e| CalvinError::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))?;
+        .map_err(|e| CalvinError::Io(std::io::Error::other(e)))?;
     
     let staging_root = temp_dir.path();
     
@@ -58,10 +58,6 @@ pub fn sync_remote_rsync(
             skipped: vec![],
             errors: vec![],
         });
-    }
-
-    if !json {
-        eprintln!("📡 Transferring {} files via rsync...", outputs.len());
     }
 
     // Expand ~ in remote path
@@ -92,10 +88,10 @@ pub fn sync_remote_rsync(
     let status = cmd.status()?;
 
     if !status.success() {
-        return Err(CalvinError::Io(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            format!("rsync failed with exit code: {:?}", status.code()),
-        )));
+        return Err(CalvinError::Io(std::io::Error::other(format!(
+            "rsync failed with exit code: {:?}",
+            status.code()
+        ))));
     }
 
     Ok(SyncResult {
