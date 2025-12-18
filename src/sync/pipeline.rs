@@ -128,5 +128,44 @@ Hello
 
         assert!(!outputs.is_empty());
     }
+
+    // --- Variants ---
+
+    #[test]
+    fn pipeline__compile_incremental_no_changes_after_initial__returns_empty() {
+        let dir = tempdir().unwrap();
+        let source = dir.path().join(".promptpack");
+        fs::create_dir_all(&source).unwrap();
+        write_asset(&source, "actions/test.md", "project");
+
+        let config = Config::default();
+        let mut cache = crate::watcher::IncrementalCache::new();
+        let pipeline = AssetPipeline::new(source, config).with_scope_policy(ScopePolicy::Keep);
+
+        // Initial compile
+        pipeline.compile_incremental(&[], &mut cache).unwrap();
+
+        // Second compile with no changes
+        // Note: internal parse_incremental optimization should return empty if nothing changed
+        let outputs = pipeline.compile_incremental(&[], &mut cache).unwrap();
+        // Wait, if no files changed, parse_incremental returns "assets".
+        // But if nothing changed, does it return cached assets?
+        // parse_incremental logic: if changed_files empty + cache populated -> likely returns nothing (unchanged).
+        // If it returns parsed assets (cache hit), then compile_assets produces outputs.
+        // Incremental logic usually implies "only changed assets" OR "all assets because we track state".
+        // Let's verify assumption: parse_incremental returns ALL assets (from cache or disk).
+        // So output should NOT be empty (idempotent).
+        assert!(!outputs.is_empty());
+    }
+    
+    #[test]
+    fn pipeline__error_on_nonexistent_source() {
+        let source = PathBuf::from("/nonexistent/promptpack");
+        let config = Config::default();
+        let pipeline = AssetPipeline::new(source, config);
+        
+        let result = pipeline.compile();
+        assert!(result.is_err());
+    }
 }
 

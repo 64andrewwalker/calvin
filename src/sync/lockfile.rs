@@ -276,4 +276,39 @@ mod tests {
         );
     }
 
+    // --- Variants ---
+
+    #[test]
+    fn key__absolute_path__uses_namespace() {
+        assert_eq!(
+            lockfile_key(LockfileNamespace::Project, Path::new("/tmp/foo")),
+            "project:/tmp/foo"
+        );
+        // Note: For Home namespace, it prepends home:~/.
+        // This effectively treats the absolute path as "relative to home" in key generation terms, 
+        // ensuring uniqueness even if it looks odd.
+        assert_eq!(
+            lockfile_key(LockfileNamespace::Home, Path::new("/tmp/foo")),
+            "home:~//tmp/foo"
+        );
+
+    }
+
+    #[test]
+    fn key__parent_traversal__is_preserved_in_key() {
+        assert_eq!(
+            lockfile_key(LockfileNamespace::Project, Path::new("../foo")),
+            "project:../foo"
+        );
+    }
+
+    #[test]
+    fn key__empty_path__handled() {
+        assert_eq!(
+            lockfile_key(LockfileNamespace::Project, Path::new("")),
+            "project:"
+        );
+    }
+
+
 }

@@ -64,6 +64,15 @@ pub fn validate_path_safety(path: &Path, project_root: &Path) -> CalvinResult<()
         return Ok(());
     }
     
+    // Absolute paths output paths are dangerous as they ignore the project root when joined
+    if path.is_absolute() {
+        return Err(CalvinError::PathEscape {
+            path: path.to_path_buf(),
+            root: project_root.to_path_buf(),
+        });
+    }
+
+    
     // Check for path traversal attempts
     if path_str.contains("..") {
         // Resolve to canonical form and check

@@ -102,3 +102,27 @@ fn test_expand_home_dir() {
 // better isolation and testability. See:
 // - engine_mock_fs_* tests for basic sync behavior
 // - engine_conflict_resolver_* tests for interactive conflict resolution
+
+// --- Variants ---
+
+#[test]
+fn safety__rejects_dotdot_at_start() {
+    let root = Path::new("/project");
+    assert!(validate_path_safety(Path::new(".."), root).is_err());
+    assert!(validate_path_safety(Path::new("../foo"), root).is_err());
+}
+
+#[test]
+fn safety__rejects_absolute_paths_outside_root() {
+    let root = Path::new("/project");
+    // Absolute path /etc/passwd is definitely not inside /project
+    // unless /project IS / (unlikely in test)
+    assert!(validate_path_safety(Path::new("/etc/passwd"), root).is_err());
+}
+
+#[test]
+fn safety__allows_tilde_slash() {
+    let root = Path::new("/project");
+    assert!(validate_path_safety(Path::new("~/foo"), root).is_ok());
+}
+
