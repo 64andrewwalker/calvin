@@ -180,7 +180,7 @@ pub struct WatchOptions {
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(tag = "event", rename_all = "snake_case")]
 pub enum WatchEvent {
-    Started {
+    WatchStarted {
         source: String,
     },
     FileChanged {
@@ -245,7 +245,7 @@ pub fn watch(
     event_callback: impl Fn(WatchEvent),
 ) -> CalvinResult<()> {
     // Initial sync
-    event_callback(WatchEvent::Started {
+    event_callback(WatchEvent::WatchStarted {
         source: options.source.display().to_string(),
     });
 
@@ -419,11 +419,11 @@ mod tests {
 
     #[test]
     fn test_watch_event_to_json_started() {
-        let event = WatchEvent::Started {
+        let event = WatchEvent::WatchStarted {
             source: ".promptpack".to_string(),
         };
         let json = event.to_json();
-        assert!(json.contains("\"event\":\"started\""));
+        assert!(json.contains("\"event\":\"watch_started\""));
         assert!(json.contains("\"source\":\".promptpack\""));
     }
 
@@ -552,7 +552,7 @@ mod tests {
 
         let captured = events.lock().unwrap();
         assert!(!captured.is_empty());
-        assert!(captured[0].contains("started"));
+        assert!(captured[0].contains("watch_started"));
     }
 
     // === TDD: Incremental Compilation Tests (P1 Fix) ===

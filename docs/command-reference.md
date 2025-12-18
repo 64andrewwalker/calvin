@@ -115,7 +115,7 @@ calvin watch [OPTIONS]
 
 **JSON output (NDJSON):**
 ```json
-{"event":"started","source":".promptpack"}
+{"event":"watch_started","source":".promptpack"}
 {"event":"file_changed","path":"policies/security.md"}
 {"event":"sync_started"}
 {"event":"sync_complete","written":5,"skipped":2,"errors":0}
