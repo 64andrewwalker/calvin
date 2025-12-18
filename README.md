@@ -135,6 +135,9 @@ calvin deploy --remote user@host:/path/to/project
 ## Documentation
 
 - **[Architecture](docs/architecture.md)**: System design and component overview
+- **[Command Reference](docs/command-reference.md)**: CLI commands and options
+- **[Configuration](docs/configuration.md)**: Config file, environment variables
+- **[Target Platforms](docs/target-platforms.md)**: Supported IDEs and output formats
 - **[Tech Decisions](docs/tech-decisions.md)**: Technology choices and rationale
 - **[Implementation Plan](docs/implementation-plan.md)**: Phased development roadmap
 
@@ -149,7 +152,7 @@ Recent additions:
 - ✅ User-scope installations (`--home` flag)
 - ✅ Security health checks (`check` command)
 
-See [docs/calvin/TODO.md](docs/calvin/TODO.md) for detailed roadmap.
+See [TODO.md](TODO.md) for detailed roadmap.
 
 ## Philosophy
 
