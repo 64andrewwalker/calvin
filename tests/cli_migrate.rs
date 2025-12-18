@@ -25,4 +25,3 @@ fn test_migrate_uses_box_borders() {
         stdout
     );
 }
-

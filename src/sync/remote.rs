@@ -12,13 +12,13 @@ use crate::error::{CalvinError, CalvinResult};
 use crate::sync::{SyncOptions, SyncResult};
 
 /// Sync outputs to a remote destination using rsync
-/// 
+///
 /// This is much faster than individual SSH calls because:
 /// - rsync uses a single connection with multiplexing
 /// - Files are transferred in a batch
 /// - Only changed files are transferred (delta sync)
 pub fn sync_remote_rsync(
-    remote: &str,  // e.g., "ubuntu-server:~" or "user@host:/path"
+    remote: &str, // e.g., "ubuntu-server:~" or "user@host:/path"
     outputs: &[OutputFile],
     options: &SyncOptions,
     json: bool,
@@ -31,21 +31,20 @@ pub fn sync_remote_rsync(
     };
 
     // Create temp directory for staging files
-    let temp_dir = tempfile::tempdir()
-        .map_err(|e| CalvinError::Io(std::io::Error::other(e)))?;
-    
+    let temp_dir = tempfile::tempdir().map_err(|e| CalvinError::Io(std::io::Error::other(e)))?;
+
     let staging_root = temp_dir.path();
-    
+
     // Write all files to staging directory
     let mut staged_files = Vec::new();
     for output in outputs {
         let target_path = staging_root.join(&output.path);
-        
+
         // Create parent directories
         if let Some(parent) = target_path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        
+
         // Write file
         std::fs::write(&target_path, &output.content)?;
         staged_files.push(output.path.display().to_string());
@@ -78,12 +77,21 @@ pub fn sync_remote_rsync(
     let mut cmd = Command::new("rsync");
     cmd.arg("-avz")
         .arg("--progress")
-        .arg("-e").arg("ssh")
+        .arg("-e")
+        .arg("ssh")
         .arg(format!("{}/", staging_root.display())) // trailing slash = copy contents
         .arg(&remote_dest)
-        .stdin(Stdio::inherit())  // Allow password input
-        .stdout(if json { Stdio::null() } else { Stdio::inherit() })
-        .stderr(if json { Stdio::piped() } else { Stdio::inherit() });
+        .stdin(Stdio::inherit()) // Allow password input
+        .stdout(if json {
+            Stdio::null()
+        } else {
+            Stdio::inherit()
+        })
+        .stderr(if json {
+            Stdio::piped()
+        } else {
+            Stdio::inherit()
+        });
 
     let status = cmd.status()?;
 
@@ -113,7 +121,7 @@ pub fn has_rsync() -> bool {
 }
 
 /// Sync outputs to a local destination using rsync (fast batch mode)
-/// 
+///
 /// This is ~10x faster than individual writes when syncing 100+ files
 pub fn sync_local_rsync(
     project_root: &std::path::Path,
@@ -122,11 +130,10 @@ pub fn sync_local_rsync(
     json: bool,
 ) -> CalvinResult<SyncResult> {
     // Create temp directory for staging files
-    let temp_dir = tempfile::tempdir()
-        .map_err(|e| CalvinError::Io(std::io::Error::other(e)))?;
-    
+    let temp_dir = tempfile::tempdir().map_err(|e| CalvinError::Io(std::io::Error::other(e)))?;
+
     let staging_root = temp_dir.path();
-    
+
     // Write all files to staging directory
     let mut staged_files = Vec::new();
     for output in outputs {
@@ -138,12 +145,12 @@ pub fn sync_local_rsync(
         } else {
             staging_root.join(&output.path)
         };
-        
+
         // Create parent directories
         if let Some(parent) = target_path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        
+
         // Write file
         std::fs::write(&target_path, &output.content)?;
         staged_files.push(output.path.display().to_string());
@@ -174,8 +181,16 @@ pub fn sync_local_rsync(
     cmd.arg("-av")
         .arg(format!("{}/", staging_root.display())) // trailing slash = copy contents
         .arg(project_root)
-        .stdout(if json { Stdio::null() } else { Stdio::inherit() })
-        .stderr(if json { Stdio::piped() } else { Stdio::inherit() });
+        .stdout(if json {
+            Stdio::null()
+        } else {
+            Stdio::inherit()
+        })
+        .stderr(if json {
+            Stdio::piped()
+        } else {
+            Stdio::inherit()
+        });
 
     let status = cmd.status()?;
 

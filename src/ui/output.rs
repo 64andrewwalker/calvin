@@ -49,7 +49,11 @@ fn format_allow_naked_warning(supports_color: bool, supports_unicode: bool) -> S
     block.render(supports_color, supports_unicode)
 }
 
-pub fn print_config_warnings(path: &Path, warnings: &[calvin::config::ConfigWarning], ui: &UiContext) {
+pub fn print_config_warnings(
+    path: &Path,
+    warnings: &[calvin::config::ConfigWarning],
+    ui: &UiContext,
+) {
     if warnings.is_empty() {
         return;
     }
@@ -126,7 +130,11 @@ fn format_config_warning(
 
     let mut out = String::new();
     out.push_str(&icon);
-    out.push_str(&format!(" Unknown config key '{}' in {}", warning.key, path.display()));
+    out.push_str(&format!(
+        " Unknown config key '{}' in {}",
+        warning.key,
+        path.display()
+    ));
     if let Some(line) = warning.line {
         out.push_str(&format!(":{}", line));
     }

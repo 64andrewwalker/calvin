@@ -60,7 +60,9 @@ impl Icon {
             Icon::Warning | Icon::Progress => theme::colors::WARNING,
             Icon::Pending | Icon::Arrow => theme::colors::DIM,
             Icon::Pointer => theme::colors::ERROR,
-            Icon::Watch | Icon::Deploy | Icon::Check | Icon::Remote | Icon::Diff => theme::colors::INFO,
+            Icon::Watch | Icon::Deploy | Icon::Check | Icon::Remote | Icon::Diff => {
+                theme::colors::INFO
+            }
         };
         format!("{}", s.with(color))
     }

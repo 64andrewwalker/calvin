@@ -1,9 +1,9 @@
-use calvin::config::SecurityMode;
-use calvin::security::{CheckStatus, DoctorReport};
 use crate::ui::blocks::check_item::{CheckItem, CheckStatus as UiCheckStatus};
 use crate::ui::blocks::header::CommandHeader;
 use crate::ui::blocks::summary::ResultSummary;
 use crate::ui::primitives::icon::Icon;
+use calvin::config::SecurityMode;
+use calvin::security::{CheckStatus, DoctorReport};
 
 pub fn render_check_header(
     title: &str,
@@ -92,6 +92,7 @@ pub fn render_check_summary(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use calvin::security::DoctorSink;
 
     #[test]
     fn renders_platform_header() {

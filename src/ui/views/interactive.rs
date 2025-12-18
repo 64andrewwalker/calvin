@@ -1,5 +1,5 @@
-use crate::ui::widgets::r#box::{Box, BoxStyle};
 use crate::ui::primitives::icon::Icon;
+use crate::ui::widgets::r#box::{Box, BoxStyle};
 
 pub fn render_banner(supports_color: bool, supports_unicode: bool) -> String {
     let mut b = Box::with_style(BoxStyle::Info);
@@ -31,11 +31,7 @@ pub fn render_step_header(
     b.render(supports_color, supports_unicode)
 }
 
-pub fn render_section_header(
-    title: &str,
-    supports_color: bool,
-    supports_unicode: bool,
-) -> String {
+pub fn render_section_header(title: &str, supports_color: bool, supports_unicode: bool) -> String {
     let mut b = Box::with_style(BoxStyle::Info);
     b.add_line(title);
     b.render(supports_color, supports_unicode)

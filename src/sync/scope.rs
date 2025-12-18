@@ -12,9 +12,10 @@ pub enum DeploymentTarget {
 }
 
 /// Policy for handling asset scope during compilation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ScopePolicy {
     /// Keep the original scope from the asset frontmatter.
+    #[default]
     Keep,
     /// Keep only `scope: project` assets.
     ProjectOnly,
@@ -24,12 +25,6 @@ pub enum ScopePolicy {
     ForceUser,
     /// Force all assets to `scope: project`.
     ForceProject,
-}
-
-impl Default for ScopePolicy {
-    fn default() -> Self {
-        Self::Keep
-    }
 }
 
 impl ScopePolicy {
@@ -85,12 +80,18 @@ mod tests {
 
     #[test]
     fn from_target_maps_home_to_force_user() {
-        assert_eq!(ScopePolicy::from_target(DeploymentTarget::Home), ScopePolicy::ForceUser);
+        assert_eq!(
+            ScopePolicy::from_target(DeploymentTarget::Home),
+            ScopePolicy::ForceUser
+        );
     }
 
     #[test]
     fn apply_keep_keeps_all_assets() {
-        let assets = vec![make_asset("a", Scope::Project), make_asset("b", Scope::User)];
+        let assets = vec![
+            make_asset("a", Scope::Project),
+            make_asset("b", Scope::User),
+        ];
         let out = ScopePolicy::Keep.apply(assets);
         assert_eq!(out.len(), 2);
         assert_eq!(out[0].frontmatter.scope, Scope::Project);
@@ -99,7 +100,10 @@ mod tests {
 
     #[test]
     fn apply_project_only_filters_user_assets() {
-        let assets = vec![make_asset("a", Scope::Project), make_asset("b", Scope::User)];
+        let assets = vec![
+            make_asset("a", Scope::Project),
+            make_asset("b", Scope::User),
+        ];
         let out = ScopePolicy::ProjectOnly.apply(assets);
         assert_eq!(out.len(), 1);
         assert_eq!(out[0].id, "a");
@@ -108,7 +112,10 @@ mod tests {
 
     #[test]
     fn apply_user_only_filters_project_assets() {
-        let assets = vec![make_asset("a", Scope::Project), make_asset("b", Scope::User)];
+        let assets = vec![
+            make_asset("a", Scope::Project),
+            make_asset("b", Scope::User),
+        ];
         let out = ScopePolicy::UserOnly.apply(assets);
         assert_eq!(out.len(), 1);
         assert_eq!(out[0].id, "b");
@@ -117,7 +124,10 @@ mod tests {
 
     #[test]
     fn apply_force_user_rewrites_scope() {
-        let assets = vec![make_asset("a", Scope::Project), make_asset("b", Scope::User)];
+        let assets = vec![
+            make_asset("a", Scope::Project),
+            make_asset("b", Scope::User),
+        ];
         let out = ScopePolicy::ForceUser.apply(assets);
         assert_eq!(out.len(), 2);
         assert!(out.iter().all(|a| a.frontmatter.scope == Scope::User));
@@ -125,7 +135,10 @@ mod tests {
 
     #[test]
     fn apply_force_project_rewrites_scope() {
-        let assets = vec![make_asset("a", Scope::Project), make_asset("b", Scope::User)];
+        let assets = vec![
+            make_asset("a", Scope::Project),
+            make_asset("b", Scope::User),
+        ];
         let out = ScopePolicy::ForceProject.apply(assets);
         assert_eq!(out.len(), 2);
         assert!(out.iter().all(|a| a.frontmatter.scope == Scope::Project));
@@ -146,6 +159,4 @@ mod tests {
         let out = ScopePolicy::ProjectOnly.apply(assets);
         assert!(out.is_empty());
     }
-
 }
-

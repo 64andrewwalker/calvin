@@ -4,10 +4,7 @@ use std::process::Command;
 fn test_explain_verbose_includes_more_examples() {
     let bin = env!("CARGO_BIN_EXE_calvin");
 
-    let output = Command::new(bin)
-        .args(["explain", "-v"])
-        .output()
-        .unwrap();
+    let output = Command::new(bin).args(["explain", "-v"]).output().unwrap();
 
     assert!(output.status.success());
 
@@ -25,4 +22,3 @@ fn test_explain_verbose_includes_more_examples() {
         stdout
     );
 }
-

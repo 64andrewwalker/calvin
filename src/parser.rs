@@ -35,7 +35,7 @@ pub struct ExtractedFrontmatter {
 /// ```
 pub fn extract_frontmatter(content: &str, file: &Path) -> CalvinResult<ExtractedFrontmatter> {
     let lines: Vec<&str> = content.lines().collect();
-    
+
     // File must start with ---
     if lines.is_empty() || lines[0].trim() != FRONTMATTER_DELIMITER {
         return Err(CalvinError::NoFrontmatter {
@@ -58,7 +58,7 @@ pub fn extract_frontmatter(content: &str, file: &Path) -> CalvinResult<Extracted
 
     // Extract YAML content (between delimiters)
     let yaml = lines[1..closing_line].join("\n");
-    
+
     // Extract body (after closing delimiter)
     let body = if closing_line + 1 < lines.len() {
         lines[closing_line + 1..].join("\n")
@@ -88,14 +88,10 @@ pub fn parse_file(path: &Path) -> CalvinResult<PromptAsset> {
     let content = fs::read_to_string(path)?;
     let extracted = extract_frontmatter(&content, path)?;
     let frontmatter = parse_frontmatter(&extracted.yaml, path)?;
-    
-    // Derive ID from filename (strip extension, use kebab-case)
-    let id = path
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("unknown")
-        .to_string();
-    
+
+    // Derive ID from filename using shared function
+    let id = derive_id(path);
+
     Ok(PromptAsset::new(id, path, frontmatter, extracted.body))
 }
 
@@ -111,10 +107,10 @@ pub fn parse_directory(dir: &Path) -> CalvinResult<Vec<PromptAsset>> {
 
     let mut assets = Vec::new();
     parse_directory_recursive(dir, dir, &mut assets)?;
-    
+
     // Sort by ID for deterministic output
     assets.sort_by(|a, b| a.id.cmp(&b.id));
-    
+
     Ok(assets)
 }
 
@@ -126,10 +122,11 @@ fn parse_directory_recursive(
     for entry in fs::read_dir(current)? {
         let entry = entry?;
         let path = entry.path();
-        
+
         if path.is_dir() {
             // Skip hidden directories
-            if !path.file_name()
+            if !path
+                .file_name()
                 .and_then(|n| n.to_str())
                 .map(|n| n.starts_with('.'))
                 .unwrap_or(false)
@@ -141,7 +138,7 @@ fn parse_directory_recursive(
             if path.file_name() == Some(std::ffi::OsStr::new("README.md")) {
                 continue;
             }
-            
+
             let mut asset = parse_file(&path)?;
             // Make source_path relative to root
             if let Ok(relative) = path.strip_prefix(root) {
@@ -150,7 +147,7 @@ fn parse_directory_recursive(
             assets.push(asset);
         }
     }
-    
+
     Ok(())
 }
 
@@ -190,7 +187,9 @@ fn should_hint_colon_quotes(yaml: &str, err_str: &str) -> bool {
     // Heuristic: common YAML parse error when unquoted scalars contain `: `.
     err_str.contains("mapping values are not allowed")
         || err_str.contains("unexpected ':'")
-        || yaml.lines().any(|l| l.contains(": ") && l.contains("description"))
+        || yaml
+            .lines()
+            .any(|l| l.contains(": ") && l.contains("description"))
 }
 
 /// Derive asset ID from file path
@@ -206,8 +205,8 @@ pub fn derive_id(path: &Path) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::tempdir;
     use std::fs;
+    use tempfile::tempdir;
 
     // === TDD Cycle 2: Frontmatter Extraction ===
 
@@ -219,7 +218,7 @@ description: Test policy
 # Content here"#;
 
         let result = extract_frontmatter(content, Path::new("test.md")).unwrap();
-        
+
         assert_eq!(result.yaml.trim(), "description: Test policy");
         assert_eq!(result.body.trim(), "# Content here");
         assert_eq!(result.end_line, 3);
@@ -239,7 +238,7 @@ targets:
 Some content."#;
 
         let result = extract_frontmatter(content, Path::new("test.md")).unwrap();
-        
+
         assert!(result.yaml.contains("description: Test policy"));
         assert!(result.yaml.contains("kind: action"));
         assert!(result.yaml.contains("- claude-code"));
@@ -253,7 +252,7 @@ description: Minimal
 ---"#;
 
         let result = extract_frontmatter(content, Path::new("test.md")).unwrap();
-        
+
         assert_eq!(result.yaml.trim(), "description: Minimal");
         assert!(result.body.is_empty());
     }
@@ -265,7 +264,7 @@ description: Minimal
 # Content"#;
 
         let result = extract_frontmatter(content, Path::new("test.md"));
-        
+
         assert!(matches!(result, Err(CalvinError::NoFrontmatter { .. })));
     }
 
@@ -276,15 +275,18 @@ description: Unclosed
 # Content"#;
 
         let result = extract_frontmatter(content, Path::new("test.md"));
-        
-        assert!(matches!(result, Err(CalvinError::UnclosedFrontmatter { .. })));
+
+        assert!(matches!(
+            result,
+            Err(CalvinError::UnclosedFrontmatter { .. })
+        ));
     }
 
     #[test]
     fn test_extract_frontmatter_empty_file() {
         let content = "";
         let result = extract_frontmatter(content, Path::new("test.md"));
-        
+
         assert!(matches!(result, Err(CalvinError::NoFrontmatter { .. })));
     }
 
@@ -294,7 +296,7 @@ description: Unclosed
     fn test_parse_frontmatter_valid() {
         let yaml = "description: Test policy";
         let result = parse_frontmatter(yaml, Path::new("test.md")).unwrap();
-        
+
         assert_eq!(result.description, "Test policy");
     }
 
@@ -302,16 +304,22 @@ description: Unclosed
     fn test_parse_frontmatter_missing_description() {
         let yaml = "kind: policy";
         let result = parse_frontmatter(yaml, Path::new("test.md"));
-        
-        assert!(matches!(result, Err(CalvinError::InvalidFrontmatter { .. })));
+
+        assert!(matches!(
+            result,
+            Err(CalvinError::InvalidFrontmatter { .. })
+        ));
     }
 
     #[test]
     fn test_parse_frontmatter_invalid_yaml() {
         let yaml = "description: [invalid";
         let result = parse_frontmatter(yaml, Path::new("test.md"));
-        
-        assert!(matches!(result, Err(CalvinError::InvalidFrontmatter { .. })));
+
+        assert!(matches!(
+            result,
+            Err(CalvinError::InvalidFrontmatter { .. })
+        ));
     }
 
     #[test]

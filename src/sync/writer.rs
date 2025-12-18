@@ -25,15 +25,15 @@ const RETRY_DELAYS_MS: [u64; 3] = [100, 500, 1000];
 /// On Windows, retries with backoff if file is locked.
 pub fn atomic_write(path: &Path, content: &[u8]) -> CalvinResult<()> {
     let dir = path.parent().unwrap_or(Path::new("."));
-    
+
     // Ensure directory exists
     fs::create_dir_all(dir)?;
-    
+
     // Create temp file in same directory (ensures same filesystem)
     let mut temp = NamedTempFile::new_in(dir)?;
     temp.write_all(content)?;
     temp.flush()?;
-    
+
     // Try atomic rename with retries
     for attempt in 0..=MAX_RETRIES {
         match temp.persist(path) {
@@ -51,7 +51,7 @@ pub fn atomic_write(path: &Path, content: &[u8]) -> CalvinResult<()> {
             }
         }
     }
-    
+
     Ok(())
 }
 
@@ -82,9 +82,9 @@ mod tests {
     fn test_atomic_write_new_file() {
         let dir = tempdir().unwrap();
         let path = dir.path().join("test.txt");
-        
+
         atomic_write(&path, b"Hello, World!").unwrap();
-        
+
         assert!(path.exists());
         assert_eq!(fs::read_to_string(&path).unwrap(), "Hello, World!");
     }
@@ -93,10 +93,10 @@ mod tests {
     fn test_atomic_write_overwrite() {
         let dir = tempdir().unwrap();
         let path = dir.path().join("test.txt");
-        
+
         fs::write(&path, "Original").unwrap();
         atomic_write(&path, b"Replaced").unwrap();
-        
+
         assert_eq!(fs::read_to_string(&path).unwrap(), "Replaced");
     }
 
@@ -104,9 +104,9 @@ mod tests {
     fn test_atomic_write_nested_directory() {
         let dir = tempdir().unwrap();
         let path = dir.path().join("nested/deep/test.txt");
-        
+
         atomic_write(&path, b"Content").unwrap();
-        
+
         assert!(path.exists());
     }
 
@@ -137,7 +137,7 @@ mod tests {
         let dir = tempdir().unwrap();
         let path = dir.path().join("test.txt");
         fs::write(&path, "Content").unwrap();
-        
+
         let hash = hash_file(&path).unwrap();
         let expected = hash_content(b"Content");
         assert_eq!(hash, expected);
@@ -148,10 +148,10 @@ mod tests {
         let dir = tempdir().unwrap();
         let path = dir.path().join("test.txt");
         fs::write(&path, "Content").unwrap();
-        
+
         let hash = hash_content(b"Content");
         assert!(verify_hash(&path, &hash).unwrap());
-        
+
         let wrong_hash = hash_content(b"Different");
         assert!(!verify_hash(&path, &wrong_hash).unwrap());
     }

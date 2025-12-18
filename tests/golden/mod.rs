@@ -5,10 +5,10 @@
 
 use std::path::Path;
 
-use calvin::parser::parse_directory;
-use calvin::sync::compile_assets;
 use calvin::config::Config;
 use calvin::models::Target;
+use calvin::parser::parse_directory;
+use calvin::sync::compile_assets;
 
 /// Test fixture: a simple policy file
 const SIMPLE_POLICY: &str = r#"---
@@ -41,14 +41,14 @@ Use $ARGUMENTS for input.
 mod snapshot_tests {
     use super::*;
     use insta::assert_snapshot;
-    use tempfile::tempdir;
     use std::fs;
+    use tempfile::tempdir;
 
     fn create_test_promptpack(dir: &Path) {
         // Create policies directory
         fs::create_dir_all(dir.join("policies")).unwrap();
         fs::write(dir.join("policies/code-style.md"), SIMPLE_POLICY).unwrap();
-        
+
         // Create actions directory
         fs::create_dir_all(dir.join("actions")).unwrap();
         fs::write(dir.join("actions/generate-tests.md"), ACTION_WITH_QUOTES).unwrap();
@@ -66,7 +66,8 @@ mod snapshot_tests {
         let outputs = compile_assets(&assets, &targets, &config).unwrap();
 
         // Find the code-style output
-        let policy_output = outputs.iter()
+        let policy_output = outputs
+            .iter()
             .find(|o| o.path.to_string_lossy().contains("code-style"))
             .expect("Should have code-style output");
 
@@ -85,7 +86,8 @@ mod snapshot_tests {
         let outputs = compile_assets(&assets, &targets, &config).unwrap();
 
         // Find the generate-tests output
-        let action_output = outputs.iter()
+        let action_output = outputs
+            .iter()
             .find(|o| o.path.to_string_lossy().contains("generate-tests"))
             .expect("Should have generate-tests output");
 
@@ -104,7 +106,8 @@ mod snapshot_tests {
         let targets = vec![Target::Cursor];
         let outputs = compile_assets(&assets, &targets, &config).unwrap();
 
-        let policy_output = outputs.iter()
+        let policy_output = outputs
+            .iter()
             .find(|o| o.path.to_string_lossy().contains("code-style"))
             .expect("Should have code-style output");
 
@@ -123,8 +126,13 @@ mod snapshot_tests {
         let outputs = compile_assets(&assets, &targets, &config).unwrap();
 
         // VS Code now generates individual .instructions.md files by default
-        let instr_output = outputs.iter()
-            .find(|o| o.path.to_string_lossy().contains("code-style.instructions.md"))
+        let instr_output = outputs
+            .iter()
+            .find(|o| {
+                o.path
+                    .to_string_lossy()
+                    .contains("code-style.instructions.md")
+            })
             .expect("Should have code-style.instructions.md output");
 
         assert_snapshot!("vscode_instructions", &instr_output.content);
@@ -141,7 +149,8 @@ mod snapshot_tests {
         let targets = vec![Target::Antigravity];
         let outputs = compile_assets(&assets, &targets, &config).unwrap();
 
-        let rule_output = outputs.iter()
+        let rule_output = outputs
+            .iter()
             .find(|o| o.path.to_string_lossy().contains("code-style"))
             .expect("Should have code-style output");
 
@@ -159,7 +168,8 @@ mod snapshot_tests {
         let targets = vec![Target::Codex];
         let outputs = compile_assets(&assets, &targets, &config).unwrap();
 
-        let prompt_output = outputs.iter()
+        let prompt_output = outputs
+            .iter()
             .find(|o| o.path.to_string_lossy().contains("generate-tests"))
             .expect("Should have generate-tests output");
 
@@ -170,8 +180,8 @@ mod snapshot_tests {
 #[cfg(test)]
 mod escaping_tests {
     use super::*;
-    use tempfile::tempdir;
     use std::fs;
+    use tempfile::tempdir;
 
     /// Test that JSON output with quotes doesn't corrupt
     #[test]
@@ -189,22 +199,24 @@ Look for variables named "bar" and "baz".
 
         let assets = parse_directory(&source).unwrap();
         let config = Config::default();
-        
+
         // Test all targets that produce markdown outputs with content
         for target in [Target::Cursor, Target::ClaudeCode] {
             let outputs = compile_assets(&assets, &[target], &config).unwrap();
-            
+
             // Filter to only markdown outputs (not settings.json etc)
-            let md_outputs: Vec<_> = outputs.iter()
+            let md_outputs: Vec<_> = outputs
+                .iter()
                 .filter(|o| o.path.extension().map(|e| e == "md").unwrap_or(false))
                 .collect();
-            
+
             for output in &md_outputs {
                 // Content should preserve the quotes in markdown files
                 assert!(
                     output.content.contains("\"foo\"") || output.content.contains("\\\"foo\\\""),
                     "Quotes should be preserved or escaped in {:?} output for {:?}",
-                    output.path, target
+                    output.path,
+                    target
                 );
             }
         }
@@ -228,10 +240,14 @@ File path: C:\Users\test
 
         let assets = parse_directory(&source).unwrap();
         let config = Config::default();
-        
+
         for target in [Target::ClaudeCode, Target::Cursor, Target::VSCode] {
             let outputs = compile_assets(&assets, &[target], &config).unwrap();
-            assert!(!outputs.is_empty(), "Should produce output for {:?}", target);
+            assert!(
+                !outputs.is_empty(),
+                "Should produce output for {:?}",
+                target
+            );
         }
     }
 
@@ -256,13 +272,14 @@ Line 3
 
         let assets = parse_directory(&source).unwrap();
         let config = Config::default();
-        
+
         let outputs = compile_assets(&assets, &[Target::ClaudeCode], &config).unwrap();
-        
-        let output = outputs.iter()
+
+        let output = outputs
+            .iter()
             .find(|o| o.path.to_string_lossy().contains("multiline"))
             .expect("Should have multiline output");
-        
+
         // Content should have preserved newlines
         assert!(output.content.contains("Line 1"));
         assert!(output.content.contains("Line 2"));

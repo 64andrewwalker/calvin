@@ -18,9 +18,19 @@ pub fn render_unified_diff_with_line_numbers(
 
     let header_a = format!("--- a/{}", path);
     let header_b = format!("+++ b/{}", path);
-    out.push_str(&color_line(&header_a, ChangeTag::Equal, supports_color, LineStyle::Header));
+    out.push_str(&color_line(
+        &header_a,
+        ChangeTag::Equal,
+        supports_color,
+        LineStyle::Header,
+    ));
     out.push('\n');
-    out.push_str(&color_line(&header_b, ChangeTag::Equal, supports_color, LineStyle::Header));
+    out.push_str(&color_line(
+        &header_b,
+        ChangeTag::Equal,
+        supports_color,
+        LineStyle::Header,
+    ));
     out.push('\n');
 
     for change in diff.iter_all_changes() {
@@ -43,7 +53,12 @@ pub fn render_unified_diff_with_line_numbers(
 
         let value = change.value().trim_end_matches('\n');
         let line = format!("{old_col} {new_col} {sign} {value}");
-        out.push_str(&color_line(&line, change.tag(), supports_color, LineStyle::Body));
+        out.push_str(&color_line(
+            &line,
+            change.tag(),
+            supports_color,
+            LineStyle::Body,
+        ));
         out.push('\n');
     }
 
@@ -77,15 +92,13 @@ mod tests {
 
     #[test]
     fn renders_added_lines_with_plus_prefix() {
-        let rendered =
-            render_unified_diff_with_line_numbers("file.txt", "a\nb\n", "a\nc\n", false);
+        let rendered = render_unified_diff_with_line_numbers("file.txt", "a\nb\n", "a\nc\n", false);
         assert!(rendered.contains("+ c"));
     }
 
     #[test]
     fn renders_removed_lines_with_minus_prefix() {
-        let rendered =
-            render_unified_diff_with_line_numbers("file.txt", "a\nb\n", "a\nc\n", false);
+        let rendered = render_unified_diff_with_line_numbers("file.txt", "a\nb\n", "a\nc\n", false);
         assert!(rendered.contains("- b"));
     }
 }

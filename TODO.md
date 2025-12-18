@@ -248,17 +248,19 @@
 
 ---
 
-## Refactoring (Maintenance) 🔙 IN PROGRESS
+## Refactoring (Maintenance) ✅ MOSTLY COMPLETE
 
-> Refactoring tasks are tracked per `docs/REFACTOR_SCOPE_POLICY.md`. See `docs/refactoring-plan.md`.
+> Refactoring tasks completed 2025-12-19
 
-- [ ] P0.1 Fix clippy warnings (deploy targets)
-- [ ] P0.2 Parser ID derivation cleanup
-- [ ] P0.3 Doctor sink dedup
-- [ ] P1.4 Conflict-resolution consolidation
-- [ ] P1.5 Security module split
-- [ ] P1.6 Watch incremental parsing improvements
-- [ ] P2.7 Workspace rustfmt pass
+- [x] P0.1 Fix clippy warnings (deploy targets) - removed unused functions with dead_code annotations
+- [x] P0.2 Parser ID derivation cleanup - consolidated duplicate derive_id logic
+- [x] P0.3 Doctor sink dedup - refactored DoctorSink trait with default implementations
+- [x] P1.4 Conflict-resolution consolidation - unified duplicate ConflictReason types
+- [ ] P1.5 Security module split - (deferred: 996 lines, well-organized, low priority)
+- [x] P1.6 Watch incremental parsing - already implemented with IncrementalCache
+- [x] P2.7 Workspace rustfmt pass - completed
+- [x] Removed orphaned deploy_v2 directory
+- [x] Fixed clippy warning: ScopePolicy now uses #[derive(Default)]
 
 ---
 
@@ -281,3 +283,21 @@
 | 9: Distribution | ✅ Complete | CI, GH Actions, Homebrew, Scoop, binstall |
 
 **Total**: 164 tests passing, ALL 11 PHASES COMPLETE 🎉
+
+---
+
+## Discovery & Analysis ✅ COMPLETE
+
+> **Generated**: 2025-12-18
+
+- [x] Structure mapping: Traverse all directories, identify entry points, core modules, and dependencies
+- [x] Architecture analysis: Document design patterns, data flow, and component relationships
+- [x] Tech stack inventory: List frameworks, libraries, and tooling with versions
+- [x] Business logic: Explain what the project does and how it achieves its goals
+- [x] Integration points: Identify external services, APIs, and system boundaries
+- [x] Generate `docs/analysis-report.md` with:
+  - [x] Architecture diagram (Mermaid)
+  - [x] Module dependency graph
+  - [x] Key design decisions and rationale
+  - [x] Identified technical debt
+  - [x] Recommendations for onboarding

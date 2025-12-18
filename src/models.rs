@@ -142,12 +142,12 @@ mod tests {
     use super::*;
 
     // === TDD Cycle 1: Core Data Structures ===
-    
+
     #[test]
     fn test_frontmatter_deserialize_minimal() {
         let yaml = "description: Test action";
         let fm: Frontmatter = serde_yaml::from_str(yaml).unwrap();
-        
+
         assert_eq!(fm.description, "Test action");
         assert_eq!(fm.kind, AssetKind::Action); // default
         assert_eq!(fm.scope, Scope::Project); // default
@@ -167,7 +167,7 @@ targets:
 apply: "*.rs"
 "#;
         let fm: Frontmatter = serde_yaml::from_str(yaml).unwrap();
-        
+
         assert_eq!(fm.description, "Security rules");
         assert_eq!(fm.kind, AssetKind::Policy);
         assert_eq!(fm.scope, Scope::Project);
@@ -183,7 +183,7 @@ kind: action
 scope: user
 "#;
         let fm: Frontmatter = serde_yaml::from_str(yaml).unwrap();
-        
+
         assert_eq!(fm.description, "Generate tests");
         assert_eq!(fm.kind, AssetKind::Action);
         assert_eq!(fm.scope, Scope::User);
@@ -196,7 +196,7 @@ description: Code reviewer agent
 kind: agent
 "#;
         let fm: Frontmatter = serde_yaml::from_str(yaml).unwrap();
-        
+
         assert_eq!(fm.kind, AssetKind::Agent);
     }
 
@@ -204,7 +204,7 @@ kind: agent
     fn test_frontmatter_missing_description_fails() {
         let yaml = "kind: policy";
         let result: Result<Frontmatter, _> = serde_yaml::from_str(yaml);
-        
+
         assert!(result.is_err());
     }
 
@@ -212,7 +212,7 @@ kind: agent
     fn test_effective_targets_empty_returns_all() {
         let fm = Frontmatter::new("Test");
         let targets = fm.effective_targets();
-        
+
         assert_eq!(targets.len(), 5);
         assert!(targets.contains(&Target::ClaudeCode));
         assert!(targets.contains(&Target::Cursor));
@@ -226,7 +226,7 @@ kind: agent
         let mut fm = Frontmatter::new("Test");
         fm.targets = vec![Target::All];
         let targets = fm.effective_targets();
-        
+
         assert_eq!(targets.len(), 5);
     }
 
@@ -235,7 +235,7 @@ kind: agent
         let mut fm = Frontmatter::new("Test");
         fm.targets = vec![Target::ClaudeCode, Target::Cursor];
         let targets = fm.effective_targets();
-        
+
         assert_eq!(targets.len(), 2);
         assert_eq!(targets, vec![Target::ClaudeCode, Target::Cursor]);
     }
@@ -249,7 +249,7 @@ kind: agent
             fm,
             "# Security Policy\n\nContent here",
         );
-        
+
         assert_eq!(asset.id, "security-policy");
         assert_eq!(asset.source_path, PathBuf::from("policies/security.md"));
         assert_eq!(asset.frontmatter.description, "Test policy");

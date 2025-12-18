@@ -10,34 +10,34 @@ fn format_calvin_error_with(
     supports_color: bool,
     supports_unicode: bool,
 ) -> String {
-    use calvin::CalvinError;
     use crate::ui::blocks::error::ErrorBlock;
+    use calvin::CalvinError;
 
     match err {
-        CalvinError::MissingField { field, file, line } => ErrorBlock::new(
-            file,
-            format!("missing required field '{}'", field),
-        )
-        .with_line(*line)
-        .with_file_context(2, 2)
-        .with_fix(format!(
-            "Add '{}' to the frontmatter:\n  ---\n  {}: \"Your description here\"\n  ---",
-            field, field
-        ))
-        .render(supports_color, supports_unicode),
+        CalvinError::MissingField { field, file, line } => {
+            ErrorBlock::new(file, format!("missing required field '{}'", field))
+                .with_line(*line)
+                .with_file_context(2, 2)
+                .with_fix(format!(
+                    "Add '{}' to the frontmatter:\n  ---\n  {}: \"Your description here\"\n  ---",
+                    field, field
+                ))
+                .render(supports_color, supports_unicode)
+        }
         CalvinError::NoFrontmatter { file } => ErrorBlock::new(
             file,
             "No YAML frontmatter found. Files must start with '---'.",
         )
         .with_file_context(0, 3)
-        .with_fix("Add frontmatter at the top:\n  ---\n  description: \"Your description here\"\n  ---")
-        .render(supports_color, supports_unicode),
-        CalvinError::UnclosedFrontmatter { file } => ErrorBlock::new(
-            file,
-            "Frontmatter is not properly closed.",
+        .with_fix(
+            "Add frontmatter at the top:\n  ---\n  description: \"Your description here\"\n  ---",
         )
-        .with_fix("Add a closing '---' line after the YAML frontmatter.")
         .render(supports_color, supports_unicode),
+        CalvinError::UnclosedFrontmatter { file } => {
+            ErrorBlock::new(file, "Frontmatter is not properly closed.")
+                .with_fix("Add a closing '---' line after the YAML frontmatter.")
+                .render(supports_color, supports_unicode)
+        }
         CalvinError::InvalidFrontmatter { file, message } => ErrorBlock::new(file, message)
             .with_fix("Fix the YAML frontmatter and try again.")
             .render(supports_color, supports_unicode),
@@ -75,7 +75,9 @@ pub fn print_error(err: &anyhow::Error, json: bool) {
                 calvin::CalvinError::MissingField { file, line, .. } => {
                     (Some(file.as_path()), Some(*line))
                 }
-                calvin::CalvinError::InvalidFrontmatter { file, .. } => (Some(file.as_path()), None),
+                calvin::CalvinError::InvalidFrontmatter { file, .. } => {
+                    (Some(file.as_path()), None)
+                }
                 calvin::CalvinError::NoFrontmatter { file } => (Some(file.as_path()), None),
                 calvin::CalvinError::UnclosedFrontmatter { file } => (Some(file.as_path()), None),
                 _ => (error_file(calvin), None),
@@ -106,7 +108,9 @@ pub fn offer_open_in_editor(err: &anyhow::Error, json: bool) {
 
     let (file, line) = match err.downcast_ref::<calvin::CalvinError>() {
         Some(calvin) => match calvin {
-            calvin::CalvinError::MissingField { file, line, .. } => (Some(file.as_path()), Some(*line)),
+            calvin::CalvinError::MissingField { file, line, .. } => {
+                (Some(file.as_path()), Some(*line))
+            }
             calvin::CalvinError::InvalidFrontmatter { file, .. } => (Some(file.as_path()), None),
             calvin::CalvinError::NoFrontmatter { file } => (Some(file.as_path()), None),
             calvin::CalvinError::UnclosedFrontmatter { file } => (Some(file.as_path()), None),
@@ -181,11 +185,11 @@ fn error_file(err: &calvin::CalvinError) -> Option<&Path> {
 }
 
 #[cfg(test)]
-    mod tests {
-        use super::*;
-        use crate::ui::primitives::icon::Icon;
-        use std::path::PathBuf;
-        use tempfile::tempdir;
+mod tests {
+    use super::*;
+    use crate::ui::primitives::icon::Icon;
+    use std::path::PathBuf;
+    use tempfile::tempdir;
 
     #[test]
     fn test_format_missing_field_includes_error_header_and_fix() {
@@ -224,9 +228,6 @@ fn error_file(err: &calvin::CalvinError) -> Option<&Path> {
         };
 
         let rendered = format_calvin_error_with(&err, false, true);
-        assert!(rendered.contains(&format!(
-            "{}    2 | second",
-            Icon::Pointer.render(true)
-        )));
+        assert!(rendered.contains(&format!("{}    2 | second", Icon::Pointer.render(true))));
     }
 }

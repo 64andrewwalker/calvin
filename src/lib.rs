@@ -4,23 +4,23 @@
 //! source format (PromptPack), then compile and distribute them to multiple
 //! AI coding assistant platforms.
 
-pub mod parser;
-pub mod models;
-pub mod error;
 pub mod adapters;
-pub mod sync;
 pub mod config;
+pub mod error;
+pub mod fs;
+pub mod models;
+pub mod parser;
 pub mod security;
 pub mod security_baseline;
+pub mod sync;
 pub mod watcher;
-pub mod fs;
 
 // Re-exports for convenience
-pub use error::{CalvinError, CalvinResult};
-pub use models::{Frontmatter, PromptAsset, AssetKind, Scope, Target};
-pub use parser::parse_frontmatter;
-pub use adapters::{TargetAdapter, OutputFile, all_adapters, get_adapter};
-pub use sync::{SyncOptions, SyncResult, compile_assets, SyncEngine, SyncEngineOptions};
+pub use adapters::{all_adapters, get_adapter, OutputFile, TargetAdapter};
 pub use config::{Config, SecurityMode};
-pub use security::{DoctorReport, run_doctor};
-pub use watcher::{WatchOptions, WatchEvent, watch, IncrementalCache, parse_incremental};
+pub use error::{CalvinError, CalvinResult};
+pub use models::{AssetKind, Frontmatter, PromptAsset, Scope, Target};
+pub use parser::parse_frontmatter;
+pub use security::{run_doctor, DoctorReport, DoctorSink};
+pub use sync::{compile_assets, SyncEngine, SyncEngineOptions, SyncOptions, SyncResult};
+pub use watcher::{parse_incremental, watch, IncrementalCache, WatchEvent, WatchOptions};

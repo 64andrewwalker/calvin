@@ -96,7 +96,11 @@ mod tests {
 
     #[test]
     fn detect_respects_no_color() {
-        let c = caps(&[("NO_COLOR", "1"), ("TERM", "xterm-256color")], true, Some((120, 40)));
+        let c = caps(
+            &[("NO_COLOR", "1"), ("TERM", "xterm-256color")],
+            true,
+            Some((120, 40)),
+        );
         assert!(!c.supports_color);
     }
 

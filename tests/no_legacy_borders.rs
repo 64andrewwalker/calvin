@@ -25,7 +25,11 @@ fn no_legacy_borders_in_commands_or_ui() {
     collect_rs_files(&repo_root.join("src/ui"), &mut files);
 
     // Legacy border tokens from pre-theme UI output.
-    let forbidden = ["================================================", "┌─", "└─"];
+    let forbidden = [
+        "================================================",
+        "┌─",
+        "└─",
+    ];
 
     let mut violations = Vec::new();
     for file in files {
@@ -50,4 +54,3 @@ fn no_legacy_borders_in_commands_or_ui() {
         violations.join("\n")
     );
 }
-

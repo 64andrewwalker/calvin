@@ -8,7 +8,9 @@ use std::path::PathBuf;
 use crate::adapters::OutputFile;
 use crate::error::CalvinResult;
 use crate::fs::FileSystem;
-use crate::sync::lockfile::{Lockfile, LockfileNamespace, lockfile_key};
+use crate::sync::lockfile::{lockfile_key, Lockfile, LockfileNamespace};
+// Re-export ConflictReason from conflict module to consolidate duplicate definitions
+pub use super::conflict::ConflictReason;
 
 /// Sync destination
 #[derive(Debug, Clone)]
@@ -17,15 +19,6 @@ pub enum SyncDestination {
     Local(PathBuf),
     /// Remote host:path
     Remote { host: String, path: PathBuf },
-}
-
-/// Reason for conflict
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ConflictReason {
-    /// File exists but not tracked by Calvin
-    Untracked,
-    /// File modified since last Calvin sync
-    Modified,
 }
 
 /// A detected conflict
@@ -117,7 +110,7 @@ pub(crate) fn plan_sync_with_namespace<FS: crate::fs::FileSystem + ?Sized>(
     namespace: LockfileNamespace,
 ) -> CalvinResult<SyncPlan> {
     let mut plan = SyncPlan::new();
-    
+
     let root = match dest {
         SyncDestination::Local(p) => fs.expand_home(p),
         SyncDestination::Remote { path, .. } => fs.expand_home(path),
@@ -130,26 +123,24 @@ pub(crate) fn plan_sync_with_namespace<FS: crate::fs::FileSystem + ?Sized>(
         // Expand ~ in the *output* path too so `~/.foo` writes to the real home directory.
         let expanded_output_path = fs.expand_home(&output.path);
         let target_path = root.join(expanded_output_path);
-        
+
         // Compute hash of new content we want to write
         let new_content_hash = crate::sync::lockfile::hash_content(&output.content);
-        
+
         // Check if file exists
         if fs.exists(&target_path) {
             // Read current file content and hash
             let current_content = fs.read_to_string(&target_path)?;
             let current_hash = crate::sync::lockfile::hash_content(&current_content);
-            
+
             // If current content matches new content, skip (already up-to-date)
             if current_hash == new_content_hash {
                 plan.to_skip.push(path_str);
                 continue;
             }
-            
+
             // Check lockfile for tracking status (new key first, then legacy).
-            if let Some(recorded_hash) = lockfile
-                .get(&lock_key)
-                .or_else(|| lockfile.get(&path_str))
+            if let Some(recorded_hash) = lockfile.get(&lock_key).or_else(|| lockfile.get(&path_str))
             {
                 // File is tracked
                 if current_hash == *recorded_hash {
@@ -208,7 +199,7 @@ pub(crate) fn plan_sync_remote_with_namespace(
     namespace: LockfileNamespace,
 ) -> CalvinResult<SyncPlan> {
     let mut plan = SyncPlan::new();
-    
+
     let root = match dest {
         SyncDestination::Local(p) => fs.expand_home(p),
         SyncDestination::Remote { path, .. } => fs.expand_home(path),
@@ -219,23 +210,24 @@ pub(crate) fn plan_sync_remote_with_namespace(
         .iter()
         .map(|o| root.join(fs.expand_home(&o.path)))
         .collect();
-    
+
     // Single SSH call to check all files (existence + hash)
     let file_status = fs.batch_check_files(&target_paths)?;
-    
+
     for output in outputs {
         let path_str = output.path.display().to_string();
         let lock_key = lockfile_key(namespace, &output.path);
 
         let target_path = root.join(fs.expand_home(&output.path));
-        
-        let (exists, remote_hash) = file_status.get(&target_path)
+
+        let (exists, remote_hash) = file_status
+            .get(&target_path)
             .cloned()
             .unwrap_or((false, None));
-        
+
         // Compute hash of new content we want to write
         let new_content_hash = crate::sync::lockfile::hash_content(&output.content);
-        
+
         if !exists {
             // New file, no conflict
             plan.to_write.push(output.clone());
@@ -244,9 +236,8 @@ pub(crate) fn plan_sync_remote_with_namespace(
             if remote_h == &new_content_hash {
                 // Remote already has the same content - skip
                 plan.to_skip.push(path_str);
-            } else if let Some(recorded_hash) = lockfile
-                .get(&lock_key)
-                .or_else(|| lockfile.get(&path_str))
+            } else if let Some(recorded_hash) =
+                lockfile.get(&lock_key).or_else(|| lockfile.get(&path_str))
             {
                 // File is tracked
                 if remote_h == recorded_hash {
@@ -304,9 +295,9 @@ pub fn resolve_conflicts_interactive<FS: crate::fs::FileSystem + ?Sized>(
     dest: &SyncDestination,
     fs: &FS,
 ) -> (SyncPlan, ResolveResult) {
-    use std::io::{self, Write};
     use super::conflict::unified_diff;
-    
+    use std::io::{self, Write};
+
     if plan.conflicts.is_empty() {
         return (plan, ResolveResult::Resolved);
     }
@@ -318,10 +309,10 @@ pub fn resolve_conflicts_interactive<FS: crate::fs::FileSystem + ?Sized>(
 
     let mut apply_all: Option<bool> = None; // true = overwrite all, false = skip all
     let conflicts: Vec<Conflict> = plan.conflicts.drain(..).collect();
-    
+
     for conflict in conflicts {
         let path_str = conflict.path.display().to_string();
-        
+
         // If apply_all is set, use that
         if let Some(overwrite) = apply_all {
             if overwrite {
@@ -335,7 +326,7 @@ pub fn resolve_conflicts_interactive<FS: crate::fs::FileSystem + ?Sized>(
         // Read existing content for diff
         let target_path = root.join(&conflict.path);
         let existing_content = fs.read_to_string(&target_path).unwrap_or_default();
-        
+
         loop {
             let reason_msg = match conflict.reason {
                 ConflictReason::Modified => "was modified externally",
@@ -406,7 +397,7 @@ pub fn resolve_conflicts_interactive<FS: crate::fs::FileSystem + ?Sized>(
 mod tests {
     use super::*;
     use crate::fs::MockFileSystem;
-    use crate::sync::lockfile::{LockfileNamespace, lockfile_key};
+    use crate::sync::lockfile::{lockfile_key, LockfileNamespace};
     use std::path::Path;
 
     fn make_output(path: &str, content: &str) -> OutputFile {

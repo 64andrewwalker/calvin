@@ -64,7 +64,9 @@ pub fn cmd_explain(brief: bool, json: bool, verbose: u8) -> Result<()> {
     }
 
     println!("PURPOSE:");
-    println!("  Maintain AI prompts/rules in one place (.promptpack/), then deploy to multiple tools.\n");
+    println!(
+        "  Maintain AI prompts/rules in one place (.promptpack/), then deploy to multiple tools.\n"
+    );
 
     println!("DIRECTORY STRUCTURE:");
     println!("  .promptpack/");

@@ -396,14 +396,9 @@ mod tests {
 
     #[test]
     fn test_cli_parse_audit_with_options() {
-        let cli = Cli::try_parse_from([
-            "calvin",
-            "audit",
-            "--mode",
-            "balanced",
-            "--strict-warnings",
-        ])
-        .unwrap();
+        let cli =
+            Cli::try_parse_from(["calvin", "audit", "--mode", "balanced", "--strict-warnings"])
+                .unwrap();
         if let Some(Commands::Audit {
             mode,
             strict_warnings,

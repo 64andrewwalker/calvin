@@ -342,7 +342,10 @@ pub fn cmd_parse(source: &Path, json: bool) -> Result<()> {
         println!();
         print_config_warnings(&config_path, &[], &ui);
         for asset in &assets {
-            print!("{}", crate::ui::views::parse::render_asset(asset, ui.color, ui.unicode));
+            print!(
+                "{}",
+                crate::ui::views::parse::render_asset(asset, ui.color, ui.unicode)
+            );
             println!();
         }
     }

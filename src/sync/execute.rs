@@ -7,8 +7,8 @@ use std::path::Path;
 use crate::adapters::OutputFile;
 use crate::error::CalvinResult;
 use crate::fs::FileSystem;
-use crate::sync::{SyncOptions, SyncResult, SyncEvent};
-use crate::sync::plan::{SyncPlan, SyncDestination};
+use crate::sync::plan::{SyncDestination, SyncPlan};
+use crate::sync::{SyncEvent, SyncOptions, SyncResult};
 
 /// Sync strategy selection
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -53,7 +53,10 @@ where
 
     // rsync can only sync to a single destination root; paths prefixed with `~`
     // may resolve outside that root (home directory), so fall back to file-by-file.
-    let has_home_paths = plan.to_write.iter().any(|o| o.path.to_string_lossy().starts_with('~'));
+    let has_home_paths = plan
+        .to_write
+        .iter()
+        .any(|o| o.path.to_string_lossy().starts_with('~'));
 
     // Determine actual strategy
     let use_rsync = match strategy {
@@ -84,7 +87,7 @@ where
             let fs = crate::fs::RemoteFileSystem::new(host);
             // Expand ~ to actual home path for proper file operations
             let expanded_path = fs.expand_home(path);
-            
+
             if use_rsync && callback.is_none() {
                 // Fast path: rsync to remote
                 let remote = format!("{}:{}", host, path.display());
@@ -97,7 +100,13 @@ where
                 crate::sync::remote::sync_remote_rsync(&remote, &plan.to_write, &options, false)
             } else {
                 // File-by-file via SSH with callback
-                write_files_with_fs(&expanded_path, &plan.to_write, &plan.to_skip, &fs, callback.as_mut())
+                write_files_with_fs(
+                    &expanded_path,
+                    &plan.to_write,
+                    &plan.to_skip,
+                    &fs,
+                    callback.as_mut(),
+                )
             }
         }
     }
@@ -137,7 +146,7 @@ where
 
     for (index, output) in outputs.iter().enumerate() {
         let path_str = output.path.display().to_string();
-        
+
         if let Some(ref mut cb) = callback {
             cb(SyncEvent::ItemStart {
                 index,
@@ -147,7 +156,7 @@ where
 
         let expanded_output_path = fs.expand_home(&output.path);
         let target_path = root.join(expanded_output_path);
-        
+
         // Ensure parent directory exists
         if let Some(parent) = target_path.parent() {
             if let Err(e) = fs.create_dir_all(parent) {
@@ -193,7 +202,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     use std::path::PathBuf;
 
     fn make_output(path: &str, content: &str) -> OutputFile {
@@ -204,9 +213,9 @@ mod tests {
     fn execute_empty_plan_returns_empty_result() {
         let plan = SyncPlan::new();
         let dest = SyncDestination::Local(PathBuf::from("/project"));
-        
+
         let result = execute_sync(&plan, &dest, SyncStrategy::FileByFile).unwrap();
-        
+
         assert!(result.written.is_empty());
         assert!(result.errors.is_empty());
     }
@@ -215,12 +224,12 @@ mod tests {
     fn execute_writes_files_to_local() {
         let mut plan = SyncPlan::new();
         plan.to_write.push(make_output("test.md", "content"));
-        
+
         let dir = tempfile::tempdir().unwrap();
         let dest = SyncDestination::Local(dir.path().to_path_buf());
-        
+
         let result = execute_sync(&plan, &dest, SyncStrategy::FileByFile).unwrap();
-        
+
         assert_eq!(result.written.len(), 1);
         assert!(dir.path().join("test.md").exists());
     }
@@ -230,18 +239,19 @@ mod tests {
         let mut plan = SyncPlan::new();
         plan.to_write.push(make_output("a.md", "a"));
         plan.to_write.push(make_output("b.md", "b"));
-        
+
         let dir = tempfile::tempdir().unwrap();
         let dest = SyncDestination::Local(dir.path().to_path_buf());
-        
+
         let mut events = Vec::new();
         let result = execute_sync_with_callback(
             &plan,
             &dest,
             SyncStrategy::FileByFile,
             Some(|e: SyncEvent| events.push(e)),
-        ).unwrap();
-        
+        )
+        .unwrap();
+
         assert_eq!(result.written.len(), 2);
         // Should have 2 starts + 2 written = 4 events
         assert_eq!(events.len(), 4);
@@ -251,12 +261,12 @@ mod tests {
     fn execute_preserves_skipped_files() {
         let mut plan = SyncPlan::new();
         plan.to_skip.push("skipped.md".to_string());
-        
+
         let dir = tempfile::tempdir().unwrap();
         let dest = SyncDestination::Local(dir.path().to_path_buf());
-        
+
         let result = execute_sync(&plan, &dest, SyncStrategy::FileByFile).unwrap();
-        
+
         assert_eq!(result.skipped.len(), 1);
         assert_eq!(result.skipped[0], "skipped.md");
     }
@@ -266,14 +276,14 @@ mod tests {
         // This is a design validation test
         let strategy = SyncStrategy::Auto;
         let has_home_paths = false;
-        
+
         // With 11 files and rsync available, should use rsync
         let use_rsync = match strategy {
             SyncStrategy::Rsync => true,
             SyncStrategy::FileByFile => false,
             SyncStrategy::Auto => 11 > 10 && crate::sync::remote::has_rsync() && !has_home_paths,
         };
-        
+
         // On most Unix systems, rsync is available so this should be true
         #[cfg(unix)]
         assert!(use_rsync);

@@ -4,13 +4,13 @@ use std::io::Write;
 use std::path::Path;
 
 use anyhow::Result;
-use calvin::Target;
 use calvin::sync::ScopePolicy;
 use calvin::sync::SyncEvent;
+use calvin::Target;
 
-use super::targets::DeployTarget;
 use super::options::DeployOptions;
 use super::runner::DeployRunner;
+use super::targets::DeployTarget;
 use crate::cli::ColorWhen;
 use crate::ui::context::UiContext;
 use crate::ui::primitives::icon::Icon;
@@ -65,42 +65,50 @@ pub fn cmd_deploy(
         options.targets = ts.clone();
     }
 
-    // Create UI context
-    let config = calvin::config::Config::load_or_default(Some(source));
+    // Create UI context - use project_root since Config::load_or_default expects the project root, not .promptpack
+    let config = calvin::config::Config::load_or_default(Some(&project_root));
     let ui = UiContext::new(json, verbose, color, no_animation, &config);
 
     // Create runner
-    let runner = DeployRunner::new(
-        source.to_path_buf(),
-        target,
-        scope_policy,
-        options,
-        ui,
-    );
+    let runner = DeployRunner::new(source.to_path_buf(), target, scope_policy, options, ui);
 
     // Render header
     if !json {
-        let action = if dry_run { "Deploy (dry run)" } else { "Deploy" };
-        let modes = if force { 
-            vec!["Force".to_string()] 
+        let action = if dry_run {
+            "Deploy (dry run)"
+        } else {
+            "Deploy"
+        };
+        let modes = if force {
+            vec!["Force".to_string()]
         } else if interactive {
             vec!["Interactive".to_string()]
         } else {
-            vec!["Auto".to_string()]  // --yes mode: skip conflicts silently
+            vec!["Auto".to_string()] // --yes mode: skip conflicts silently
         };
         let (target_display, remote_display) = match runner.target() {
             DeployTarget::Remote(r) => (None, Some(r.as_str())),
-            _ => (runner.target().destination_display().as_deref().map(|s| s.to_string()), None),
+            _ => (
+                runner
+                    .target()
+                    .destination_display()
+                    .as_deref()
+                    .map(|s| s.to_string()),
+                None,
+            ),
         };
-        print!("{}", render_deploy_header(
-            action,
-            runner.source(),
-            target_display.as_deref(),
-            remote_display,
-            &modes,
-            runner.ui().color,
-            runner.ui().unicode,
-        ));
+        print!(
+            "{}",
+            render_deploy_header(
+                action,
+                runner.source(),
+                target_display.as_deref(),
+                remote_display,
+                &modes,
+                runner.ui().color,
+                runner.ui().unicode,
+            )
+        );
     }
 
     // Check for existing issues first
@@ -116,7 +124,7 @@ pub fn cmd_deploy(
     let result = if json {
         // JSON mode: emit NDJSON event stream
         let mut out = std::io::stdout().lock();
-        
+
         // Emit start event
         let _ = crate::ui::json::write_event(
             &mut out,
@@ -126,7 +134,7 @@ pub fn cmd_deploy(
             }),
         );
         let _ = out.flush();
-        
+
         // Run with callback to emit item events
         let result = runner.run_with_callback(Some(|event: SyncEvent| {
             let mut out = std::io::stdout().lock();
@@ -164,7 +172,11 @@ pub fn cmd_deploy(
                         }),
                     );
                 }
-                SyncEvent::ItemError { index, path, message } => {
+                SyncEvent::ItemError {
+                    index,
+                    path,
+                    message,
+                } => {
                     let _ = crate::ui::json::write_event(
                         &mut out,
                         &serde_json::json!({
@@ -179,7 +191,7 @@ pub fn cmd_deploy(
             }
             let _ = out.flush();
         }))?;
-        
+
         // Emit complete event
         let _ = crate::ui::json::write_event(
             &mut out,
@@ -193,7 +205,7 @@ pub fn cmd_deploy(
             }),
         );
         let _ = out.flush();
-        
+
         result
     } else {
         // Non-JSON mode: run without callback
@@ -207,16 +219,23 @@ pub fn cmd_deploy(
         // Estimate assets from written files (rough)
         let asset_count = result.written.len() / 4; // ~4 files per asset
         let target_count = 5; // All targets
-        print!("{}", render_deploy_summary(
-            if dry_run { "Deploy (dry run)" } else { "Deploy" },
-            asset_count,
-            target_count,
-            &result,
-            ui.color,
-            ui.unicode,
-        ));
+        print!(
+            "{}",
+            render_deploy_summary(
+                if dry_run {
+                    "Deploy (dry run)"
+                } else {
+                    "Deploy"
+                },
+                asset_count,
+                target_count,
+                &result,
+                ui.color,
+                ui.unicode,
+            )
+        );
     }
-    
+
     // Save deploy target to config for watch command (only on success, not dry-run, local only)
     if !dry_run && result.is_success() && runner.target().is_local() {
         let config_path = source.join("config.toml");
@@ -248,7 +267,7 @@ pub fn cmd_sync(
 ) -> Result<()> {
     cmd_deploy(
         source,
-        false,            // home
+        false, // home
         remote,
         targets,
         force,
@@ -286,8 +305,8 @@ pub fn cmd_install(
     // In the new implementation, --home always uses ForceUser scope policy
     cmd_deploy(
         source,
-        true,             // home
-        None,             // remote
+        true, // home
+        None, // remote
         cli_targets,
         force,
         interactive,

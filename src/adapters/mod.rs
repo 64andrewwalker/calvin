@@ -3,12 +3,12 @@
 //! Each adapter implements the `TargetAdapter` trait to generate platform-specific
 //! output files from PromptAssets.
 
-pub mod claude_code;
-pub mod cursor;
-pub mod vscode;
 pub mod antigravity;
+pub mod claude_code;
 pub mod codex;
+pub mod cursor;
 pub mod escaping;
+pub mod vscode;
 
 use std::path::PathBuf;
 

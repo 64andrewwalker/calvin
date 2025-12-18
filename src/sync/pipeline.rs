@@ -101,13 +101,17 @@ Hello
             .with_scope_policy(ScopePolicy::Keep)
             .compile()
             .unwrap();
-        assert!(outputs_keep.iter().any(|o| o.path == PathBuf::from(".codex/prompts/test.md")));
+        assert!(outputs_keep
+            .iter()
+            .any(|o| o.path == PathBuf::from(".codex/prompts/test.md")));
 
         let outputs_force_user = AssetPipeline::new(source, config)
             .with_scope_policy(ScopePolicy::ForceUser)
             .compile()
             .unwrap();
-        assert!(outputs_force_user.iter().any(|o| o.path == PathBuf::from("~/.codex/prompts/test.md")));
+        assert!(outputs_force_user
+            .iter()
+            .any(|o| o.path == PathBuf::from("~/.codex/prompts/test.md")));
     }
 
     #[test]
@@ -157,15 +161,14 @@ Hello
         // So output should NOT be empty (idempotent).
         assert!(!outputs.is_empty());
     }
-    
+
     #[test]
     fn pipeline__error_on_nonexistent_source() {
         let source = PathBuf::from("/nonexistent/promptpack");
         let config = Config::default();
         let pipeline = AssetPipeline::new(source, config);
-        
+
         let result = pipeline.compile();
         assert!(result.is_err());
     }
 }
-

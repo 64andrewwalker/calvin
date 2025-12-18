@@ -22,7 +22,11 @@ pub fn render_migrate_header(
     b.render(supports_color, supports_unicode)
 }
 
-pub fn render_migrate_complete(message: &str, supports_color: bool, supports_unicode: bool) -> String {
+pub fn render_migrate_complete(
+    message: &str,
+    supports_color: bool,
+    supports_unicode: bool,
+) -> String {
     let mut b = Box::with_style(BoxStyle::Success);
     b.add_line(format!(
         "{} {}",
@@ -42,4 +46,3 @@ mod tests {
         assert!(rendered.starts_with('╭'));
     }
 }
-

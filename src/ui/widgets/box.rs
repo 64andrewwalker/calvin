@@ -31,7 +31,10 @@ impl Box {
     }
 
     pub fn with_style(style: BoxStyle) -> Self {
-        Self { style, ..Self::default() }
+        Self {
+            style,
+            ..Self::default()
+        }
     }
 
     pub fn style(mut self, style: BoxStyle) -> Self {
@@ -60,7 +63,8 @@ impl Box {
         let inner_width = self
             .width
             .unwrap_or_else(|| {
-                lines.iter()
+                lines
+                    .iter()
                     .map(|l| visible_width(l))
                     .max()
                     .unwrap_or(0)

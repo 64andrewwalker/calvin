@@ -22,4 +22,3 @@ fn test_check_includes_codex_section() {
         stdout
     );
 }
-

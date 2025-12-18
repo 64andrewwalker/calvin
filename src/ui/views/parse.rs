@@ -53,4 +53,3 @@ mod tests {
         assert!(rendered.contains("Description: Test"));
     }
 }
-

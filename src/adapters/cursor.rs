@@ -21,14 +21,14 @@ impl CursorAdapter {
     /// Generate RULE.md frontmatter based on asset properties
     fn generate_rule_frontmatter(&self, asset: &PromptAsset) -> String {
         let mut fm = String::from("---\n");
-        
+
         fm.push_str(&format!("description: {}\n", asset.frontmatter.description));
-        
+
         // Add globs if apply pattern is specified
         if let Some(apply) = &asset.frontmatter.apply {
             fm.push_str(&format!("globs: \"{}\"\n", apply));
         }
-        
+
         // alwaysApply: true only for policies without apply pattern
         // Actions/Agents should NOT be alwaysApply
         if asset.frontmatter.kind == AssetKind::Policy && asset.frontmatter.apply.is_none() {
@@ -36,7 +36,7 @@ impl CursorAdapter {
         } else {
             fm.push_str("alwaysApply: false\n");
         }
-        
+
         fm.push_str("---\n");
         fm
     }
@@ -66,18 +66,11 @@ impl TargetAdapter for CursorAdapter {
         match asset.frontmatter.kind {
             AssetKind::Policy => {
                 // Generate rule file: <base>/rules/<id>/RULE.md
-                let rule_path = rules_base
-                    .join(&asset.id)
-                    .join("RULE.md");
+                let rule_path = rules_base.join(&asset.id).join("RULE.md");
 
                 let frontmatter = self.generate_rule_frontmatter(asset);
                 let footer = self.footer(&asset.source_path.display().to_string());
-                let content = format!(
-                    "{}\n{}\n\n{}",
-                    frontmatter,
-                    asset.content.trim(),
-                    footer
-                );
+                let content = format!("{}\n{}\n\n{}", frontmatter, asset.content.trim(), footer);
 
                 outputs.push(OutputFile::new(rule_path, content));
             }
@@ -93,7 +86,7 @@ impl TargetAdapter for CursorAdapter {
 
     fn validate(&self, output: &OutputFile) -> Vec<Diagnostic> {
         let mut diagnostics = Vec::new();
-        
+
         if output.content.trim().is_empty() {
             diagnostics.push(Diagnostic {
                 severity: DiagnosticSeverity::Warning,
@@ -101,23 +94,23 @@ impl TargetAdapter for CursorAdapter {
                 file: Some(output.path.clone()),
             });
         }
-        
+
         diagnostics
     }
 
     fn security_baseline(&self, config: &crate::config::Config) -> Vec<OutputFile> {
         let mut outputs = Vec::new();
-        
+
         // Generate mcp.json from allowlist in config
         // This enforces "whitelist only" policy
         if !config.mcp.servers.is_empty() {
-             let mcp_json = serde_json::json!({
-                 "mcpServers": config.mcp.servers
-             });
-             let content = serde_json::to_string_pretty(&mcp_json).unwrap_or_default();
-             outputs.push(OutputFile::new(".cursor/mcp.json", content));
+            let mcp_json = serde_json::json!({
+                "mcpServers": config.mcp.servers
+            });
+            let content = serde_json::to_string_pretty(&mcp_json).unwrap_or_default();
+            outputs.push(OutputFile::new(".cursor/mcp.json", content));
         }
-        
+
         outputs
     }
 }
@@ -140,7 +133,7 @@ mod tests {
         );
 
         let outputs = adapter.compile(&asset).unwrap();
-        
+
         assert_eq!(outputs.len(), 1);
         assert_eq!(
             outputs[0].path,
@@ -161,15 +154,10 @@ mod tests {
         let mut fm = Frontmatter::new("Rust rules");
         fm.kind = AssetKind::Policy; // Explicitly set to Policy
         fm.apply = Some("*.rs".to_string());
-        let asset = PromptAsset::new(
-            "rust-style",
-            "policies/rust-style.md",
-            fm,
-            "# Rust Style",
-        );
+        let asset = PromptAsset::new("rust-style", "policies/rust-style.md", fm, "# Rust Style");
 
         let outputs = adapter.compile(&asset).unwrap();
-        
+
         assert!(outputs[0].content.contains("globs: \"*.rs\""));
         // Policies with apply pattern have alwaysApply: false
         assert!(outputs[0].content.contains("alwaysApply: false"));
@@ -181,15 +169,10 @@ mod tests {
         let adapter = CursorAdapter::new();
         let mut fm = Frontmatter::new("Generate tests");
         fm.kind = AssetKind::Action;
-        let asset = PromptAsset::new(
-            "gen-tests",
-            "actions/gen-tests.md",
-            fm,
-            "# Generate Tests",
-        );
+        let asset = PromptAsset::new("gen-tests", "actions/gen-tests.md", fm, "# Generate Tests");
 
         let outputs = adapter.compile(&asset).unwrap();
-        
+
         // No output for actions - Cursor reads Claude's commands
         assert_eq!(outputs.len(), 0);
     }
@@ -199,15 +182,10 @@ mod tests {
         let adapter = CursorAdapter::new();
         let mut fm = Frontmatter::new("Test policy");
         fm.kind = AssetKind::Policy; // Explicitly set to Policy
-        let asset = PromptAsset::new(
-            "test",
-            "policies/test.md",
-            fm,
-            "",
-        );
+        let asset = PromptAsset::new("test", "policies/test.md", fm, "");
 
         let frontmatter = adapter.generate_rule_frontmatter(&asset);
-        
+
         assert!(frontmatter.starts_with("---\n"));
         assert!(frontmatter.ends_with("---\n"));
         assert!(frontmatter.contains("description: Test policy"));
@@ -225,18 +203,18 @@ mod tests {
     fn test_cursor_security_baseline_mcp() {
         let adapter = CursorAdapter::new();
         let mut config = crate::config::Config::default();
-        
+
         // Add a mock MCP server
         config.mcp.servers.insert(
-            "test-server".to_string(), 
+            "test-server".to_string(),
             crate::config::McpServerConfig {
                 command: "node".to_string(),
                 args: vec!["server.js".to_string()],
-            }
+            },
         );
-        
+
         let baseline = adapter.security_baseline(&config);
-        
+
         assert_eq!(baseline.len(), 1);
         assert_eq!(baseline[0].path, PathBuf::from(".cursor/mcp.json"));
         assert!(baseline[0].content.contains("test-server"));

@@ -1,7 +1,7 @@
 //! Deploy target types and configuration
 
-use std::path::PathBuf;
 use calvin::sync::SyncDestination;
+use std::path::PathBuf;
 
 /// Deployment target
 #[derive(Debug, Clone)]
@@ -15,16 +15,6 @@ pub enum DeployTarget {
 }
 
 impl DeployTarget {
-    /// Get target name for display
-    #[allow(dead_code)]
-    pub fn display_name(&self) -> &'static str {
-        match self {
-            DeployTarget::Project(_) => "project",
-            DeployTarget::Home => "home",
-            DeployTarget::Remote(_) => "remote",
-        }
-    }
-
     /// Get destination path for header display
     pub fn destination_display(&self) -> Option<String> {
         match self {
@@ -53,16 +43,7 @@ impl DeployTarget {
         }
     }
 
-    /// Get remote string if this is a remote target
-    #[allow(dead_code)]
-    pub fn remote_str(&self) -> Option<&str> {
-        match self {
-            DeployTarget::Remote(r) => Some(r.as_str()),
-            _ => None,
-        }
-    }
-
-/// Check if this is a local target
+    /// Check if this is a local target
     pub fn is_local(&self) -> bool {
         !matches!(self, DeployTarget::Remote(_))
     }
@@ -83,15 +64,17 @@ mod tests {
     fn remote_to_sync_destination() {
         let target = DeployTarget::Remote("user@host:/path".to_string());
         let dest = target.to_sync_destination();
-        assert!(matches!(dest, SyncDestination::Remote { host, path } 
-            if host == "user@host" && path == PathBuf::from("/path")));
+        assert!(
+            matches!(dest, SyncDestination::Remote { host, path } if host == "user@host" && path == PathBuf::from("/path"))
+        );
     }
 
     #[test]
     fn remote_without_path() {
         let target = DeployTarget::Remote("server".to_string());
         let dest = target.to_sync_destination();
-        assert!(matches!(dest, SyncDestination::Remote { host, path } 
-            if host == "server" && path == PathBuf::from(".")));
+        assert!(
+            matches!(dest, SyncDestination::Remote { host, path } if host == "server" && path == PathBuf::from("."))
+        );
     }
 }
