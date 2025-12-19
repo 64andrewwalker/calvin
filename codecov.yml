@@ -1,0 +1,51 @@
+# Codecov Configuration
+# https://docs.codecov.com/docs/codecov-yaml
+
+coverage:
+  # Overall project coverage requirements
+  status:
+    project:
+      default:
+        target: 70%      # Minimum overall coverage
+        threshold: 2%    # Allow 2% fluctuation
+        
+    # Critical modules must maintain higher coverage
+    patch:
+      default:
+        target: 80%      # New code must have 80%+ coverage
+
+  # Red lines for critical modules
+  # These are the "buckets" that can't be too low
+  precision: 2
+  round: down
+  
+# Ignore UI modules that are hard to test (interactive/TTY)
+ignore:
+  - "src/ui/menu.rs"           # Interactive menu (requires TTY)
+  - "src/ui/live_region.rs"    # Live terminal updates (requires TTY)
+
+# Flag definitions for different module groups
+flags:
+  core:
+    paths:
+      - src/sync/
+      - src/adapters/
+      - src/config.rs
+      - src/parser.rs
+    carryforward: true
+    
+  ui:
+    paths:
+      - src/ui/
+    carryforward: true
+    
+  commands:
+    paths:
+      - src/commands/
+    carryforward: true
+
+comment:
+  layout: "reach,diff,flags,files"
+  behavior: default
+  require_changes: true
+
