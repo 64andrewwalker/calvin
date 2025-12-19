@@ -491,4 +491,99 @@ mod tests {
 
         assert!(!runner.target.is_local());
     }
+
+    #[test]
+    fn lockfile_path_for_project_target() {
+        let options = DeployOptions::new();
+        let ui = test_ui();
+        let runner = DeployRunner::new(
+            PathBuf::from("/project/.promptpack"),
+            DeployTarget::Project(PathBuf::from("/project")),
+            ScopePolicy::Keep,
+            options,
+            ui,
+        );
+
+        let lockfile_path = runner.get_lockfile_path();
+        assert_eq!(
+            lockfile_path,
+            PathBuf::from("/project/.promptpack/.calvin.lock")
+        );
+    }
+
+    #[test]
+    fn lockfile_path_for_home_target() {
+        let options = DeployOptions::new();
+        let ui = test_ui();
+        let runner = DeployRunner::new(
+            PathBuf::from("/project/.promptpack"),
+            DeployTarget::Home,
+            ScopePolicy::ForceUser,
+            options,
+            ui,
+        );
+
+        let lockfile_path = runner.get_lockfile_path();
+        // For Home target, lockfile is in source directory
+        assert_eq!(
+            lockfile_path,
+            PathBuf::from("/project/.promptpack/.calvin.lock")
+        );
+    }
+
+    #[test]
+    fn lockfile_path_for_remote_target() {
+        let options = DeployOptions::new();
+        let ui = test_ui();
+        let runner = DeployRunner::new(
+            PathBuf::from("/project/.promptpack"),
+            DeployTarget::Remote("server:/remote".to_string()),
+            ScopePolicy::Keep,
+            options,
+            ui,
+        );
+
+        let lockfile_path = runner.get_lockfile_path();
+        // For Remote target, lockfile is in source directory (local)
+        assert_eq!(
+            lockfile_path,
+            PathBuf::from("/project/.promptpack/.calvin.lock")
+        );
+    }
+
+    #[test]
+    fn runner_options_propagate() {
+        let mut options = DeployOptions::new();
+        options.force = true;
+        options.dry_run = true;
+        options.verbose = 2;
+
+        let ui = test_ui();
+        let runner = DeployRunner::new(
+            PathBuf::from(".promptpack"),
+            DeployTarget::Project(PathBuf::from("/project")),
+            ScopePolicy::Keep,
+            options,
+            ui,
+        );
+
+        assert!(runner.options.force);
+        assert!(runner.options.dry_run);
+        assert_eq!(runner.options.verbose, 2);
+    }
+
+    #[test]
+    fn runner_scope_policy_kept() {
+        let options = DeployOptions::new();
+        let ui = test_ui();
+        let runner = DeployRunner::new(
+            PathBuf::from(".promptpack"),
+            DeployTarget::Home,
+            ScopePolicy::ForceUser,
+            options,
+            ui,
+        );
+
+        assert_eq!(runner.scope_policy, ScopePolicy::ForceUser);
+    }
 }
