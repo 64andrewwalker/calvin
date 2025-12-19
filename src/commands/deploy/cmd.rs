@@ -310,20 +310,23 @@ pub fn cmd_deploy_with_explicit_target(
         let fs = LocalFileSystem;
         let lockfile_path = runner.get_lockfile_path();
         let lockfile = Lockfile::load_or_new(&lockfile_path, &fs);
-        
+
         let orphan_result = runner.detect_orphans();
-        
+
         // Filter to only existing orphans
-        let existing_orphans: Vec<_> = orphan_result.orphans.iter()
+        let existing_orphans: Vec<_> = orphan_result
+            .orphans
+            .iter()
             .filter(|o| o.exists)
             .cloned()
             .collect();
-        
 
-        
         if !existing_orphans.is_empty() {
-            let safe_count = existing_orphans.iter().filter(|o| o.is_safe_to_delete()).count();
-            
+            let safe_count = existing_orphans
+                .iter()
+                .filter(|o| o.is_safe_to_delete())
+                .count();
+
             if json {
                 // Emit orphan detection event
                 let mut out = std::io::stdout().lock();
@@ -338,7 +341,7 @@ pub fn cmd_deploy_with_explicit_target(
                 );
                 let _ = out.flush();
             }
-            
+
             // Decide what to do based on mode
             let should_delete = if cleanup {
                 // --cleanup flag: auto-delete safe files
@@ -347,12 +350,18 @@ pub fn cmd_deploy_with_explicit_target(
                 // Interactive mode: ask user
                 if !json {
                     eprintln!();
-                    eprint!("{}", render_orphan_list(&existing_orphans, ui.color, ui.unicode));
-                    
+                    eprint!(
+                        "{}",
+                        render_orphan_list(&existing_orphans, ui.color, ui.unicode)
+                    );
+
                     // Ask for confirmation using dialoguer
                     use dialoguer::Confirm;
                     Confirm::new()
-                        .with_prompt(format!("Delete {} file(s) with Calvin signature?", safe_count))
+                        .with_prompt(format!(
+                            "Delete {} file(s) with Calvin signature?",
+                            safe_count
+                        ))
                         .default(false)
                         .interact()
                         .unwrap_or(false)
@@ -370,15 +379,16 @@ pub fn cmd_deploy_with_explicit_target(
                 }
                 false
             };
-            
+
             if should_delete {
                 // In dry_run mode, show what would be deleted but don't actually delete
                 if dry_run {
-                    let would_delete = existing_orphans.iter()
+                    let would_delete = existing_orphans
+                        .iter()
                         .filter(|o| force || o.is_safe_to_delete())
                         .count();
                     let would_skip = existing_orphans.len() - would_delete;
-                    
+
                     if json {
                         let mut out = std::io::stdout().lock();
                         let _ = crate::ui::json::write_event(
@@ -409,52 +419,52 @@ pub fn cmd_deploy_with_explicit_target(
                 } else {
                     // Actually delete
                     let delete_result = delete_orphans(&existing_orphans, force, &fs);
-                
-                match delete_result {
-                    Ok(del_res) => {
-                        if json {
-                            let mut out = std::io::stdout().lock();
-                            let _ = crate::ui::json::write_event(
-                                &mut out,
-                                &serde_json::json!({
-                                    "event": "orphans_deleted",
-                                    "command": "deploy",
-                                    "deleted": del_res.deleted.len(),
-                                    "skipped": del_res.skipped.len(),
-                                }),
-                            );
-                            let _ = out.flush();
-                        } else if !del_res.deleted.is_empty() || !del_res.skipped.is_empty() {
-                            eprintln!(
-                                "{}",
-                                render_orphan_summary(
-                                    del_res.deleted.len(),
-                                    del_res.skipped.len(),
-                                    ui.color,
-                                    ui.unicode
-                                )
-                            );
-                        }
-                        
-                        // Update lockfile to remove deleted entries
-                        if !del_res.deleted.is_empty() {
-                            let mut updated_lockfile = lockfile.clone();
-                            for key in &del_res.deleted {
-                                updated_lockfile.remove(key);
+
+                    match delete_result {
+                        Ok(del_res) => {
+                            if json {
+                                let mut out = std::io::stdout().lock();
+                                let _ = crate::ui::json::write_event(
+                                    &mut out,
+                                    &serde_json::json!({
+                                        "event": "orphans_deleted",
+                                        "command": "deploy",
+                                        "deleted": del_res.deleted.len(),
+                                        "skipped": del_res.skipped.len(),
+                                    }),
+                                );
+                                let _ = out.flush();
+                            } else if !del_res.deleted.is_empty() || !del_res.skipped.is_empty() {
+                                eprintln!(
+                                    "{}",
+                                    render_orphan_summary(
+                                        del_res.deleted.len(),
+                                        del_res.skipped.len(),
+                                        ui.color,
+                                        ui.unicode
+                                    )
+                                );
                             }
-                            let _ = updated_lockfile.save(&lockfile_path, &fs);
+
+                            // Update lockfile to remove deleted entries
+                            if !del_res.deleted.is_empty() {
+                                let mut updated_lockfile = lockfile.clone();
+                                for key in &del_res.deleted {
+                                    updated_lockfile.remove(key);
+                                }
+                                let _ = updated_lockfile.save(&lockfile_path, &fs);
+                            }
+                        }
+                        Err(e) => {
+                            if !json {
+                                eprintln!(
+                                    "{} Failed to delete orphan files: {}",
+                                    Icon::Error.colored(ui.color, ui.unicode),
+                                    e
+                                );
+                            }
                         }
                     }
-                    Err(e) => {
-                        if !json {
-                            eprintln!(
-                                "{} Failed to delete orphan files: {}",
-                                Icon::Error.colored(ui.color, ui.unicode),
-                                e
-                            );
-                        }
-                    }
-                }
                 } // end of else block (not dry_run)
             }
         }
