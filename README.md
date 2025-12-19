@@ -3,6 +3,8 @@
 > *Making agents behave.* 🤖
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![codecov](https://codecov.io/gh/calvin-cli/calvin/graph/badge.svg)](https://codecov.io/gh/calvin-cli/calvin)
+[![CI](https://github.com/calvin-cli/calvin/actions/workflows/ci.yml/badge.svg)](https://github.com/calvin-cli/calvin/actions/workflows/ci.yml)
 
 **Calvin** is a PromptOps compiler and synchronization tool that lets you maintain AI rules, commands, and workflows in a single source format, then compile and distribute them to multiple AI coding assistant platforms.
 

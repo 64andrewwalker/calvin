@@ -21,6 +21,12 @@ Thumbs.db
 # Test artifacts
 /test-output/
 
+# Coverage reports
+/target/llvm-cov/
+lcov.info
+*.profraw
+*.profdata
+
 # Environment & Secrets (never commit)
 .env
 .env.*
