@@ -20,6 +20,9 @@ pub trait FileSystem {
 
     /// Expand ~ to home directory
     fn expand_home(&self, path: &Path) -> PathBuf;
+
+    /// Remove a file
+    fn remove_file(&self, path: &Path) -> CalvinResult<()>;
 }
 
 /// Local file system implementation
@@ -48,6 +51,10 @@ impl FileSystem for LocalFileSystem {
 
     fn expand_home(&self, path: &Path) -> PathBuf {
         crate::sync::expand_home_dir(path)
+    }
+
+    fn remove_file(&self, path: &Path) -> CalvinResult<()> {
+        Ok(std::fs::remove_file(path)?)
     }
 }
 
@@ -253,6 +260,11 @@ impl FileSystem for RemoteFileSystem {
             path.to_path_buf()
         }
     }
+
+    fn remove_file(&self, path: &Path) -> CalvinResult<()> {
+        self.run_command(&format!("rm -f {}", Self::quote_path(path)), None)?;
+        Ok(())
+    }
 }
 
 /// Mock file system for testing
@@ -324,5 +336,11 @@ impl FileSystem for MockFileSystem {
         } else {
             path.to_path_buf()
         }
+    }
+
+    fn remove_file(&self, path: &Path) -> CalvinResult<()> {
+        let mut files = self.files.lock().unwrap();
+        files.remove(path);
+        Ok(())
     }
 }

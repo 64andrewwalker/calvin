@@ -135,27 +135,31 @@ fn interactive_existing_project(
     let source = cwd.join(".promptpack");
 
     match selection {
-        0 => commands::deploy::cmd_deploy(
+        0 => commands::deploy::cmd_deploy_with_explicit_target(
             &source,
             false,
+            true, // explicit_project: user explicitly chose "Deploy to this project"
             None,
             &None,
             false,
             true,
             false,
+            false, // cleanup - interactive mode handles it separately
             false,
             verbose,
             color,
             no_animation,
         ),
-        1 => commands::deploy::cmd_deploy(
+        1 => commands::deploy::cmd_deploy_with_explicit_target(
             &source,
             true,
+            false, // explicit_project: N/A, home is true
             None,
             &None,
             false,
             true,
             false,
+            false, // cleanup
             false,
             verbose,
             color,
@@ -174,6 +178,7 @@ fn interactive_existing_project(
                 false,
                 true,
                 false,
+                false, // cleanup
                 false,
                 verbose,
                 color,

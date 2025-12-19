@@ -121,6 +121,10 @@ pub fn cmd_migrate(
 }
 
 pub fn cmd_diff(source: &Path, home: bool, json: bool) -> Result<()> {
+    use calvin::config::DeployTargetConfig;
+    use calvin::fs::LocalFileSystem;
+    use calvin::sync::lockfile::{Lockfile, LockfileNamespace};
+    use calvin::sync::orphan::detect_orphans;
     use calvin::sync::{AssetPipeline, ScopePolicy};
     use std::fs;
 
@@ -129,12 +133,16 @@ pub fn cmd_diff(source: &Path, home: bool, json: bool) -> Result<()> {
     let (config, warnings) = calvin::config::Config::load_with_warnings(&config_path)
         .unwrap_or((calvin::config::Config::default(), Vec::new()));
     let ui = crate::ui::context::UiContext::new(json, 0, None, true, &config);
+
+    // Determine effective target: CLI flag overrides config
+    let use_home = home || config.deploy.target == DeployTargetConfig::Home;
+
     if json {
         crate::ui::json::emit(serde_json::json!({
             "event": "start",
             "command": "diff",
             "source": source.display().to_string(),
-            "home": home
+            "home": use_home
         }))?;
     } else {
         print!(
@@ -144,15 +152,29 @@ pub fn cmd_diff(source: &Path, home: bool, json: bool) -> Result<()> {
     }
     print_config_warnings(&config_path, &warnings, &ui);
 
-    let scope_policy = if home {
+    // Use scope policy matching deploy behavior
+    // ForceUser: all assets go to home
+    // Keep: preserve original scope (project/user)
+    let scope_policy = if use_home {
         ScopePolicy::ForceUser
     } else {
-        ScopePolicy::ProjectOnly
+        ScopePolicy::Keep
     };
 
     let outputs = AssetPipeline::new(source.to_path_buf(), config.clone())
         .with_scope_policy(scope_policy)
         .compile()?;
+
+    // Load lockfile and detect orphans
+    let lockfile_path = source.join(".calvin.lock");
+    let fs = LocalFileSystem;
+    let lockfile = Lockfile::load_or_new(&lockfile_path, &fs);
+    let namespace = if use_home {
+        LockfileNamespace::Home
+    } else {
+        LockfileNamespace::Project
+    };
+    let orphan_result = detect_orphans(&lockfile, &outputs, namespace);
 
     // Determine project root
     let project_root = source
@@ -160,7 +182,7 @@ pub fn cmd_diff(source: &Path, home: bool, json: bool) -> Result<()> {
         .map(|p| p.to_path_buf())
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
 
-    let compare_root = if home {
+    let compare_root = if use_home {
         dirs::home_dir().unwrap_or_default()
     } else {
         project_root
@@ -178,7 +200,7 @@ pub fn cmd_diff(source: &Path, home: bool, json: bool) -> Result<()> {
 
     for output in &outputs {
         let output_path_str = output.path.display().to_string();
-        let path_str = if home {
+        let path_str = if use_home {
             if output_path_str.starts_with('~') {
                 output_path_str.clone()
             } else {
@@ -189,7 +211,7 @@ pub fn cmd_diff(source: &Path, home: bool, json: bool) -> Result<()> {
         };
 
         // Default diff is project-level only (skip explicit home outputs).
-        if !home && output_path_str.starts_with('~') {
+        if !use_home && output_path_str.starts_with('~') {
             continue;
         }
 
@@ -272,7 +294,8 @@ pub fn cmd_diff(source: &Path, home: bool, json: bool) -> Result<()> {
                 "command": "diff",
                 "new": new_files.len(),
                 "modified": modified_files.len(),
-                "unchanged": unchanged_files.len()
+                "unchanged": unchanged_files.len(),
+                "orphans": orphan_result.orphans.len()
             }),
         );
     } else {
@@ -282,10 +305,11 @@ pub fn cmd_diff(source: &Path, home: bool, json: bool) -> Result<()> {
 
         print!(
             "{}",
-            crate::ui::views::diff::render_diff_summary(
+            crate::ui::views::diff::render_diff_summary_with_orphans(
                 new_files.len(),
                 modified_files.len(),
                 unchanged_files.len(),
+                orphan_result.orphans.len(),
                 ui.color,
                 ui.unicode
             )

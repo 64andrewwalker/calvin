@@ -253,7 +253,7 @@ impl DeployRunner {
     ///
     /// Uses source-based lockfile strategy for all targets.
     /// This allows version control and team sharing.
-    fn get_lockfile_path(&self) -> PathBuf {
+    pub fn get_lockfile_path(&self) -> PathBuf {
         match &self.target {
             DeployTarget::Project(root) => root.join(".promptpack/.calvin.lock"),
             DeployTarget::Home | DeployTarget::Remote(_) => {
@@ -353,15 +353,22 @@ impl DeployRunner {
         // Build set of written paths for fast lookup
         let written_set: HashSet<&str> = result.written.iter().map(|s| s.as_str()).collect();
 
+        // Determine namespace based on target (SC-7: scope tracking)
+        let namespace = match &self.target {
+            DeployTarget::Home => LockfileNamespace::Home,
+            DeployTarget::Project(_) | DeployTarget::Remote(_) => LockfileNamespace::Project,
+        };
+
         let mut updated_count = 0;
 
         // Update hashes for written files
         for output in outputs {
             let path_str = output.path.display().to_string();
             if written_set.contains(path_str.as_str()) {
-                // This file was written, update its hash
+                // This file was written, update its hash and scope
                 let hash = calvin::sync::lockfile::hash_content(&output.content);
-                let key = lockfile_key(LockfileNamespace::Project, &output.path);
+                let key = lockfile_key(namespace, &output.path);
+                // Scope is encoded in the key prefix (home: or project:)
                 lockfile.set_hash(&key, &hash);
                 updated_count += 1;
             }
@@ -386,6 +393,49 @@ impl DeployRunner {
     pub fn ui(&self) -> &UiContext {
         &self.ui
     }
+
+    /// Detect orphan files that exist in lockfile but are no longer generated
+    ///
+    /// This method encapsulates orphan detection logic for reuse across commands.
+    pub fn detect_orphans(&self) -> calvin::sync::orphan::OrphanDetectionResult {
+        use calvin::sync::orphan::{check_orphan_status, detect_orphans};
+
+        let fs = LocalFileSystem;
+        let lockfile_path = self.get_lockfile_path();
+        let lockfile = self.load_lockfile(&lockfile_path);
+
+        // Determine namespace based on target
+        let namespace = match &self.target {
+            DeployTarget::Home => calvin::sync::LockfileNamespace::Home,
+            DeployTarget::Project(_) | DeployTarget::Remote(_) => {
+                calvin::sync::LockfileNamespace::Project
+            }
+        };
+
+        // Compile outputs using same pipeline settings as deploy
+        let targets = if self.options.targets.is_empty() {
+            self.config.enabled_targets()
+        } else {
+            self.options.targets.clone()
+        };
+
+        let pipeline = AssetPipeline::new(self.source.clone(), self.config.clone())
+            .with_scope_policy(self.scope_policy)
+            .with_targets(targets);
+
+        let outputs = pipeline.compile().unwrap_or_default();
+
+        let mut result = detect_orphans(&lockfile, &outputs, namespace);
+
+        // Check signature and existence for each orphan
+        for orphan in &mut result.orphans {
+            check_orphan_status(orphan, &fs);
+        }
+
+        result
+    }
+
+
 }
 
 #[cfg(test)]

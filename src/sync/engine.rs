@@ -477,6 +477,7 @@ impl<'a, FS: FileSystem> SyncEngine<'a, FS> {
                 // (skipped means target already has this content)
                 let hash = crate::sync::lockfile::hash_content(&output.content);
                 let key = lockfile_key(self.lockfile_namespace, &output.path);
+                // Scope is encoded in the key prefix (home: or project:)
                 lockfile.set_hash(&key, &hash);
             }
         }

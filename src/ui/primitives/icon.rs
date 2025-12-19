@@ -17,6 +17,7 @@ pub enum Icon {
     Check,
     Remote,
     Diff,
+    Trash,
 }
 
 impl Icon {
@@ -34,6 +35,7 @@ impl Icon {
             (true, Icon::Check) => theme::icons::CHECK,
             (true, Icon::Remote) => theme::icons::REMOTE,
             (true, Icon::Diff) => theme::icons::DIFF,
+            (true, Icon::Trash) => theme::icons::TRASH,
             (false, Icon::Success) => theme::icons_ascii::SUCCESS,
             (false, Icon::Error) => theme::icons_ascii::ERROR,
             (false, Icon::Warning) => theme::icons_ascii::WARNING,
@@ -46,6 +48,7 @@ impl Icon {
             (false, Icon::Check) => theme::icons_ascii::CHECK,
             (false, Icon::Remote) => theme::icons_ascii::REMOTE,
             (false, Icon::Diff) => theme::icons_ascii::DIFF,
+            (false, Icon::Trash) => theme::icons_ascii::TRASH,
         }
     }
 
@@ -63,6 +66,7 @@ impl Icon {
             Icon::Watch | Icon::Deploy | Icon::Check | Icon::Remote | Icon::Diff => {
                 theme::colors::INFO
             }
+            Icon::Trash => theme::colors::WARNING,
         };
         format!("{}", s.with(color))
     }
