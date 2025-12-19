@@ -17,9 +17,7 @@
 //! 3. **Ports & Adapters** - All I/O goes through trait-defined ports
 
 pub mod entities;
+pub mod policies;
 pub mod ports;
 pub mod services;
 pub mod value_objects;
-
-// TODO: Add policies as we extract them
-// pub mod policies;
