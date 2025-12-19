@@ -1,7 +1,16 @@
-//! Target platform adapters
+//! Target platform adapters (LEGACY)
 //!
-//! Each adapter implements the `TargetAdapter` trait to generate platform-specific
-//! output files from PromptAssets.
+//! **DEPRECATED**: This module is being replaced by `infrastructure::adapters`.
+//!
+//! New code should use:
+//! - `crate::infrastructure::adapters::ClaudeCodeAdapter`
+//! - `crate::infrastructure::adapters::CursorAdapter`
+//! - `crate::infrastructure::adapters::VSCodeAdapter`
+//! - `crate::infrastructure::adapters::AntigravityAdapter`
+//! - `crate::infrastructure::adapters::CodexAdapter`
+//!
+//! This module remains for backward compatibility with existing sync engine.
+//! It will be removed in v0.4.0.
 
 pub mod antigravity;
 pub mod claude_code;
