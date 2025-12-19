@@ -347,7 +347,7 @@
 | 完成 Domain 层提取 | 3-5 天 | ✅ 完成 |
 | 迁移 `serde_yaml` → `serde_yml` | 2 小时 | ✅ 完成 |
 | 统一错误处理 | 3 小时 | 🔲 待开始 |
-| 迁移剩余适配器 (VSCode/Antigravity/Codex) | 3 小时 | 🔲 待开始 |
+| 迁移剩余适配器 (VSCode/Antigravity/Codex) | 3 小时 | ✅ 完成 |
 | 集成 DeployUseCase 到现有命令 | 2 小时 | 🔲 待开始 |
 
 ### 低优先级（v0.5.0+）

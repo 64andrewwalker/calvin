@@ -99,6 +99,6 @@ mod tests {
     #[test]
     fn create_adapters_for_all_returns_all() {
         let adapters = create_adapters_for_targets(&[Target::All]);
-        assert_eq!(adapters.len(), 2); // Currently only Claude Code and Cursor are migrated
+        assert_eq!(adapters.len(), 5); // All 5 adapters migrated
     }
 }
