@@ -1,4 +1,5 @@
 use calvin::Target;
+use is_terminal::IsTerminal;
 use std::path::Path;
 
 /// All available targets for interactive selection (excludes Target::All)
@@ -53,7 +54,7 @@ pub fn select_targets_interactive_with_save(
 ) -> Option<Vec<Target>> {
     use dialoguer::MultiSelect;
 
-    if json || !atty::is(atty::Stream::Stdin) {
+    if json || !std::io::stdin().is_terminal() {
         // Non-interactive mode: use config or all targets
         let targets =
             if config.targets.enabled.is_empty() || config.targets.enabled.contains(&Target::All) {

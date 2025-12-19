@@ -164,5 +164,6 @@ fn dispatch(
 }
 
 fn is_interactive_run(json: bool, yes: bool) -> bool {
-    !json && !yes && atty::is(atty::Stream::Stdin)
+    use is_terminal::IsTerminal;
+    !json && !yes && std::io::stdin().is_terminal()
 }

@@ -23,7 +23,7 @@ pkg-fmt = "zip"
 
 [dependencies]
 anyhow = "1"
-atty = "0.2"
+is-terminal = "0.4"
 clap = { version = "4", default-features = false, features = ["std", "derive", "help"] }
 crossterm = "0.28"
 ctrlc = "3"

@@ -1,3 +1,4 @@
+use is_terminal::IsTerminal;
 use std::path::Path;
 
 pub fn format_calvin_error(err: &calvin::CalvinError) -> String {
@@ -102,7 +103,7 @@ pub fn print_error(err: &anyhow::Error, json: bool) {
 }
 
 pub fn offer_open_in_editor(err: &anyhow::Error, json: bool) {
-    if json || !atty::is(atty::Stream::Stdin) {
+    if json || !std::io::stdin().is_terminal() {
         return;
     }
 
