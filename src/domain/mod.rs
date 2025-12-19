@@ -18,8 +18,8 @@
 
 pub mod entities;
 pub mod ports;
+pub mod services;
 pub mod value_objects;
 
-// TODO: Add these modules as we extract them
-// pub mod services;
+// TODO: Add policies as we extract them
 // pub mod policies;

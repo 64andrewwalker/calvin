@@ -6,9 +6,9 @@
 //! - `Lockfile` - Tracks deployed file hashes
 
 mod asset;
+mod lockfile;
 mod output_file;
 
 pub use asset::{Asset, AssetKind};
+pub use lockfile::{Lockfile, LockfileEntry};
 pub use output_file::OutputFile;
-
-// TODO: Add Lockfile entity
