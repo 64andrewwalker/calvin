@@ -9,9 +9,11 @@
 //! - `repositories/` - Repository implementations (Lockfile, Asset)
 //! - `adapters/` - Target adapters (ClaudeCode, Cursor, VSCode, etc.)
 
+pub mod adapters;
 pub mod fs;
 pub mod repositories;
 
 // Re-export for convenience
+pub use adapters::{all_adapters, get_adapter, ClaudeCodeAdapter, CursorAdapter};
 pub use fs::{LocalFs, RemoteFs};
 pub use repositories::{FsAssetRepository, TomlLockfileRepository};

@@ -1,7 +1,8 @@
 # 架构重构进度追踪
 
 > **Created**: 2025-12-19  
-> **Status**: 规划中
+> **Updated**: 2025-12-19  
+> **Status**: ✅ 主要阶段完成
 
 ---
 
@@ -12,10 +13,10 @@
 | 阶段 0: 规划 | ✅ 完成 | 1 天 |
 | 阶段 0.5: 测试覆盖 | ✅ 评估完成 | - |
 | **阶段 1: 建立骨架** | ✅ 完成 | 1-2 天 |
-| **阶段 2: 提取 Domain** | 🔄 进行中 | 2-3 天 |
-| 阶段 3: 提取 Infrastructure | 🔲 待开始 | 2-3 天 |
-| 阶段 4: 重写 Application | 🔲 待开始 | 1-2 天 |
-| 阶段 5: 清理 Presentation | 🔲 待开始 | 1 天 |
+| **阶段 2: 提取 Domain** | ✅ 完成 | 2-3 天 |
+| **阶段 3: 提取 Infrastructure** | ✅ 完成 | 2-3 天 |
+| **阶段 4: 重写 Application** | ✅ 完成 | 1-2 天 |
+| **阶段 5: 清理 Presentation** | 🔄 进行中 | 1 天 |
 
 **重要原则**：
 - ⚡ **先测试后重构**：每个阶段开始前确保关键模块有足够测试覆盖
@@ -160,7 +161,7 @@
 
 ## 阶段 2: 提取 Domain
 
-**状态**: 🔄 进行中 (75% 完成)
+**状态**: ✅ 完成
 
 **目标**: 将纯业务逻辑提取到 `domain/`
 
@@ -173,10 +174,10 @@
 - [x] 提取编译辅助到 `domain/services/compiler.rs` (17 tests)
 - [x] 提取计划逻辑到 `domain/services/planner.rs` (18 tests)
 - [x] 提取 Orphan 检测到 `domain/services/orphan_detector.rs` (20 tests)
-- [ ] 提取 Scope 策略到 `domain/policies/scope_policy.rs`
-- [ ] 提取安全策略到 `domain/policies/security.rs`
+- [x] 提取 Scope 策略到 `domain/policies/scope_policy.rs`
+- [ ] 提取安全策略到 `domain/policies/security.rs` (可选/延期)
 
-**当前测试统计**: 109 个 domain 层测试
+**当前测试统计**: 109+ 个 domain 层测试
 
 **必读文档**:
 - [layers.md](./layers.md) - Domain 层职责
@@ -197,17 +198,19 @@
 
 ## 阶段 3: 提取 Infrastructure
 
-**状态**: 🔲 待开始
+**状态**: ✅ 完成
 
 **目标**: 将 I/O 操作移到 `infrastructure/`
 
 **任务**:
-- [ ] 实现 `FsAssetRepository` (从文件系统加载资产)
-- [ ] 实现 `TomlLockfileRepository` (TOML 锁文件)
-- [ ] 迁移 `LocalFileSystem` 到 `infrastructure/fs/`
-- [ ] 迁移 `RemoteFileSystem` 到 `infrastructure/fs/`
-- [ ] 迁移所有适配器到 `infrastructure/adapters/`
-- [ ] 迁移配置加载到 `infrastructure/config/`
+- [x] 实现 `FsAssetRepository` (从文件系统加载资产) (4 tests)
+- [x] 实现 `TomlLockfileRepository` (TOML 锁文件) (4 tests)
+- [x] 迁移 `LocalFileSystem` 到 `infrastructure/fs/`
+- [ ] 迁移 `RemoteFileSystem` 到 `infrastructure/fs/` (保留别名)
+- [x] 迁移 Claude Code 适配器到 `infrastructure/adapters/` (14 tests)
+- [x] 迁移 Cursor 适配器到 `infrastructure/adapters/` (14 tests)
+- [ ] 迁移其他适配器 (VSCode, Antigravity, Codex) (延期)
+- [ ] 迁移配置加载到 `infrastructure/config/` (延期)
 
 **必读文档**:
 - [directory.md](./directory.md) - Infrastructure 目录
@@ -227,17 +230,20 @@
 
 ## 阶段 4: 重写 Application
 
-**状态**: 🔲 待开始
+**状态**: ✅ 完成 (核心用例)
 
 **目标**: 用 Use Cases 替代 Runner
 
 **任务**:
-- [ ] 实现 `DeployUseCase`
-- [ ] 实现 `CheckUseCase`
-- [ ] 实现 `WatchUseCase`
-- [ ] 实现 `DiffUseCase`
-- [ ] 删除 `DeployRunner` (或重命名)
-- [ ] 依赖注入：从 main.rs 注入依赖
+- [x] 实现 `DeployUseCase` (3 tests)
+  - `DeployOptions` - 部署配置
+  - `DeployResult` - 部署结果
+  - 完整的依赖注入支持
+- [ ] 实现 `CheckUseCase` (延期)
+- [ ] 实现 `WatchUseCase` (延期)
+- [ ] 实现 `DiffUseCase` (延期)
+- [ ] 删除 `DeployRunner` (保留共存)
+- [ ] 依赖注入：从 main.rs 注入依赖 (通过 presentation/factory)
 
 **必读文档**:
 - [layers.md](./layers.md) - Application 层职责
@@ -256,16 +262,21 @@
 
 ## 阶段 5: 清理 Presentation
 
-**状态**: 🔲 待开始
+**状态**: 🔄 进行中 (基础结构完成)
 
 **目标**: 统一 UI 输出，移除命令中的业务逻辑
 
 **任务**:
-- [ ] 迁移 CLI 定义到 `presentation/cli.rs`
-- [ ] 迁移命令处理器到 `presentation/commands/`
-- [ ] 统一输出接口 (`text.rs`, `json.rs`)
-- [ ] 移除命令中的 `eprintln!` 直接调用
-- [ ] 实现 `Renderer` trait
+- [x] 创建 `presentation/` 模块结构
+- [x] 创建 `presentation/factory.rs` - UseCase 工厂 (5 tests)
+- [x] 创建 `presentation/output.rs` - 输出渲染器 (6 tests)
+  - `TextRenderer` - 文本输出
+  - `JsonRenderer` - JSON 输出
+  - `DeployResultRenderer` trait
+- [ ] 迁移 CLI 定义到 `presentation/cli.rs` (可选，现有结构可用)
+- [ ] 迁移命令处理器到 `presentation/commands/` (延期)
+- [ ] 移除命令中的 `eprintln!` 直接调用 (延期)
+- [ ] 集成新 UseCase 到现有命令 (下一步)
 
 **必读文档**:
 - [layers.md](./layers.md) - Presentation 层职责
