@@ -4,10 +4,12 @@
 //! These services have no I/O dependencies and are easily testable.
 
 mod compiler;
+mod differ;
 mod orphan_detector;
 mod planner;
 
 pub use compiler::{generate_comment_footer, generate_footer, CompilationResult, PathGenerator};
+pub use differ::{DiffLine, DiffResult, DiffTag, Differ};
 pub use orphan_detector::{
     extract_path_from_key, has_calvin_signature, OrphanDetectionResult, OrphanDetector, OrphanFile,
     CALVIN_SIGNATURES,
