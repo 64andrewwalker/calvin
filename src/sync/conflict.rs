@@ -111,3 +111,132 @@ impl ConflictResolver for InteractiveResolver {
         eprintln!("\n{}", diff);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unified_diff_shows_changes() {
+        let diff = unified_diff("test.md", "hello\nworld\n", "hello\nrust\n");
+        assert!(diff.contains("--- a/test.md"));
+        assert!(diff.contains("+++ b/test.md"));
+        assert!(diff.contains("-world"));
+        assert!(diff.contains("+rust"));
+    }
+
+    #[test]
+    fn unified_diff_empty_old() {
+        let diff = unified_diff("new.md", "", "new content\n");
+        assert!(diff.contains("+new content"));
+    }
+
+    #[test]
+    fn unified_diff_empty_new() {
+        let diff = unified_diff("deleted.md", "old content\n", "");
+        assert!(diff.contains("-old content"));
+    }
+
+    #[test]
+    fn unified_diff_identical_content() {
+        let diff = unified_diff("same.md", "same\n", "same\n");
+        // No changes, so no +/- lines
+        assert!(!diff.contains("-same"));
+        assert!(!diff.contains("+same"));
+    }
+
+    #[test]
+    fn conflict_reason_debug() {
+        assert_eq!(format!("{:?}", ConflictReason::Modified), "Modified");
+        assert_eq!(format!("{:?}", ConflictReason::Untracked), "Untracked");
+    }
+
+    #[test]
+    fn conflict_choice_equality() {
+        assert_eq!(ConflictChoice::Overwrite, ConflictChoice::Overwrite);
+        assert_ne!(ConflictChoice::Overwrite, ConflictChoice::Skip);
+    }
+
+    #[test]
+    fn conflict_choice_all_variants() {
+        let choices = [
+            ConflictChoice::Overwrite,
+            ConflictChoice::Skip,
+            ConflictChoice::Diff,
+            ConflictChoice::Abort,
+            ConflictChoice::OverwriteAll,
+            ConflictChoice::SkipAll,
+        ];
+        assert_eq!(choices.len(), 6);
+    }
+
+    #[test]
+    fn interactive_resolver_default() {
+        let _resolver = InteractiveResolver::default();
+        // Just verify it can be created
+    }
+
+    /// Mock resolver for testing conflict resolution logic
+    pub struct MockResolver {
+        pub responses: Vec<ConflictChoice>,
+        pub diffs_shown: Vec<String>,
+        idx: usize,
+    }
+
+    impl MockResolver {
+        pub fn new(responses: Vec<ConflictChoice>) -> Self {
+            Self {
+                responses,
+                diffs_shown: Vec::new(),
+                idx: 0,
+            }
+        }
+    }
+
+    impl ConflictResolver for MockResolver {
+        fn resolve_conflict(&mut self, _path: &str, _reason: ConflictReason) -> ConflictChoice {
+            let choice = self
+                .responses
+                .get(self.idx)
+                .copied()
+                .unwrap_or(ConflictChoice::Abort);
+            self.idx += 1;
+            choice
+        }
+
+        fn show_diff(&mut self, diff: &str) {
+            self.diffs_shown.push(diff.to_string());
+        }
+    }
+
+    #[test]
+    fn mock_resolver_returns_responses_in_order() {
+        let mut resolver = MockResolver::new(vec![
+            ConflictChoice::Overwrite,
+            ConflictChoice::Skip,
+            ConflictChoice::Abort,
+        ]);
+
+        assert_eq!(
+            resolver.resolve_conflict("a.md", ConflictReason::Modified),
+            ConflictChoice::Overwrite
+        );
+        assert_eq!(
+            resolver.resolve_conflict("b.md", ConflictReason::Untracked),
+            ConflictChoice::Skip
+        );
+        assert_eq!(
+            resolver.resolve_conflict("c.md", ConflictReason::Modified),
+            ConflictChoice::Abort
+        );
+    }
+
+    #[test]
+    fn mock_resolver_tracks_diffs() {
+        let mut resolver = MockResolver::new(vec![]);
+        resolver.show_diff("diff1");
+        resolver.show_diff("diff2");
+
+        assert_eq!(resolver.diffs_shown, vec!["diff1", "diff2"]);
+    }
+}

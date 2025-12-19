@@ -363,7 +363,7 @@ mod tests {
         let mut lf = Lockfile::new();
         lf.set_hash("project:test.md", "sha256:abc");
         lf.set_hash("home:~/.claude/test.md", "sha256:def");
-        
+
         assert_eq!(lf.get_scope("project:test.md"), Some("project"));
         assert_eq!(lf.get_scope("home:~/.claude/test.md"), Some("home"));
         assert_eq!(lf.get_scope("nonexistent"), None);
@@ -385,4 +385,3 @@ hash = "sha256:abc123"
         assert_eq!(lf.get_scope("home:~/.claude/test.md"), Some("home"));
     }
 }
-

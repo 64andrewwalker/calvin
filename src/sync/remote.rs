@@ -211,11 +211,140 @@ pub fn sync_local_rsync(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
+
+    fn make_output(path: &str, content: &str) -> OutputFile {
+        OutputFile::new(PathBuf::from(path), content.to_string())
+    }
 
     #[test]
     fn test_has_rsync() {
         // rsync should be available on most Unix systems
         #[cfg(unix)]
         assert!(has_rsync());
+    }
+
+    #[test]
+    fn sync_remote_rsync_dry_run_stages_files() {
+        let outputs = vec![
+            make_output("test.md", "content"),
+            make_output("dir/nested.md", "nested"),
+        ];
+        let options = SyncOptions {
+            dry_run: true,
+            ..Default::default()
+        };
+
+        let result = sync_remote_rsync("server:~", &outputs, &options, true).unwrap();
+
+        assert_eq!(result.written.len(), 2);
+        assert!(result.written.contains(&"test.md".to_string()));
+        assert!(result.written.contains(&"dir/nested.md".to_string()));
+        assert!(result.skipped.is_empty());
+        assert!(result.errors.is_empty());
+    }
+
+    #[test]
+    fn sync_remote_rsync_dry_run_empty_outputs() {
+        let outputs: Vec<OutputFile> = vec![];
+        let options = SyncOptions {
+            dry_run: true,
+            ..Default::default()
+        };
+
+        let result = sync_remote_rsync("server:~", &outputs, &options, true).unwrap();
+
+        assert!(result.written.is_empty());
+    }
+
+    #[test]
+    fn sync_local_rsync_dry_run_stages_files() {
+        let outputs = vec![
+            make_output("test.md", "content"),
+            make_output("dir/nested.md", "nested"),
+        ];
+        let options = SyncOptions {
+            dry_run: true,
+            ..Default::default()
+        };
+
+        let temp = tempfile::tempdir().unwrap();
+        let result = sync_local_rsync(temp.path(), &outputs, &options, true).unwrap();
+
+        assert_eq!(result.written.len(), 2);
+    }
+
+    #[test]
+    fn sync_local_rsync_dry_run_skips_home_paths() {
+        let outputs = vec![
+            make_output("test.md", "project file"),
+            make_output("~/.config/tool.md", "home file"), // Should be skipped
+        ];
+        let options = SyncOptions {
+            dry_run: true,
+            ..Default::default()
+        };
+
+        let temp = tempfile::tempdir().unwrap();
+        let result = sync_local_rsync(temp.path(), &outputs, &options, true).unwrap();
+
+        // Only the project file should be staged
+        assert_eq!(result.written.len(), 1);
+        assert!(result.written.contains(&"test.md".to_string()));
+    }
+
+    #[test]
+    fn sync_local_rsync_dry_run_empty_after_filter() {
+        let outputs = vec![
+            make_output("~/.config/a.md", "home a"),
+            make_output("~/.config/b.md", "home b"),
+        ];
+        let options = SyncOptions {
+            dry_run: true,
+            ..Default::default()
+        };
+
+        let temp = tempfile::tempdir().unwrap();
+        let result = sync_local_rsync(temp.path(), &outputs, &options, true).unwrap();
+
+        // All paths are home paths, so nothing staged
+        assert!(result.written.is_empty());
+    }
+
+    #[test]
+    fn parse_remote_with_path() {
+        // Test the remote parsing logic (inline)
+        let remote = "user@server:/home/user";
+        let (host, path) = remote.split_once(':').unwrap();
+        assert_eq!(host, "user@server");
+        assert_eq!(path, "/home/user");
+    }
+
+    #[test]
+    fn parse_remote_without_path() {
+        let remote = "server";
+        let (host, path) = if let Some((h, p)) = remote.split_once(':') {
+            (h, p)
+        } else {
+            (remote, ".")
+        };
+        assert_eq!(host, "server");
+        assert_eq!(path, ".");
+    }
+
+    #[test]
+    fn parse_remote_with_home() {
+        let remote = "server:~";
+        let (host, path) = remote.split_once(':').unwrap();
+        assert_eq!(host, "server");
+        assert_eq!(path, "~");
+    }
+
+    #[test]
+    fn parse_remote_with_home_subdir() {
+        let remote = "server:~/projects";
+        let (host, path) = remote.split_once(':').unwrap();
+        assert_eq!(host, "server");
+        assert_eq!(path, "~/projects");
     }
 }

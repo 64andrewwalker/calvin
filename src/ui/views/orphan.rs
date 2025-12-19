@@ -2,9 +2,9 @@
 
 use crossterm::style::Stylize;
 
-use calvin::sync::orphan::OrphanFile;
 use crate::ui::primitives::icon::Icon;
 use crate::ui::theme;
+use calvin::sync::orphan::OrphanFile;
 
 /// Render orphan file list with status indicators
 ///
@@ -17,7 +17,7 @@ pub fn render_orphan_list(
     supports_unicode: bool,
 ) -> String {
     let mut output = String::new();
-    
+
     let header = format!(
         "{} {} orphan files detected:",
         Icon::Warning.colored(supports_color, supports_unicode),
@@ -25,7 +25,7 @@ pub fn render_orphan_list(
     );
     output.push_str(&header);
     output.push('\n');
-    
+
     for orphan in orphans {
         let (icon, status, color) = if orphan.is_safe_to_delete() {
             (
@@ -46,10 +46,10 @@ pub fn render_orphan_list(
                 theme::colors::DIM,
             )
         };
-        
+
         // Extract path from key for display
         let path = calvin::sync::orphan::extract_path_from_key(&orphan.key);
-        
+
         let line = if supports_color {
             format!(
                 "  {} {}  {}",
@@ -60,11 +60,11 @@ pub fn render_orphan_list(
         } else {
             format!("  {} {}  {}", icon, path, status)
         };
-        
+
         output.push_str(&line);
         output.push('\n');
     }
-    
+
     output
 }
 
@@ -76,12 +76,12 @@ pub fn render_orphan_summary(
     supports_unicode: bool,
 ) -> String {
     let mut parts = Vec::new();
-    
+
     if deleted > 0 {
         let icon = Icon::Trash.colored(supports_color, supports_unicode);
         parts.push(format!("{} Deleted {} orphan file(s).", icon, deleted));
     }
-    
+
     if skipped > 0 {
         let icon = Icon::Warning.colored(supports_color, supports_unicode);
         parts.push(format!(
@@ -89,7 +89,7 @@ pub fn render_orphan_summary(
             icon, skipped
         ));
     }
-    
+
     parts.join("\n")
 }
 
@@ -111,9 +111,9 @@ mod tests {
                 exists: true,
             },
         ];
-        
+
         let rendered = render_orphan_list(&orphans, false, false);
-        
+
         assert!(rendered.contains("2 orphan files detected"));
         assert!(rendered.contains("safe.md"));
         assert!(rendered.contains("[safe]"));
@@ -123,14 +123,12 @@ mod tests {
 
     #[test]
     fn orphan_list_shows_not_found() {
-        let orphans = vec![
-            OrphanFile {
-                key: "home:~/.claude/commands/gone.md".to_string(),
-                has_signature: true,
-                exists: false,
-            },
-        ];
-        
+        let orphans = vec![OrphanFile {
+            key: "home:~/.claude/commands/gone.md".to_string(),
+            has_signature: true,
+            exists: false,
+        }];
+
         let rendered = render_orphan_list(&orphans, false, false);
         assert!(rendered.contains("[not found]"));
     }
@@ -158,22 +156,19 @@ mod tests {
     #[test]
     fn test_orphan_list_render_colors() {
         // Test that colored rendering doesn't panic and includes content
-        let orphans = vec![
-            OrphanFile {
-                key: "home:~/.claude/commands/test.md".to_string(),
-                has_signature: true,
-                exists: true,
-            },
-        ];
-        
+        let orphans = vec![OrphanFile {
+            key: "home:~/.claude/commands/test.md".to_string(),
+            has_signature: true,
+            exists: true,
+        }];
+
         // Should not panic with colors enabled
         let colored = render_orphan_list(&orphans, true, true);
         assert!(colored.contains("test.md"));
         assert!(colored.contains("[safe]"));
-        
+
         // Should not panic with ASCII mode
         let ascii = render_orphan_list(&orphans, false, false);
         assert!(ascii.contains("test.md"));
     }
 }
-
