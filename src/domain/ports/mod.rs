@@ -3,10 +3,10 @@
 //! These traits define the boundaries of the domain layer.
 //! Infrastructure layer provides concrete implementations.
 
-mod asset_repository;
-mod file_system;
-mod lockfile_repository;
+pub mod asset_repository;
+pub mod file_system;
+pub mod lockfile_repository;
 
 pub use asset_repository::AssetRepository;
-pub use file_system::FileSystem;
+pub use file_system::{FileSystem, FsError, FsResult};
 pub use lockfile_repository::LockfileRepository;
