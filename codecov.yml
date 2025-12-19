@@ -19,10 +19,12 @@ coverage:
   precision: 2
   round: down
   
-# Ignore UI modules that are hard to test (interactive/TTY)
+# Ignore modules that are hard to test (interactive/TTY/external dependencies)
 ignore:
-  - "src/ui/menu.rs"           # Interactive menu (requires TTY)
-  - "src/ui/live_region.rs"    # Live terminal updates (requires TTY)
+  - "src/ui/menu.rs"              # Interactive menu (requires TTY)
+  - "src/ui/live_region.rs"       # Live terminal updates (requires TTY)
+  - "src/commands/interactive.rs" # Interactive CLI (requires TTY)
+  - "src/commands/watch.rs"       # File watcher (requires real filesystem watching)
 
 # Flag definitions for different module groups
 flags:
