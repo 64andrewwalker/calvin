@@ -96,6 +96,18 @@ pub trait TargetAdapter: Send + Sync {
         Ok(Vec::new())
     }
 
+    /// Generate security baseline configuration
+    ///
+    /// Creates platform-specific security configuration files
+    /// (deny lists, permissions, etc.)
+    fn security_baseline(
+        &self,
+        config: &crate::config::Config,
+    ) -> Result<Vec<OutputFile>, AdapterError> {
+        let _ = config;
+        Ok(Vec::new())
+    }
+
     /// Generate header marker for generated files
     fn header(&self, source_path: &str) -> String {
         format!(
