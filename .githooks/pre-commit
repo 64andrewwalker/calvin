@@ -56,5 +56,14 @@ else
     echo -e "${YELLOW}⚠ Skipping coverage check (set CALVIN_CHECK_COVERAGE=1 to enable)${NC}"
 fi
 
+# 5. File size check (warning only, doesn't block commit)
+if [ -x "./scripts/check-file-size.sh" ]; then
+    echo ""
+    if ! ./scripts/check-file-size.sh 2>/dev/null; then
+        echo -e "${YELLOW}⚠ Some files exceed recommended size limits${NC}"
+        echo -e "${YELLOW}  Consider refactoring before the next major release${NC}"
+    fi
+fi
+
 echo -e "\n${GREEN}✅ All pre-commit checks passed!${NC}"
 
