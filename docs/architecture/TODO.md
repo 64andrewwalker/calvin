@@ -82,17 +82,40 @@
 | `ui/views/*.rs` | 有 | ✅ insta 快照 | golden 测试覆盖 |
 | `parser.rs` | - | ⚠️ 可选添加 | 通过 adapter 测试间接覆盖 |
 
+### 木桶效应分析：低覆盖率模块
+
+| 模块 | 覆盖率 | 状态 | 原因/行动 |
+|------|--------|------|-----------|
+| `sync/remote.rs` | 8.09% | 🔴 需要 mock | 需要 SSH mock 或集成测试环境 |
+| `sync/conflict.rs` | 15.71% | 🔴 需要补充 | 冲突解决路径未覆盖 |
+| `ui/live_region.rs` | 0.00% | 🟡 TTY 依赖 | 需要 TTY 模拟或标记跳过 |
+| `ui/menu.rs` | 0.00% | 🟡 TTY 依赖 | 交互式菜单，已在 codecov.yml 忽略 |
+| `ui/error.rs` | 24.57% | 🟡 边界条件 | 错误格式化路径未覆盖 |
+| `sync/plan.rs` | 61.92% | 🟡 可改进 | Remote 计划逻辑未覆盖 |
+
+### 红线 (Red Lines)
+
+**CI 强制检查**:
+- 整体覆盖率 ≥ 70% (否则 CI 失败)
+- 新代码覆盖率 ≥ 80% (via Codecov patch check)
+
+**模块级红线** (建议，非强制):
+- `sync/engine.rs` ≥ 90%
+- `sync/lockfile.rs` ≥ 85%
+- `adapters/*.rs` ≥ 80%
+- `config.rs` ≥ 70%
+
 ### 结论
 
 **现有测试覆盖已经足够开始重构**，因为：
-1. SyncEngine 有 33 个测试，覆盖所有主要场景
-2. 有 E2E 测试验证端到端行为
-3. 有 golden 快照测试保证 UI 输出一致性
+1. 核心路径模块覆盖率高（engine 94%, lockfile 87%, orphan 98%）
+2. 低覆盖率模块大多是 UI/TTY 相关（已标记忽略）
+3. 有 CI 阈值检查防止覆盖率下降
 
 ### 可选改进（重构后）
 
-- [ ] 运行 `cargo llvm-cov` 获取精确覆盖率数据
-- [ ] 为 `parser.rs` 添加边界条件测试
+- [ ] 为 `sync/conflict.rs` 添加测试
+- [ ] 为 `sync/remote.rs` 添加 mock SSH 测试
 - [ ] 考虑添加属性测试 (`proptest`)
 
 ### 参考文档
