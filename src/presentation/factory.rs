@@ -44,6 +44,11 @@ pub fn create_adapters_for_targets(
     targets: &[crate::domain::value_objects::Target],
 ) -> Vec<Box<dyn TargetAdapter>> {
     use crate::domain::value_objects::Target;
+    use crate::infrastructure::adapters::{AntigravityAdapter, CodexAdapter, VSCodeAdapter};
+
+    if targets.is_empty() || targets.contains(&Target::All) {
+        return all_adapters();
+    }
 
     let mut adapters: Vec<Box<dyn TargetAdapter>> = Vec::new();
 
@@ -51,12 +56,11 @@ pub fn create_adapters_for_targets(
         match target {
             Target::ClaudeCode => adapters.push(Box::new(ClaudeCodeAdapter::new())),
             Target::Cursor => adapters.push(Box::new(CursorAdapter::new())),
-            // TODO: Add other adapters as they are migrated
-            Target::VSCode | Target::Antigravity | Target::Codex => {
-                // Not yet migrated - use legacy adapters
-            }
+            Target::VSCode => adapters.push(Box::new(VSCodeAdapter::new())),
+            Target::Antigravity => adapters.push(Box::new(AntigravityAdapter::new())),
+            Target::Codex => adapters.push(Box::new(CodexAdapter::new())),
             Target::All => {
-                // Return all available adapters
+                // Handled above
                 return all_adapters();
             }
         }
