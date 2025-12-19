@@ -15,6 +15,7 @@
 
 // New architecture layers (v2)
 pub mod domain;
+pub mod infrastructure;
 
 // Legacy modules (will be refactored)
 pub mod adapters;
