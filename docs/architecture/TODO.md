@@ -11,8 +11,8 @@
 |------|------|----------|
 | 阶段 0: 规划 | ✅ 完成 | 1 天 |
 | 阶段 0.5: 测试覆盖 | ✅ 评估完成 | - |
-| **阶段 1: 建立骨架** | 🔄 进行中 | 1-2 天 |
-| 阶段 2: 提取 Domain | 🔲 待开始 | 2-3 天 |
+| **阶段 1: 建立骨架** | ✅ 完成 | 1-2 天 |
+| **阶段 2: 提取 Domain** | 🔄 进行中 | 2-3 天 |
 | 阶段 3: 提取 Infrastructure | 🔲 待开始 | 2-3 天 |
 | 阶段 4: 重写 Application | 🔲 待开始 | 1-2 天 |
 | 阶段 5: 清理 Presentation | 🔲 待开始 | 1 天 |
@@ -126,21 +126,21 @@
 
 ---
 
-## 阶段 1: 建立骨架
+## 阶段 1: 建立骨架 ✅
 
-**状态**: 🔲 待开始
+**状态**: ✅ 完成
 
 **目标**: 创建新目录结构，定义核心 traits
 
 **任务**:
-- [ ] 创建 `src/presentation/` 目录
-- [ ] 创建 `src/application/` 目录
-- [ ] 创建 `src/domain/` 目录
-- [ ] 创建 `src/infrastructure/` 目录
-- [ ] 定义 `AssetRepository` trait
-- [ ] 定义 `LockfileRepository` trait
-- [ ] 定义 `FileSystem` trait (已有，需迁移)
-- [ ] 定义 `TargetAdapter` trait
+- [x] 创建 `src/domain/` 目录
+- [x] 定义 `AssetRepository` trait (`domain/ports/asset_repository.rs`)
+- [x] 定义 `LockfileRepository` trait (`domain/ports/lockfile_repository.rs`)
+- [x] 定义 `FileSystem` trait (`domain/ports/file_system.rs`)
+- [ ] 定义 `TargetAdapter` trait (移至阶段 3)
+- [ ] 创建 `src/presentation/` 目录 (移至阶段 5)
+- [ ] 创建 `src/application/` 目录 (移至阶段 4)
+- [ ] 创建 `src/infrastructure/` 目录 (移至阶段 3)
 
 **必读文档**:
 - [directory.md](./directory.md) - 目录结构规范
@@ -160,21 +160,23 @@
 
 ## 阶段 2: 提取 Domain
 
-**状态**: 🔲 待开始
+**状态**: 🔄 进行中 (75% 完成)
 
 **目标**: 将纯业务逻辑提取到 `domain/`
 
 **任务**:
-- [ ] 提取 `Asset` 实体到 `domain/entities/`
-- [ ] 提取 `OutputFile` 到 `domain/entities/`
-- [ ] 提取 `Lockfile` 逻辑到 `domain/entities/`
-- [ ] 提取 `Scope` 值对象到 `domain/value_objects/`
-- [ ] 提取 `Target` 值对象到 `domain/value_objects/`
-- [ ] 提取编译逻辑到 `domain/services/compiler.rs`
-- [ ] 提取计划逻辑到 `domain/services/planner.rs`
-- [ ] 提取 Orphan 检测到 `domain/services/orphan.rs`
-- [ ] 提取安全策略到 `domain/policies/security.rs`
+- [x] 提取 `Asset` 实体到 `domain/entities/asset.rs` (11 tests)
+- [x] 提取 `OutputFile` 到 `domain/entities/output_file.rs` (10 tests)
+- [x] 提取 `Lockfile` 逻辑到 `domain/entities/lockfile.rs` (15 tests)
+- [x] 提取 `Scope` 值对象到 `domain/value_objects/scope.rs` (8 tests)
+- [x] 提取 `Target` 值对象到 `domain/value_objects/target.rs` (10 tests)
+- [x] 提取编译辅助到 `domain/services/compiler.rs` (17 tests)
+- [x] 提取计划逻辑到 `domain/services/planner.rs` (18 tests)
+- [x] 提取 Orphan 检测到 `domain/services/orphan_detector.rs` (20 tests)
 - [ ] 提取 Scope 策略到 `domain/policies/scope_policy.rs`
+- [ ] 提取安全策略到 `domain/policies/security.rs`
+
+**当前测试统计**: 109 个 domain 层测试
 
 **必读文档**:
 - [layers.md](./layers.md) - Domain 层职责
@@ -345,10 +347,39 @@
 
 ---
 
+---
+
+## 🌍 跨平台兼容性
+
+**状态**: 🔄 设计中
+
+**相关文档**: [platform.md](./platform.md)
+
+### 检查清单
+
+| 任务 | 状态 | 优先级 |
+|------|------|--------|
+| 使用 `dirs` crate 获取 home 目录 | ✅ 已使用 | P0 |
+| 使用 `PathBuf::join()` 而非字符串拼接 | ✅ 已遵循 | P0 |
+| 添加 Windows CI 测试 | 🔲 待开始 | P1 |
+| 文档化 Windows rsync 要求 | 🔲 待开始 | P2 |
+| 测试 WSL 环境兼容性 | 🔲 待开始 | P2 |
+
+### 需关注的模块
+
+- `sync/mod.rs` - `expand_home_dir()` ✅ 已使用 dirs crate
+- `domain/services/compiler.rs` - 路径生成 (使用 PathBuf::from + join)
+- `sync/remote.rs` - rsync 命令 (Unix 专用)
+- `fs.rs` - 文件系统操作
+
+---
+
 ## 更新日志
 
 | 日期 | 更新内容 |
 |------|----------|
+| 2025-12-19 | 添加跨平台兼容性检查清单 |
+| 2025-12-19 | 更新阶段 1/2 状态，添加 domain 测试统计 |
 | 2025-12-19 | 添加资深架构师审查结果，更新立即行动项 |
 | 2025-12-19 | 创建 TODO 文档，完成阶段 0 规划 |
 

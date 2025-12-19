@@ -48,11 +48,14 @@ pub fn expand_home_dir(path: &Path) -> PathBuf {
 }
 
 /// Get home directory (platform-independent)
+///
+/// Uses `dirs` crate for robust cross-platform support:
+/// - macOS: /Users/<username>
+/// - Linux: /home/<username>
+/// - Windows: C:\Users\<username>
 fn dirs_home() -> Option<PathBuf> {
-    std::env::var("HOME")
-        .ok()
-        .map(PathBuf::from)
-        .or_else(|| std::env::var("USERPROFILE").ok().map(PathBuf::from))
+    // Use dirs crate for proper cross-platform support
+    dirs::home_dir()
 }
 
 /// Check if a path is safe (doesn't escape project root)
