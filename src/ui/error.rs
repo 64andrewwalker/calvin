@@ -231,4 +231,116 @@ mod tests {
         let rendered = format_calvin_error_with(&err, false, true);
         assert!(rendered.contains(&format!("{}    2 | second", Icon::Pointer.render(true))));
     }
+
+    #[test]
+    fn test_format_unclosed_frontmatter() {
+        let err = calvin::CalvinError::UnclosedFrontmatter {
+            file: PathBuf::from("test.md"),
+        };
+
+        let rendered = format_calvin_error_with(&err, false, true);
+        assert!(rendered.contains("not properly closed"));
+        assert!(rendered.contains("FIX:"));
+    }
+
+    #[test]
+    fn test_format_invalid_frontmatter() {
+        let err = calvin::CalvinError::InvalidFrontmatter {
+            file: PathBuf::from("test.md"),
+            message: "Invalid YAML syntax".to_string(),
+        };
+
+        let rendered = format_calvin_error_with(&err, false, true);
+        assert!(rendered.contains("Invalid YAML syntax"));
+    }
+
+    #[test]
+    fn test_format_io_error() {
+        let err = calvin::CalvinError::Io(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "File not found",
+        ));
+
+        let rendered = format_calvin_error_with(&err, false, true);
+        assert!(rendered.contains("File not found"));
+    }
+
+    #[test]
+    fn test_format_error_with_anyhow() {
+        let err = anyhow::anyhow!("Generic error message");
+        let rendered = format_error(&err);
+        assert!(rendered.contains("Generic error message"));
+        assert!(rendered.contains("[ERROR]"));
+    }
+
+    #[test]
+    fn test_format_error_with_calvin_error() {
+        let calvin_err = calvin::CalvinError::NoFrontmatter {
+            file: PathBuf::from("test.md"),
+        };
+        let err = anyhow::Error::from(calvin_err);
+        let rendered = format_error(&err);
+        assert!(rendered.contains("No YAML frontmatter"));
+    }
+
+    #[test]
+    fn test_error_file_extraction() {
+        let missing = calvin::CalvinError::MissingField {
+            field: "test".to_string(),
+            file: PathBuf::from("a.md"),
+            line: 1,
+        };
+        assert_eq!(error_file(&missing), Some(Path::new("a.md")));
+
+        let no_fm = calvin::CalvinError::NoFrontmatter {
+            file: PathBuf::from("b.md"),
+        };
+        assert_eq!(error_file(&no_fm), Some(Path::new("b.md")));
+
+        let unclosed = calvin::CalvinError::UnclosedFrontmatter {
+            file: PathBuf::from("c.md"),
+        };
+        assert_eq!(error_file(&unclosed), Some(Path::new("c.md")));
+
+        let invalid = calvin::CalvinError::InvalidFrontmatter {
+            file: PathBuf::from("d.md"),
+            message: "".to_string(),
+        };
+        assert_eq!(error_file(&invalid), Some(Path::new("d.md")));
+
+        let io = calvin::CalvinError::Io(std::io::Error::new(std::io::ErrorKind::Other, "error"));
+        assert_eq!(error_file(&io), None);
+    }
+
+    #[test]
+    fn test_format_with_color_support() {
+        let err = calvin::CalvinError::NoFrontmatter {
+            file: PathBuf::from("test.md"),
+        };
+
+        // With color support
+        let with_color = format_calvin_error_with(&err, true, true);
+        // Without color support
+        let without_color = format_calvin_error_with(&err, false, true);
+
+        // Both should contain the error message
+        assert!(with_color.contains("No YAML frontmatter"));
+        assert!(without_color.contains("No YAML frontmatter"));
+    }
+
+    #[test]
+    fn test_format_with_unicode_support() {
+        let err = calvin::CalvinError::NoFrontmatter {
+            file: PathBuf::from("test.md"),
+        };
+
+        // With unicode
+        let with_unicode = format_calvin_error_with(&err, false, true);
+        // Without unicode
+        let without_unicode = format_calvin_error_with(&err, false, false);
+
+        // Both should contain the error message
+        assert!(with_unicode.contains("No YAML frontmatter"));
+        assert!(without_unicode.contains("No YAML frontmatter"));
+    }
 }
