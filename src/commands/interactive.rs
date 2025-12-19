@@ -2,6 +2,7 @@ use std::path::Path;
 
 use anyhow::Result;
 use dialoguer::{Confirm, Input, Select};
+use is_terminal::IsTerminal;
 
 use crate::cli::ColorWhen;
 use crate::commands;
@@ -38,7 +39,7 @@ pub fn cmd_interactive(
         return Ok(());
     }
 
-    if !atty::is(atty::Stream::Stdin) {
+    if !std::io::stdin().is_terminal() {
         println!("No command provided.");
         println!("Try: `calvin deploy` or `calvin --help`");
         return Ok(());
