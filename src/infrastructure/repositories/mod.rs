@@ -2,9 +2,8 @@
 //!
 //! Concrete implementations of domain repository ports.
 
+mod asset;
 mod lockfile;
 
+pub use asset::FsAssetRepository;
 pub use lockfile::TomlLockfileRepository;
-
-// Asset repository will be added later
-pub struct FsAssetRepository;

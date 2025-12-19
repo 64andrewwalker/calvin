@@ -3,10 +3,9 @@
 //! Implements the LockfileRepository port using TOML format.
 
 use crate::domain::entities::Lockfile;
-use crate::domain::ports::FileSystem;
-use crate::domain::ports::LockfileRepository;
+use crate::domain::ports::file_system::FileSystem;
+use crate::domain::ports::lockfile_repository::{LockfileError, LockfileRepository};
 use crate::infrastructure::fs::LocalFs;
-use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -51,13 +50,21 @@ struct TomlLockfile {
 }
 
 impl LockfileRepository for TomlLockfileRepository {
-    fn load(&self, path: &Path) -> Result<Lockfile> {
+    fn load_or_new(&self, path: &Path) -> Lockfile {
+        self.load(path).unwrap_or_else(|_| Lockfile::new())
+    }
+
+    fn load(&self, path: &Path) -> Result<Lockfile, LockfileError> {
         if !self.fs.exists(path) {
             return Ok(Lockfile::new());
         }
 
-        let content = self.fs.read(path)?;
-        let toml_lockfile: TomlLockfile = toml::from_str(&content)?;
+        let content = self
+            .fs
+            .read(path)
+            .map_err(|e| LockfileError::IoError(e.to_string()))?;
+        let toml_lockfile: TomlLockfile =
+            toml::from_str(&content).map_err(|e| LockfileError::ParseError(e.to_string()))?;
 
         let mut lockfile = Lockfile::new();
         for (key, entry) in toml_lockfile.files {
@@ -67,7 +74,7 @@ impl LockfileRepository for TomlLockfileRepository {
         Ok(lockfile)
     }
 
-    fn save(&self, lockfile: &Lockfile, path: &Path) -> Result<()> {
+    fn save(&self, lockfile: &Lockfile, path: &Path) -> Result<(), LockfileError> {
         let mut files = BTreeMap::new();
         for (key, entry) in lockfile.entries() {
             files.insert(
@@ -83,8 +90,11 @@ impl LockfileRepository for TomlLockfileRepository {
             files,
         };
 
-        let content = toml::to_string_pretty(&toml_lockfile)?;
-        self.fs.write(path, &content)?;
+        let content = toml::to_string_pretty(&toml_lockfile)
+            .map_err(|e| LockfileError::ParseError(e.to_string()))?;
+        self.fs
+            .write(path, &content)
+            .map_err(|e| LockfileError::IoError(e.to_string()))?;
 
         Ok(())
     }

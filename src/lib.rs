@@ -14,8 +14,10 @@
 //! See `docs/architecture/` for the full design.
 
 // New architecture layers (v2)
+pub mod application;
 pub mod domain;
 pub mod infrastructure;
+pub mod presentation;
 
 // Legacy modules (will be refactored)
 pub mod adapters;
