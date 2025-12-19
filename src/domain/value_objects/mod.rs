@@ -3,8 +3,12 @@
 //! Immutable value types that represent domain concepts.
 //! These are defined in the domain layer but can be re-exported for legacy code.
 
+mod hash;
+mod path;
 mod scope;
 mod target;
 
+pub use hash::ContentHash;
+pub use path::{PathError, SafePath};
 pub use scope::Scope;
 pub use target::Target;
