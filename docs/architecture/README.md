@@ -13,6 +13,7 @@
 | [layers.md](./layers.md) | 分层架构详解 |
 | [directory.md](./directory.md) | 目录结构规范 |
 | [ports.md](./ports.md) | 接口定义 (Ports) |
+| [platform.md](./platform.md) | 跨平台兼容层设计 (macOS/Linux/Windows) |
 | [migration.md](./migration.md) | 迁移路径与对比 |
 | [docs.md](./docs.md) | 文档架构设计 |
 
