@@ -9,6 +9,7 @@ mod conflict;
 pub mod engine;
 pub mod execute;
 pub mod lockfile;
+pub mod orphan;
 pub mod pipeline;
 pub mod plan;
 pub mod remote;

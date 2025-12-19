@@ -19,6 +19,16 @@ pub enum LockfileNamespace {
     Home,
 }
 
+impl LockfileNamespace {
+    /// Convert namespace to string for storage
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            LockfileNamespace::Project => "project",
+            LockfileNamespace::Home => "home",
+        }
+    }
+}
+
 /// Calvin lockfile
 ///
 /// Tracks generated file hashes to detect user modifications.
@@ -42,6 +52,8 @@ fn default_version() -> u32 {
 pub struct FileEntry {
     /// SHA-256 hash of file content
     pub hash: String,
+    // Note: scope is encoded in the key prefix (home: or project:)
+    // No separate scope field needed - see docs/impl-plan-sc7-scope.md
 }
 
 impl Lockfile {
@@ -112,6 +124,22 @@ impl Lockfile {
                 hash: hash.to_string(),
             },
         );
+    }
+
+    /// Get scope for a file path by parsing the key prefix
+    /// Returns "home" or "project" based on the key format
+    pub fn get_scope(&self, path: &str) -> Option<&'static str> {
+        if self.files.contains_key(path) {
+            if path.starts_with("home:") {
+                Some("home")
+            } else if path.starts_with("project:") {
+                Some("project")
+            } else {
+                None
+            }
+        } else {
+            None
+        }
     }
 
     /// Remove a file entry
@@ -326,4 +354,35 @@ mod tests {
             "project:"
         );
     }
+
+    // --- SC-7 Scope Tracking Tests ---
+    // Note: Scope is now inferred from key prefix, not stored separately
+
+    #[test]
+    fn get_scope_infers_from_key_prefix() {
+        let mut lf = Lockfile::new();
+        lf.set_hash("project:test.md", "sha256:abc");
+        lf.set_hash("home:~/.claude/test.md", "sha256:def");
+        
+        assert_eq!(lf.get_scope("project:test.md"), Some("project"));
+        assert_eq!(lf.get_scope("home:~/.claude/test.md"), Some("home"));
+        assert_eq!(lf.get_scope("nonexistent"), None);
+    }
+
+    #[test]
+    fn old_lockfile_format_still_loads() {
+        // Old lockfile format (no scope field - which is now the standard)
+        let toml_content = r#"
+version = 1
+
+[files."home:~/.claude/test.md"]
+hash = "sha256:abc123"
+"#;
+        let lf: Lockfile = toml::from_str(toml_content).unwrap();
+        let entry = lf.files.get("home:~/.claude/test.md").unwrap();
+        assert_eq!(entry.hash, "sha256:abc123");
+        // Scope is inferred from key prefix
+        assert_eq!(lf.get_scope("home:~/.claude/test.md"), Some("home"));
+    }
 }
+

@@ -64,6 +64,10 @@ pub enum Commands {
         #[arg(long)]
         dry_run: bool,
 
+        /// Remove orphan files with Calvin signature
+        #[arg(long)]
+        cleanup: bool,
+
         /// Target platforms (will prompt interactively if not specified)
         #[arg(short, long, value_delimiter = ',')]
         targets: Option<Vec<Target>>,
@@ -237,6 +241,7 @@ mod tests {
             force,
             yes,
             dry_run,
+            cleanup,
             targets,
             ..
         }) = cli.command
@@ -246,7 +251,18 @@ mod tests {
             assert!(!force);
             assert!(!yes);
             assert!(!dry_run);
+            assert!(!cleanup);
             assert_eq!(targets, None);
+        } else {
+            panic!("Expected Deploy command");
+        }
+    }
+
+    #[test]
+    fn test_cli_parse_deploy_cleanup() {
+        let cli = Cli::try_parse_from(["calvin", "deploy", "--cleanup"]).unwrap();
+        if let Some(Commands::Deploy { cleanup, .. }) = cli.command {
+            assert!(cleanup);
         } else {
             panic!("Expected Deploy command");
         }

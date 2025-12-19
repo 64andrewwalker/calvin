@@ -35,6 +35,7 @@ pub mod icons {
     pub const CHECK: &str = "🔍";
     pub const REMOTE: &str = "📡";
     pub const DIFF: &str = "Δ";
+    pub const TRASH: &str = "🗑";
 }
 
 pub mod icons_ascii {
@@ -51,6 +52,7 @@ pub mod icons_ascii {
     pub const CHECK: &str = "[CHECK]";
     pub const REMOTE: &str = "[REMOTE]";
     pub const DIFF: &str = "[DIFF]";
+    pub const TRASH: &str = "[DEL]";
 }
 
 pub mod borders {

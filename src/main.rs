@@ -55,6 +55,7 @@ fn dispatch(
             force,
             yes,
             dry_run,
+            cleanup,
             targets,
         } => commands::deploy::cmd_deploy(
             &source,
@@ -64,6 +65,7 @@ fn dispatch(
             force || yes,
             is_interactive_run(json, yes),
             dry_run,
+            cleanup,
             json,
             verbose,
             color,
