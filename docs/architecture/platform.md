@@ -93,13 +93,59 @@ impl HomeDirectory for SystemHomeDirectory {
 
 ### 不同 AI 工具的配置位置
 
-| Target | macOS/Linux | Windows |
-|--------|-------------|---------|
-| Claude Code | `~/.claude/` | `%USERPROFILE%\.claude\` |
-| Cursor | `~/.cursor/` | `%USERPROFILE%\.cursor\` |
-| VS Code | `~/.vscode/` | `%APPDATA%\Code\` |
-| Gemini | `.gemini/` (project only) | `.gemini\` |
-| Codex | `~/.codex/` | `%USERPROFILE%\.codex\` |
+Calvin 支持 5 个目标平台，每个平台有不同的配置目录结构：
+
+#### Claude Code
+
+| Scope | macOS/Linux | Windows |
+|-------|-------------|---------|
+| Project | `.claude/commands/<id>.md` | `.claude\commands\<id>.md` |
+| User | `~/.claude/commands/<id>.md` | `%USERPROFILE%\.claude\commands\<id>.md` |
+
+**附加文件**:
+- `.claude/settings.json` - 安全设置（deny list）
+
+#### Cursor
+
+| Scope | macOS/Linux | Windows |
+|-------|-------------|---------|
+| Project | `.cursor/rules/<id>/RULE.md` | `.cursor\rules\<id>\RULE.md` |
+| User | `~/.cursor/rules/<id>/RULE.md` | `%USERPROFILE%\.cursor\rules\<id>\RULE.md` |
+
+**注意**: Cursor 自动读取 Claude 的 commands 目录，无需单独生成 commands。
+
+#### VS Code (GitHub Copilot)
+
+| Scope | macOS/Linux | Windows |
+|-------|-------------|---------|
+| Project | `.github/instructions/<id>.instructions.md` | `.github\instructions\<id>.instructions.md` |
+| User | N/A (project-only) | N/A |
+
+**附加文件**:
+- `.github/copilot-instructions.md` - 合并模式（可选）
+- `AGENTS.md` - 索引文件
+
+#### Codex (OpenAI)
+
+| Scope | macOS/Linux | Windows |
+|-------|-------------|---------|
+| Project | `.codex/prompts/<id>.md` | `.codex\prompts\<id>.md` |
+| User | `~/.codex/prompts/<id>.md` | `%USERPROFILE%\.codex\prompts\<id>.md` |
+
+**格式**: 使用 YAML frontmatter，包含 `$ARGUMENTS` 占位符
+
+#### Antigravity (Google Gemini)
+
+| Scope | macOS/Linux | Windows |
+|-------|-------------|---------|
+| Project | `.agent/workflows/<id>.md` | `.agent\workflows\<id>.md` |
+| User | `~/.gemini/antigravity/global_workflows/<id>.md` | `%USERPROFILE%\.gemini\antigravity\global_workflows\<id>.md` |
+
+### 路径处理的关键点
+
+1. **使用 `~` 前缀**: 所有 User scope 路径使用 `~/` 前缀，在 sync 时展开
+2. **PathBuf::join()**: 自动处理平台分隔符
+3. **User scope 在 Windows**: `~` 展开为 `%USERPROFILE%` (通常是 `C:\Users\<name>`)
 
 ### 平台感知路径生成器
 

@@ -81,72 +81,136 @@ pub fn generate_comment_footer(source_path: &str, version: &str) -> String {
 }
 
 /// Path computation for different targets and asset kinds
+///
+/// This generates platform-agnostic paths using `PathBuf::from()` and `.join()`.
+/// The `~/` prefix is expanded at sync time to the user's home directory.
+///
+/// Cross-platform support:
+/// - macOS/Linux: `~/` → `$HOME/`
+/// - Windows: `~/` → `%USERPROFILE%\`
 pub struct PathGenerator;
 
 impl PathGenerator {
-    /// Get the rules path for a target
+    /// Get the rules/policy path for a target
+    ///
+    /// # Arguments
+    /// * `target` - The target platform
+    /// * `asset_id` - The asset identifier (used for filename)
+    /// * `is_user_scope` - Whether this is a user-level (global) asset
+    ///
+    /// # Returns
+    /// The path where the rule file should be written, or None if the target
+    /// doesn't support rules at this scope.
     pub fn rules_path(target: Target, asset_id: &str, is_user_scope: bool) -> Option<PathBuf> {
-        let base = match target {
+        match target {
             Target::ClaudeCode => {
-                if is_user_scope {
-                    PathBuf::from("~/.claude")
+                // Claude Code uses commands for everything, not separate rules
+                // But we map policies to commands as well
+                let base = if is_user_scope {
+                    PathBuf::from("~").join(".claude").join("commands")
                 } else {
-                    PathBuf::from(".claude")
-                }
+                    PathBuf::from(".claude").join("commands")
+                };
+                Some(base.join(format!("{}.md", asset_id)))
             }
             Target::Cursor => {
-                if is_user_scope {
-                    PathBuf::from("~/.cursor/rules")
+                // Cursor uses: .cursor/rules/<id>/RULE.md
+                let base = if is_user_scope {
+                    PathBuf::from("~").join(".cursor").join("rules")
                 } else {
-                    PathBuf::from(".cursor/rules")
-                }
+                    PathBuf::from(".cursor").join("rules")
+                };
+                Some(base.join(asset_id).join("RULE.md"))
             }
             Target::VSCode => {
+                // VS Code/Copilot uses: .github/instructions/<id>.instructions.md
+                // User scope not supported for VS Code
                 if is_user_scope {
-                    PathBuf::from("~/.vscode")
-                } else {
-                    PathBuf::from(".vscode")
-                }
-            }
-            Target::Antigravity => {
-                if is_user_scope {
-                    // Gemini doesn't have user-level rules
                     return None;
                 }
-                PathBuf::from(".gemini")
+                let base = PathBuf::from(".github").join("instructions");
+                Some(base.join(format!("{}.instructions.md", asset_id)))
+            }
+            Target::Antigravity => {
+                // Antigravity/Gemini uses: .agent/workflows/<id>.md
+                // User scope: ~/.gemini/antigravity/global_workflows/<id>.md
+                let base = if is_user_scope {
+                    PathBuf::from("~")
+                        .join(".gemini")
+                        .join("antigravity")
+                        .join("global_workflows")
+                } else {
+                    PathBuf::from(".agent").join("workflows")
+                };
+                Some(base.join(format!("{}.md", asset_id)))
             }
             Target::Codex => {
-                // Codex always writes to home
-                PathBuf::from("~/.codex/prompts")
+                // Codex uses: ~/.codex/prompts/<id>.md or .codex/prompts/<id>.md
+                let base = if is_user_scope {
+                    PathBuf::from("~").join(".codex").join("prompts")
+                } else {
+                    PathBuf::from(".codex").join("prompts")
+                };
+                Some(base.join(format!("{}.md", asset_id)))
             }
-            Target::All => return None, // All is expanded before this
-        };
-
-        Some(base.join(format!("{}.md", asset_id)))
+            Target::All => None, // All is expanded before this
+        }
     }
 
-    /// Get the commands path for a target
+    /// Get the commands/action path for a target
+    ///
+    /// # Arguments
+    /// * `target` - The target platform
+    /// * `asset_id` - The asset identifier (used for filename)
+    /// * `is_user_scope` - Whether this is a user-level (global) asset
+    ///
+    /// # Returns
+    /// The path where the command file should be written, or None if the target
+    /// doesn't support commands.
     pub fn commands_path(target: Target, asset_id: &str, is_user_scope: bool) -> Option<PathBuf> {
         match target {
             Target::ClaudeCode => {
                 let base = if is_user_scope {
-                    PathBuf::from("~/.claude/commands")
+                    PathBuf::from("~").join(".claude").join("commands")
                 } else {
-                    PathBuf::from(".claude/commands")
+                    PathBuf::from(".claude").join("commands")
                 };
                 Some(base.join(format!("{}.md", asset_id)))
             }
             Target::Cursor => {
-                // Cursor uses commands format when Claude Code is not available
+                // Cursor reads Claude's commands, but can also have its own
                 let base = if is_user_scope {
-                    PathBuf::from("~/.cursor/commands")
+                    PathBuf::from("~").join(".cursor").join("commands")
                 } else {
-                    PathBuf::from(".cursor/commands")
+                    PathBuf::from(".cursor").join("commands")
                 };
                 Some(base.join(format!("{}.md", asset_id)))
             }
-            _ => None, // Other targets don't have commands
+            _ => None, // Other targets don't have slash commands
         }
+    }
+
+    /// Get the prompts path for Codex
+    pub fn codex_prompts_path(asset_id: &str, is_user_scope: bool) -> PathBuf {
+        let base = if is_user_scope {
+            PathBuf::from("~").join(".codex").join("prompts")
+        } else {
+            PathBuf::from(".codex").join("prompts")
+        };
+        base.join(format!("{}.md", asset_id))
+    }
+
+    /// Get the workflows path for Antigravity/Gemini
+    pub fn antigravity_workflows_path(asset_id: &str, is_user_scope: bool) -> PathBuf {
+        let base = if is_user_scope {
+            PathBuf::from("~")
+                .join(".gemini")
+                .join("antigravity")
+                .join("global_workflows")
+        } else {
+            PathBuf::from(".agent").join("workflows")
+        };
+        base.join(format!("{}.md", asset_id))
     }
 }
 
@@ -230,44 +294,91 @@ mod tests {
     #[test]
     fn path_generator_claude_rules_project() {
         let path = PathGenerator::rules_path(Target::ClaudeCode, "test-rule", false);
-        assert_eq!(path, Some(PathBuf::from(".claude/test-rule.md")));
+        // Claude uses .join() for platform-agnostic paths
+        let expected = PathBuf::from(".claude")
+            .join("commands")
+            .join("test-rule.md");
+        assert_eq!(path, Some(expected));
     }
 
     #[test]
     fn path_generator_claude_rules_user() {
         let path = PathGenerator::rules_path(Target::ClaudeCode, "test-rule", true);
-        assert_eq!(path, Some(PathBuf::from("~/.claude/test-rule.md")));
+        let expected = PathBuf::from("~")
+            .join(".claude")
+            .join("commands")
+            .join("test-rule.md");
+        assert_eq!(path, Some(expected));
     }
 
     #[test]
     fn path_generator_cursor_rules_project() {
         let path = PathGenerator::rules_path(Target::Cursor, "test-rule", false);
-        assert_eq!(path, Some(PathBuf::from(".cursor/rules/test-rule.md")));
+        // Cursor uses: .cursor/rules/<id>/RULE.md
+        let expected = PathBuf::from(".cursor")
+            .join("rules")
+            .join("test-rule")
+            .join("RULE.md");
+        assert_eq!(path, Some(expected));
     }
 
     #[test]
     fn path_generator_cursor_rules_user() {
         let path = PathGenerator::rules_path(Target::Cursor, "test-rule", true);
-        assert_eq!(path, Some(PathBuf::from("~/.cursor/rules/test-rule.md")));
+        let expected = PathBuf::from("~")
+            .join(".cursor")
+            .join("rules")
+            .join("test-rule")
+            .join("RULE.md");
+        assert_eq!(path, Some(expected));
     }
 
     #[test]
-    fn path_generator_antigravity_project_only() {
-        let path = PathGenerator::rules_path(Target::Antigravity, "test-rule", false);
-        assert_eq!(path, Some(PathBuf::from(".gemini/test-rule.md")));
+    fn path_generator_vscode_project_only() {
+        let path = PathGenerator::rules_path(Target::VSCode, "test-rule", false);
+        let expected = PathBuf::from(".github")
+            .join("instructions")
+            .join("test-rule.instructions.md");
+        assert_eq!(path, Some(expected));
 
-        // User scope not supported
-        let path = PathGenerator::rules_path(Target::Antigravity, "test-rule", true);
+        // User scope not supported for VSCode
+        let path = PathGenerator::rules_path(Target::VSCode, "test-rule", true);
         assert_eq!(path, None);
     }
 
     #[test]
-    fn path_generator_codex_always_home() {
-        let path = PathGenerator::rules_path(Target::Codex, "test-rule", false);
-        assert_eq!(path, Some(PathBuf::from("~/.codex/prompts/test-rule.md")));
+    fn path_generator_antigravity_both_scopes() {
+        // Project scope
+        let path = PathGenerator::rules_path(Target::Antigravity, "test-rule", false);
+        let expected = PathBuf::from(".agent")
+            .join("workflows")
+            .join("test-rule.md");
+        assert_eq!(path, Some(expected));
 
+        // User scope - goes to ~/.gemini/antigravity/global_workflows/
+        let path = PathGenerator::rules_path(Target::Antigravity, "test-rule", true);
+        let expected = PathBuf::from("~")
+            .join(".gemini")
+            .join("antigravity")
+            .join("global_workflows")
+            .join("test-rule.md");
+        assert_eq!(path, Some(expected));
+    }
+
+    #[test]
+    fn path_generator_codex_both_scopes() {
+        // Project scope
+        let path = PathGenerator::rules_path(Target::Codex, "test-rule", false);
+        let expected = PathBuf::from(".codex").join("prompts").join("test-rule.md");
+        assert_eq!(path, Some(expected));
+
+        // User scope
         let path = PathGenerator::rules_path(Target::Codex, "test-rule", true);
-        assert_eq!(path, Some(PathBuf::from("~/.codex/prompts/test-rule.md")));
+        let expected = PathBuf::from("~")
+            .join(".codex")
+            .join("prompts")
+            .join("test-rule.md");
+        assert_eq!(path, Some(expected));
     }
 
     #[test]
@@ -279,16 +390,22 @@ mod tests {
     #[test]
     fn path_generator_claude_commands() {
         let path = PathGenerator::commands_path(Target::ClaudeCode, "my-cmd", false);
-        assert_eq!(path, Some(PathBuf::from(".claude/commands/my-cmd.md")));
+        let expected = PathBuf::from(".claude").join("commands").join("my-cmd.md");
+        assert_eq!(path, Some(expected));
 
         let path = PathGenerator::commands_path(Target::ClaudeCode, "my-cmd", true);
-        assert_eq!(path, Some(PathBuf::from("~/.claude/commands/my-cmd.md")));
+        let expected = PathBuf::from("~")
+            .join(".claude")
+            .join("commands")
+            .join("my-cmd.md");
+        assert_eq!(path, Some(expected));
     }
 
     #[test]
     fn path_generator_cursor_commands() {
         let path = PathGenerator::commands_path(Target::Cursor, "my-cmd", false);
-        assert_eq!(path, Some(PathBuf::from(".cursor/commands/my-cmd.md")));
+        let expected = PathBuf::from(".cursor").join("commands").join("my-cmd.md");
+        assert_eq!(path, Some(expected));
     }
 
     #[test]
@@ -305,5 +422,36 @@ mod tests {
             PathGenerator::commands_path(Target::Codex, "cmd", false),
             None
         );
+    }
+
+    #[test]
+    fn path_generator_codex_prompts() {
+        let path = PathGenerator::codex_prompts_path("my-prompt", false);
+        let expected = PathBuf::from(".codex").join("prompts").join("my-prompt.md");
+        assert_eq!(path, expected);
+
+        let path = PathGenerator::codex_prompts_path("my-prompt", true);
+        let expected = PathBuf::from("~")
+            .join(".codex")
+            .join("prompts")
+            .join("my-prompt.md");
+        assert_eq!(path, expected);
+    }
+
+    #[test]
+    fn path_generator_antigravity_workflows() {
+        let path = PathGenerator::antigravity_workflows_path("my-workflow", false);
+        let expected = PathBuf::from(".agent")
+            .join("workflows")
+            .join("my-workflow.md");
+        assert_eq!(path, expected);
+
+        let path = PathGenerator::antigravity_workflows_path("my-workflow", true);
+        let expected = PathBuf::from("~")
+            .join(".gemini")
+            .join("antigravity")
+            .join("global_workflows")
+            .join("my-workflow.md");
+        assert_eq!(path, expected);
     }
 }
