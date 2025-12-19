@@ -37,7 +37,7 @@ pub enum CalvinError {
 
     /// YAML parsing error
     #[error("YAML parsing error: {0}")]
-    Yaml(#[from] serde_yaml::Error),
+    Yaml(#[from] serde_yml::Error),
 
     /// Directory not found
     #[error("directory not found: {path}")]
