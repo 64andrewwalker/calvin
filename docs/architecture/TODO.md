@@ -2,7 +2,26 @@
 
 > **Created**: 2025-12-19  
 > **Updated**: 2025-12-19  
-> **Status**: ✅ 主要阶段完成
+> **Status**: 🔄 进行中 (~65% 完成)
+
+---
+
+## ⚠️ 诚实评估
+
+**实际完成度**: ~65%
+
+| 组件 | 完成度 | 说明 |
+|------|--------|------|
+| Domain Entities | 100% | Asset, OutputFile, Lockfile |
+| Domain Value Objects | 50% | Scope, Target (缺 Hash, SafePath) |
+| Domain Services | 75% | Compiler, Planner, Orphan (缺 Differ) |
+| Domain Policies | 50% | ScopePolicy (缺 SecurityPolicy) |
+| Infrastructure Adapters | 100% | 5/5 适配器 |
+| Infrastructure Repos | 100% | FsAssetRepo, TomlLockfileRepo |
+| Application UseCases | 25% | DeployUseCase (缺 Check, Watch, Diff) |
+| Presentation | 20% | factory + output (未集成) |
+
+**关键问题**: 新旧代码并存，未真正切换
 
 ---
 

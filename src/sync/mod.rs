@@ -1,5 +1,15 @@
 //! Sync engine for writing compiled outputs
 //!
+//! **Note**: This module is being progressively migrated to the new layered architecture.
+//!
+//! New code location:
+//! - `domain::services::planner` - Planning logic
+//! - `domain::services::orphan_detector` - Orphan detection
+//! - `domain::services::compiler` - Path generation
+//! - `infrastructure::fs::LocalFs` - File operations
+//!
+//! This module remains for backward compatibility with existing commands.
+//!
 //! Implements:
 //! - TD-14: Atomic writes via tempfile + rename
 //! - TD-15: Lockfile system for change detection
