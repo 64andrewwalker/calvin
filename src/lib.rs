@@ -3,7 +3,20 @@
 //! Calvin enables teams to maintain AI rules, commands, and workflows in a single
 //! source format (PromptPack), then compile and distribute them to multiple
 //! AI coding assistant platforms.
+//!
+//! ## Architecture (v2)
+//!
+//! Calvin follows a layered architecture:
+//! - `domain/` - Pure business logic (no I/O dependencies)
+//! - `adapters/` - Target platform adapters (will move to infrastructure/)
+//! - `sync/` - Sync engine (will be split across layers)
+//!
+//! See `docs/architecture/` for the full design.
 
+// New architecture layers (v2)
+pub mod domain;
+
+// Legacy modules (will be refactored)
 pub mod adapters;
 pub mod config;
 pub mod error;
