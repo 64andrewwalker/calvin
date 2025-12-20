@@ -24,11 +24,12 @@ pub enum DeployEvent {
     /// File was written successfully
     FileWritten { index: usize, path: PathBuf },
 
-    /// File was skipped (up-to-date)
-    FileSkipped { index: usize, path: PathBuf },
-
-    /// File has a conflict
-    FileConflict { index: usize, path: PathBuf },
+    /// File was skipped (up-to-date or conflict)
+    FileSkipped {
+        index: usize,
+        path: PathBuf,
+        reason: String,
+    },
 
     /// File sync failed
     FileError {
@@ -37,8 +38,8 @@ pub enum DeployEvent {
         error: String,
     },
 
-    /// Orphan file detected
-    OrphanDetected { path: PathBuf, safe_to_delete: bool },
+    /// Orphan files detected (summary)
+    OrphansDetected { total: usize, safe_to_delete: usize },
 
     /// Orphan file deleted
     OrphanDeleted { path: PathBuf },

@@ -10,10 +10,12 @@
 //! This use case is pure orchestration - all business logic lives in domain services.
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use crate::domain::entities::{Asset, Lockfile, OutputFile};
 use crate::domain::ports::{
-    AssetRepository, FileSystem, FsResult, LockfileRepository, TargetAdapter,
+    AssetRepository, DeployEvent, DeployEventSink, FileSystem, FsResult, LockfileRepository,
+    NoopEventSink, TargetAdapter,
 };
 use crate::domain::services::{
     FileAction, OrphanDetectionResult, OrphanDetector, PlannedFile, Planner, SyncPlan,
@@ -156,6 +158,21 @@ where
 
     /// Execute the deploy use case
     pub fn execute(&self, options: &DeployOptions) -> DeployResult {
+        // Use NoopEventSink for backwards compatibility
+        self.execute_with_events(options, Arc::new(NoopEventSink))
+    }
+
+    /// Execute the deploy use case with event reporting
+    ///
+    /// This method emits events during execution, enabling:
+    /// - Progress reporting
+    /// - JSON event streaming
+    /// - Debugging and observability
+    pub fn execute_with_events(
+        &self,
+        options: &DeployOptions,
+        event_sink: Arc<dyn DeployEventSink>,
+    ) -> DeployResult {
         let mut result = DeployResult::new();
 
         // Step 1: Load assets
@@ -171,6 +188,13 @@ where
         let assets = self.apply_scope_policy(assets, options.scope);
         result.asset_count = assets.len();
 
+        // Emit started event
+        event_sink.on_event(DeployEvent::Started {
+            source: options.source.clone(),
+            destination: format!("{:?}", options.scope),
+            asset_count: assets.len(),
+        });
+
         // Step 2: Compile assets
         let outputs = match self.compile_assets(&assets, &options.targets) {
             Ok(outputs) => outputs,
@@ -180,6 +204,11 @@ where
             }
         };
         result.output_count = outputs.len();
+
+        // Emit compiled event
+        event_sink.on_event(DeployEvent::Compiled {
+            output_count: outputs.len(),
+        });
 
         // Step 3: Load lockfile
         let lockfile_path = self.get_lockfile_path(&options.source, options.scope);
@@ -197,8 +226,8 @@ where
 
         // Step 6: Execute (if not dry run)
         if !options.dry_run {
-            self.execute_plan(&plan, &mut result);
-            self.delete_orphans(&orphans, &mut result);
+            self.execute_plan_with_events(&plan, &mut result, &event_sink);
+            self.delete_orphans_with_events(&orphans, &mut result, &event_sink);
             self.update_lockfile(&lockfile_path, &plan, &result, options.scope);
         } else {
             // Dry run - just collect what would happen
@@ -209,6 +238,14 @@ where
                 result.deleted.push(PathBuf::from(&orphan.path));
             }
         }
+
+        // Emit completed event
+        event_sink.on_event(DeployEvent::Completed {
+            written_count: result.written.len(),
+            skipped_count: result.skipped.len(),
+            error_count: result.errors.len(),
+            deleted_count: result.deleted.len(),
+        });
 
         result
     }
@@ -374,30 +411,75 @@ where
     }
 
     /// Execute the sync plan
-    fn execute_plan(&self, plan: &SyncPlan, result: &mut DeployResult) {
-        for file in &plan.files {
+    /// Execute the sync plan with event reporting
+    fn execute_plan_with_events(
+        &self,
+        plan: &SyncPlan,
+        result: &mut DeployResult,
+        event_sink: &Arc<dyn DeployEventSink>,
+    ) {
+        for (index, file) in plan.files.iter().enumerate() {
             match &file.action {
                 FileAction::Write => match self.write_file(&file.path, &file.content) {
-                    Ok(_) => result.written.push(file.path.clone()),
-                    Err(e) => result.errors.push(format!(
-                        "Failed to write {}: {}",
-                        file.path.display(),
-                        e
-                    )),
+                    Ok(_) => {
+                        result.written.push(file.path.clone());
+                        event_sink.on_event(DeployEvent::FileWritten {
+                            index,
+                            path: file.path.clone(),
+                        });
+                    }
+                    Err(e) => {
+                        let error_msg = format!("Failed to write {}: {}", file.path.display(), e);
+                        result.errors.push(error_msg.clone());
+                        event_sink.on_event(DeployEvent::FileError {
+                            index,
+                            path: file.path.clone(),
+                            error: error_msg,
+                        });
+                    }
                 },
                 FileAction::Skip => {
                     result.skipped.push(file.path.clone());
+                    event_sink.on_event(DeployEvent::FileSkipped {
+                        index,
+                        path: file.path.clone(),
+                        reason: "unchanged".to_string(),
+                    });
                 }
-                FileAction::Conflict(_) => {
+                FileAction::Conflict(reason) => {
                     // Conflicts are treated as skipped in non-interactive mode
                     result.skipped.push(file.path.clone());
+                    event_sink.on_event(DeployEvent::FileSkipped {
+                        index,
+                        path: file.path.clone(),
+                        reason: format!("conflict: {:?}", reason),
+                    });
                 }
             }
         }
     }
 
     /// Delete orphan files
-    fn delete_orphans(&self, orphans: &OrphanDetectionResult, result: &mut DeployResult) {
+    /// Delete orphan files with event reporting
+    fn delete_orphans_with_events(
+        &self,
+        orphans: &OrphanDetectionResult,
+        result: &mut DeployResult,
+        event_sink: &Arc<dyn DeployEventSink>,
+    ) {
+        // Emit orphans detected event
+        if !orphans.orphans.is_empty() {
+            let safe_count = orphans
+                .orphans
+                .iter()
+                .filter(|o| o.is_safe_to_delete())
+                .count();
+            event_sink.on_event(DeployEvent::OrphansDetected {
+                total: orphans.orphans.len(),
+                safe_to_delete: safe_count,
+            });
+        }
+
         for orphan in &orphans.orphans {
             let path = PathBuf::from(&orphan.path);
             if orphan.exists && orphan.is_safe_to_delete() {
@@ -406,7 +488,8 @@ where
                         .errors
                         .push(format!("Failed to delete {}: {}", path.display(), e));
                 } else {
-                    result.deleted.push(path);
+                    result.deleted.push(path.clone());
+                    event_sink.on_event(DeployEvent::OrphanDeleted { path });
                 }
             }
         }
@@ -637,5 +720,95 @@ mod tests {
 
         assert!(result.is_success());
         assert!(!result.has_changes());
+    }
+
+    // Mock event sink to capture events for testing (thread-safe)
+    struct MockEventSink {
+        events: std::sync::Mutex<Vec<DeployEvent>>,
+    }
+
+    impl MockEventSink {
+        fn new() -> Self {
+            Self {
+                events: std::sync::Mutex::new(Vec::new()),
+            }
+        }
+    }
+
+    impl DeployEventSink for MockEventSink {
+        fn on_event(&self, event: DeployEvent) {
+            self.events.lock().unwrap().push(event);
+        }
+    }
+
+    #[test]
+    fn execute_with_events_emits_started_event() {
+        let use_case = create_use_case();
+        let options = DeployOptions::new(".promptpack");
+        let event_sink = Arc::new(MockEventSink::new());
+
+        use_case.execute_with_events(&options, event_sink.clone());
+
+        let events = event_sink.events.lock().unwrap();
+        assert!(events
+            .iter()
+            .any(|e| matches!(e, DeployEvent::Started { .. })));
+    }
+
+    #[test]
+    fn execute_with_events_emits_compiled_event() {
+        let use_case = create_use_case();
+        let options = DeployOptions::new(".promptpack");
+        let event_sink = Arc::new(MockEventSink::new());
+
+        use_case.execute_with_events(&options, event_sink.clone());
+
+        let events = event_sink.events.lock().unwrap();
+        assert!(events
+            .iter()
+            .any(|e| matches!(e, DeployEvent::Compiled { .. })));
+    }
+
+    #[test]
+    fn execute_with_events_emits_file_written_event() {
+        let use_case = create_use_case();
+        let options = DeployOptions::new(".promptpack");
+        let event_sink = Arc::new(MockEventSink::new());
+
+        use_case.execute_with_events(&options, event_sink.clone());
+
+        let events = event_sink.events.lock().unwrap();
+        assert!(events
+            .iter()
+            .any(|e| matches!(e, DeployEvent::FileWritten { .. })));
+    }
+
+    #[test]
+    fn execute_with_events_emits_completed_event() {
+        let use_case = create_use_case();
+        let options = DeployOptions::new(".promptpack");
+        let event_sink = Arc::new(MockEventSink::new());
+
+        use_case.execute_with_events(&options, event_sink.clone());
+
+        let events = event_sink.events.lock().unwrap();
+        assert!(events
+            .iter()
+            .any(|e| matches!(e, DeployEvent::Completed { .. })));
+    }
+
+    #[test]
+    fn execute_with_events_event_order_is_correct() {
+        let use_case = create_use_case();
+        let options = DeployOptions::new(".promptpack");
+        let event_sink = Arc::new(MockEventSink::new());
+
+        use_case.execute_with_events(&options, event_sink.clone());
+
+        let events = event_sink.events.lock().unwrap();
+        // First event should be Started
+        assert!(matches!(events.first(), Some(DeployEvent::Started { .. })));
+        // Last event should be Completed
+        assert!(matches!(events.last(), Some(DeployEvent::Completed { .. })));
     }
 }

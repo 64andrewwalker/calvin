@@ -79,21 +79,17 @@ impl DeployEventSink for JsonEventSink {
                 })
             }
 
-            DeployEvent::FileSkipped { index, path } => {
+            DeployEvent::FileSkipped {
+                index,
+                path,
+                reason,
+            } => {
                 serde_json::json!({
                     "event": "item_skipped",
                     "command": "deploy",
                     "index": index,
                     "path": path.display().to_string(),
-                })
-            }
-
-            DeployEvent::FileConflict { index, path } => {
-                serde_json::json!({
-                    "event": "item_conflict",
-                    "command": "deploy",
-                    "index": index,
-                    "path": path.display().to_string(),
+                    "reason": reason,
                 })
             }
 
@@ -107,14 +103,14 @@ impl DeployEventSink for JsonEventSink {
                 })
             }
 
-            DeployEvent::OrphanDetected {
-                path,
+            DeployEvent::OrphansDetected {
+                total,
                 safe_to_delete,
             } => {
                 serde_json::json!({
-                    "event": "orphan_detected",
+                    "event": "orphans_detected",
                     "command": "deploy",
-                    "path": path.display().to_string(),
+                    "total": total,
                     "safe_to_delete": safe_to_delete,
                 })
             }
