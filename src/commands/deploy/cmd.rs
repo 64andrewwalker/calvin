@@ -8,7 +8,6 @@ use calvin::fs::LocalFileSystem;
 use calvin::sync::lockfile::Lockfile;
 use calvin::sync::orphan::delete_orphans;
 use calvin::sync::ScopePolicy;
-use calvin::sync::SyncEvent;
 use calvin::Target;
 
 use super::options::DeployOptions;
@@ -191,94 +190,28 @@ pub fn cmd_deploy_with_explicit_target(
 
     // Run deploy
     let result = if json {
-        // JSON mode: emit NDJSON event stream
-        let mut out = std::io::stdout().lock();
+        // JSON mode: use new engine with JsonEventSink
+        use calvin::infrastructure::JsonEventSink;
+        use std::sync::Arc;
 
-        // Emit start event
-        let _ = crate::ui::json::write_event(
-            &mut out,
-            &serde_json::json!({
-                "event": "start",
-                "command": "deploy",
-            }),
+        let use_case_options = super::bridge::convert_options(
+            source,
+            &target_for_bridge,
+            &options_for_bridge,
+            cleanup,
         );
-        let _ = out.flush();
-
-        // Run with callback to emit item events
-        let result = runner.run_with_callback(Some(|event: SyncEvent| {
-            let mut out = std::io::stdout().lock();
-            match &event {
-                SyncEvent::ItemStart { index, path } => {
-                    let _ = crate::ui::json::write_event(
-                        &mut out,
-                        &serde_json::json!({
-                            "event": "item_start",
-                            "command": "deploy",
-                            "index": index,
-                            "path": path,
-                        }),
-                    );
-                }
-                SyncEvent::ItemWritten { index, path } => {
-                    let _ = crate::ui::json::write_event(
-                        &mut out,
-                        &serde_json::json!({
-                            "event": "item_written",
-                            "command": "deploy",
-                            "index": index,
-                            "path": path,
-                        }),
-                    );
-                }
-                SyncEvent::ItemSkipped { index, path } => {
-                    let _ = crate::ui::json::write_event(
-                        &mut out,
-                        &serde_json::json!({
-                            "event": "item_skipped",
-                            "command": "deploy",
-                            "index": index,
-                            "path": path,
-                        }),
-                    );
-                }
-                SyncEvent::ItemError {
-                    index,
-                    path,
-                    message,
-                } => {
-                    let _ = crate::ui::json::write_event(
-                        &mut out,
-                        &serde_json::json!({
-                            "event": "item_error",
-                            "command": "deploy",
-                            "index": index,
-                            "path": path,
-                            "error": message,
-                        }),
-                    );
-                }
-            }
-            let _ = out.flush();
-        }))?;
-
-        // Emit complete event
-        let _ = crate::ui::json::write_event(
-            &mut out,
-            &serde_json::json!({
-                "event": "complete",
-                "command": "deploy",
-                "status": if result.is_success() { "success" } else { "partial" },
-                "written": result.written.len(),
-                "skipped": result.skipped.len(),
-                "errors": result.errors.len(),
-            }),
-        );
-        let _ = out.flush();
-
-        result
+        let effective_targets = if options_for_bridge.targets.is_empty() {
+            config.enabled_targets()
+        } else {
+            options_for_bridge.targets.clone()
+        };
+        let use_case = super::bridge::create_use_case_for_targets(&effective_targets);
+        let json_sink = Arc::new(JsonEventSink::stdout());
+        let use_case_result = use_case.execute_with_events(&use_case_options, json_sink);
+        super::bridge::convert_result(&use_case_result)
     } else {
         // Non-JSON mode: run without callback
-        // Check if new engine is enabled via CALVIN_NEW_ENGINE=1
+        // Check if new engine is enabled
         if super::bridge::should_use_new_engine() {
             // Use new DeployUseCase architecture
             // Pass cleanup flag to let use case handle orphan cleanup
