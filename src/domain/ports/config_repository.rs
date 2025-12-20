@@ -168,7 +168,8 @@ mod tests {
 
         fn load_or_default(&self, project_root: Option<&Path>) -> TestConfig {
             if let Some(root) = project_root {
-                let project_config_path = root.join(".promptpack/config.toml");
+                // Use separate joins for cross-platform compatibility
+                let project_config_path = root.join(".promptpack").join("config.toml");
                 if let Ok(config) = self.load(&project_config_path) {
                     return config;
                 }
@@ -199,10 +200,16 @@ mod tests {
     fn mock_repository_returns_configured() {
         let custom = TestConfig::new().with_security_mode(SecurityMode::Strict);
 
-        let repo =
-            MockConfigRepository::new().with_config("/project/.promptpack/config.toml", custom);
+        // Use platform-agnostic path construction for cross-platform compatibility
+        // Build the same path that load_or_default will construct internally
+        let project_root = Path::new("project");
+        // Use PathBuf to ensure consistent path separators on all platforms
+        let config_path = project_root.join(".promptpack").join("config.toml");
+        let config_path_str = config_path.to_string_lossy().to_string();
 
-        let config = repo.load_or_default(Some(Path::new("/project")));
+        let repo = MockConfigRepository::new().with_config(&config_path_str, custom);
+
+        let config = repo.load_or_default(Some(project_root));
         assert_eq!(config.security_mode(), SecurityMode::Strict);
     }
 

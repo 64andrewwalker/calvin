@@ -231,10 +231,19 @@ mod tests {
         let outputs = compile_assets(&[asset], &[Target::Cursor], &config).unwrap();
 
         // Should have command output for Cursor
+        // Use component-based comparison for cross-platform compatibility
+        // (Windows may use mixed separators when PathBuf::from() preserves / but join() uses \)
         let has_cursor_command = outputs.iter().any(|o| {
-            o.path()
-                .to_string_lossy()
-                .contains(".cursor/commands/test-action.md")
+            let path = o.path();
+            let components: Vec<_> = path.components().collect();
+            // Check path ends with: .cursor/commands/test-action.md
+            components.len() >= 3
+                && components[components.len() - 3]
+                    .as_os_str()
+                    .to_string_lossy()
+                    .contains(".cursor")
+                && components[components.len() - 2].as_os_str() == "commands"
+                && components[components.len() - 1].as_os_str() == "test-action.md"
         });
 
         assert!(

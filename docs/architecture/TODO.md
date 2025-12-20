@@ -142,7 +142,7 @@
 ### 可选改进（重构后）
 
 - [x] 为 `infrastructure/conflict/` 添加更多测试 ✅ (8 个单元测试 + 接口验证)
-- [ ] 为 `infrastructure/sync/remote.rs` 添加 mock SSH 测试
+- [x] 为 `infrastructure/sync/remote.rs` 添加单元测试 ✅ (11 个测试覆盖解析/trait 方法)
 - [ ] 考虑添加属性测试 (`proptest`) - 未来考虑
 
 ### 参考文档
@@ -200,7 +200,7 @@
 - [x] 提取计划逻辑到 `domain/services/planner.rs` (18 tests)
 - [x] 提取 Orphan 检测到 `domain/services/orphan_detector.rs` (20 tests)
 - [x] 提取 Scope 策略到 `domain/policies/scope_policy.rs`
-- [ ] 提取安全策略到 `domain/policies/security.rs` (可选/延期)
+- [x] 提取安全策略到 `domain/policies/security.rs` ✅ (17 tests，已实现)
 
 **当前测试统计**: 109+ 个 domain 层测试
 
