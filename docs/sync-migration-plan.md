@@ -97,20 +97,34 @@ fn local_fs_expands_home() {
 
 ---
 
-## 可删除模块
+## 当前状态 (2025-12-20)
 
-以下模块可以安全删除：
+### 已简化为重导出层
+- `sync/compile.rs` → 重导出 `application::compile_assets`
+- `sync/orphan.rs` → 重导出 `domain::services` 类型 + 保留兼容函数
+- `sync/pipeline.rs` → 重导出 `application::AssetPipeline`
+- `sync/scope.rs` → 重导出 `domain::policies` 类型 + ScopePolicyExt trait
 
-- `sync/compile.rs` - 已迁移到 domain/services/compiler
-- `sync/tests.rs` - 随着其他模块删除
+### 保留为兼容层
+- `sync/lockfile.rs` - 带 I/O 的 Lockfile (用于 debug.rs legacy)
+- `sync/mod.rs` - 统一导出入口
+- `sync/tests.rs` - 兼容性测试
+
+### 可选删除 (暂不删除)
+- `sync/compile.rs` - 已变为 10 行重导出
+- `sync/tests.rs` - 部分测试仍有价值 (一致性验证)
 
 ---
 
 ## 执行顺序
 
 1. ✅ 确认 FileSystem::expand_home 可用
-2. 🔲 将 SyncResult 转换逻辑封装为 From trait
-3. 🔲 将 OrphanFile 迁移到 domain::entities
-4. 🔲 更新 debug.rs 使用新 API
-5. 🔲 删除不再使用的 sync 子模块
+2. ✅ 将 OrphanFile 迁移到 domain::services (已在 orphan_detector.rs)
+3. ✅ compile_assets 迁移到 application/compiler.rs
+4. ✅ sync/orphan.rs 简化为重导出层
+5. ✅ sync/compile.rs 简化为重导出层
+6. ✅ sync/lockfile.rs 添加迁移文档
+7. 🔲 将 SyncResult 转换逻辑封装为 From trait (可选)
+8. 🔲 更新 debug.rs 使用新 API (保持兼容层)
+9. 🔲 删除不再使用的 sync 子模块 (延期 - watcher 仍依赖)
 
