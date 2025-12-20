@@ -58,6 +58,16 @@ pub enum CalvinError {
     /// Compilation error
     #[error("compile error: {message}")]
     Compile { message: String },
+
+    /// File system error (from domain::ports::file_system)
+    #[error("file system error: {0}")]
+    FileSystem(String),
+}
+
+impl From<crate::domain::ports::file_system::FsError> for CalvinError {
+    fn from(err: crate::domain::ports::file_system::FsError) -> Self {
+        CalvinError::FileSystem(err.to_string())
+    }
 }
 
 #[cfg(test)]

@@ -84,7 +84,7 @@ where
             }
         }
         SyncDestination::Remote { host, path } => {
-            let fs = crate::fs::RemoteFileSystem::new(host);
+            let fs = crate::infrastructure::fs::RemoteFs::new(host);
             // Expand ~ to actual home path for proper file operations
             let expanded_path = fs.expand_home(path);
 

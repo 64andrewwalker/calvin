@@ -201,6 +201,13 @@ impl FileSystem for RemoteFs {
     }
 
     fn expand_home(&self, path: &Path) -> PathBuf {
+        self.expand_home_internal(path)
+    }
+}
+
+impl RemoteFs {
+    /// Internal expand_home to avoid trait method ambiguity
+    fn expand_home_internal(&self, path: &Path) -> PathBuf {
         let p = path.to_string_lossy();
 
         if p.starts_with("~/") || p == "~" {
@@ -218,6 +225,68 @@ impl FileSystem for RemoteFs {
         } else {
             path.to_path_buf()
         }
+    }
+}
+
+// === Legacy FileSystem trait implementation ===
+// This allows RemoteFs to be used with sync module which uses the old trait
+
+impl crate::fs::FileSystem for RemoteFs {
+    fn read_to_string(&self, path: &Path) -> crate::error::CalvinResult<String> {
+        self.run_command(&format!("cat {}", Self::quote_path(path)), None)
+            .map_err(|e| crate::error::CalvinError::Io(std::io::Error::other(e.to_string())))
+    }
+
+    fn write_atomic(&self, path: &Path, content: &str) -> crate::error::CalvinResult<()> {
+        let p = Self::quote_path(path);
+        let tmp = format!("{}.tmp", p);
+
+        // Ensure parent directory exists
+        if let Some(parent) = path.parent() {
+            self.run_command(&format!("mkdir -p {}", Self::quote_path(parent)), None)
+                .map_err(|e| crate::error::CalvinError::Io(std::io::Error::other(e.to_string())))?;
+        }
+
+        // Write to temp file then atomically rename
+        self.run_command(&format!("cat > {}", tmp), Some(content))
+            .map_err(|e| crate::error::CalvinError::Io(std::io::Error::other(e.to_string())))?;
+        self.run_command(&format!("mv -f {} {}", tmp, p), None)
+            .map_err(|e| crate::error::CalvinError::Io(std::io::Error::other(e.to_string())))?;
+        Ok(())
+    }
+
+    fn exists(&self, path: &Path) -> bool {
+        self.run_command(&format!("test -e {}", Self::quote_path(path)), None)
+            .is_ok()
+    }
+
+    fn hash_file(&self, path: &Path) -> crate::error::CalvinResult<String> {
+        let p = Self::quote_path(path);
+        let cmd = format!(
+            "sha256sum {} 2>/dev/null || shasum -a 256 {} 2>/dev/null",
+            p, p
+        );
+        let out = self
+            .run_command(&cmd, None)
+            .map_err(|e| crate::error::CalvinError::Io(std::io::Error::other(e.to_string())))?;
+        let hash_hex = out.split_whitespace().next().unwrap_or("");
+        Ok(format!("sha256:{}", hash_hex))
+    }
+
+    fn create_dir_all(&self, path: &Path) -> crate::error::CalvinResult<()> {
+        self.run_command(&format!("mkdir -p {}", Self::quote_path(path)), None)
+            .map_err(|e| crate::error::CalvinError::Io(std::io::Error::other(e.to_string())))?;
+        Ok(())
+    }
+
+    fn expand_home(&self, path: &Path) -> PathBuf {
+        self.expand_home_internal(path)
+    }
+
+    fn remove_file(&self, path: &Path) -> crate::error::CalvinResult<()> {
+        self.run_command(&format!("rm -f {}", Self::quote_path(path)), None)
+            .map_err(|e| crate::error::CalvinError::Io(std::io::Error::other(e.to_string())))?;
+        Ok(())
     }
 }
 
