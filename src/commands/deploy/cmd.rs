@@ -288,7 +288,13 @@ pub fn cmd_deploy_with_explicit_target(
                 &options_for_bridge,
                 cleanup,
             );
-            let use_case = super::bridge::create_use_case_for_targets(&options_for_bridge.targets);
+            // Determine effective targets: CLI > config > all
+            let effective_targets = if options_for_bridge.targets.is_empty() {
+                config.enabled_targets()
+            } else {
+                options_for_bridge.targets.clone()
+            };
+            let use_case = super::bridge::create_use_case_for_targets(&effective_targets);
             let use_case_result = use_case.execute(&use_case_options);
             super::bridge::convert_result(&use_case_result)
         } else {
