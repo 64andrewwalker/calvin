@@ -73,7 +73,7 @@ impl TargetAdapter for CodexAdapter {
         let path = prompts_dir.join(format!("{}.md", asset.id()));
 
         let frontmatter = self.generate_frontmatter(asset);
-        let footer = self.footer(&asset.source_path().display().to_string());
+        let footer = self.footer(&asset.source_path_normalized());
 
         // Only Action/Agent include $ARGUMENTS after frontmatter
         let content = match asset.kind() {

@@ -103,6 +103,15 @@ impl Asset {
         &self.source_path
     }
 
+    /// Get the source path as a normalized string (always uses `/` separator)
+    ///
+    /// This is useful for generating consistent output across platforms,
+    /// such as in footer comments like "Source: policies/test.md".
+    pub fn source_path_normalized(&self) -> String {
+        // Replace backslashes with forward slashes for cross-platform consistency
+        self.source_path.display().to_string().replace('\\', "/")
+    }
+
     /// Get the description
     pub fn description(&self) -> &str {
         &self.description
