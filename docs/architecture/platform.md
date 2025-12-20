@@ -290,11 +290,47 @@ pub fn to_platform_endings(content: &str, platform: Platform) -> String {
 rsync -avz --delete source/ user@host:dest/
 ```
 
-### Windows 考虑
+### Windows 限制
+
+⚠️ **Remote sync (`calvin deploy --remote`) 在 Windows 上不可用**
+
+Remote sync 功能依赖 `rsync` 命令，这是一个 Unix 工具。在 Windows 上，Calvin 会检测 rsync 是否可用，如果不可用则返回错误。
+
+**Windows 用户的选项**:
 
 1. **WSL (推荐)**: 在 WSL 环境中运行 Calvin
-2. **Git Bash**: 包含 rsync
-3. **Native Windows SSH**: Windows 10+ 自带 OpenSSH
+   ```bash
+   wsl calvin deploy --remote user@host
+   ```
+
+2. **Git Bash**: 某些 Git for Windows 安装包含 rsync
+   ```bash
+   # 需要安装 rsync: pacman -S rsync (如果使用 MSYS2)
+   calvin deploy --remote user@host
+   ```
+
+3. **仅使用本地 deploy**: 大多数用户不需要 remote sync
+   ```bash
+   calvin deploy  # 本地项目目录
+   calvin deploy --home  # 用户 home 目录
+   ```
+
+### Windows 兼容性检查
+
+Calvin 在运行 remote sync 前会检查:
+```rust
+pub fn has_rsync() -> bool {
+    Command::new("rsync")
+        .arg("--version")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+```
+
+如果检查失败，会返回友好的错误信息。
 
 ```rust
 // infrastructure/remote/rsync.rs
@@ -365,14 +401,14 @@ jobs:
 
 ## 实现检查清单
 
-- [ ] 将所有硬编码的 `/` 替换为 `Path::join()`
-- [ ] 使用 `dirs` crate 获取系统目录
-- [ ] 添加 `Platform` value object
-- [ ] 创建 `PathResolver` 服务
-- [ ] 实现跨平台的原子写入
-- [ ] 添加 Windows CI 测试
-- [ ] 文档化 Windows 用户的 rsync 要求
-- [ ] 测试 WSL 环境兼容性
+- [x] 将所有硬编码的 `/` 替换为 `Path::join()` ✅
+- [x] 使用 `dirs` crate 获取系统目录 ✅
+- [ ] 添加 `Platform` value object (可选 - 当前使用条件编译)
+- [ ] 创建 `PathResolver` 服务 (可选 - 当前使用 `expand_home()`)
+- [x] 实现跨平台的原子写入 ✅ (`infrastructure::fs::atomic_write`)
+- [x] 添加 Windows CI 测试 ✅ (已添加到 ci.yml)
+- [x] 文档化 Windows 用户的 rsync 要求 ✅ (见下方)
+- [ ] 测试 WSL 环境兼容性 (P2)
 
 ## 依赖建议
 

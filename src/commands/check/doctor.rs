@@ -2,7 +2,7 @@
 
 use anyhow::Result;
 
-use crate::cli::ColorWhen;
+use calvin::presentation::ColorWhen;
 
 pub fn cmd_doctor(
     mode: &str,

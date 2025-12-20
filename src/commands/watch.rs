@@ -2,7 +2,7 @@ use std::path::Path;
 
 use anyhow::{bail, Result};
 
-use crate::cli::ColorWhen;
+use calvin::presentation::ColorWhen;
 
 pub fn cmd_watch(
     source: &Path,

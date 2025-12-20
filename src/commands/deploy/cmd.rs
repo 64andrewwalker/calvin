@@ -8,10 +8,10 @@ use calvin::Target;
 
 use super::options::DeployOptions;
 use super::targets::DeployTarget;
-use crate::cli::ColorWhen;
 use crate::ui::context::UiContext;
 use crate::ui::primitives::icon::Icon;
 use crate::ui::views::deploy::{render_deploy_header, render_deploy_summary};
+use calvin::presentation::ColorWhen;
 
 /// Deploy command entry point
 ///

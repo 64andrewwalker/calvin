@@ -5,8 +5,8 @@ use std::path::Path;
 use anyhow::Result;
 use dialoguer::{Confirm, Input, Select};
 
-use crate::cli::ColorWhen;
 use crate::commands;
+use calvin::presentation::ColorWhen;
 
 use super::wizard;
 

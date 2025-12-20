@@ -116,6 +116,7 @@ mod tests {
             skipped: vec![],
             deleted: vec![],
             errors: vec![],
+            warnings: vec![],
             asset_count: 1,
             output_count: 1,
         };

@@ -4,6 +4,22 @@ use crate::ui::blocks::warning::WarningBlock;
 use crate::ui::context::UiContext;
 use crate::ui::primitives::icon::Icon;
 
+/// Print a deprecation warning for a command
+pub fn print_deprecation_warning(old_cmd: &str, new_cmd: &str, json: bool) {
+    if json {
+        let _ = crate::ui::json::emit(serde_json::json!({
+            "event": "warning",
+            "kind": "deprecation",
+            "old_command": old_cmd,
+            "new_command": new_cmd,
+            "message": format!("`{}` is deprecated; use `{}`.", old_cmd, new_cmd)
+        }));
+        return;
+    }
+
+    eprintln!("[WARN] `{}` is deprecated; use `{}`.", old_cmd, new_cmd);
+}
+
 /// Warn if security.allow_naked is set to true
 /// Currently not wired up - reserved for future use
 #[allow(dead_code)]

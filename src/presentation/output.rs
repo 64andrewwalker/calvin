@@ -129,6 +129,14 @@ impl DeployResultRenderer for TextRenderer {
             }
         }
 
+        if !result.warnings.is_empty() {
+            println!();
+            println!("  Warnings ({}):", result.warnings.len());
+            for warning in &result.warnings {
+                println!("    [!] {}", warning);
+            }
+        }
+
         if !result.errors.is_empty() {
             println!();
             println!("  Errors ({}):", result.errors.len());
@@ -152,6 +160,7 @@ impl DeployResultRenderer for JsonRenderer {
             "written": result.written.iter().map(|p| p.display().to_string()).collect::<Vec<_>>(),
             "skipped": result.skipped.iter().map(|p| p.display().to_string()).collect::<Vec<_>>(),
             "deleted": result.deleted.iter().map(|p| p.display().to_string()).collect::<Vec<_>>(),
+            "warnings": result.warnings,
             "errors": result.errors,
         });
 

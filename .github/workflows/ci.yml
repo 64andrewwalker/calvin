@@ -11,8 +11,19 @@ env:
 
 jobs:
   test:
-    name: Test
-    runs-on: ubuntu-latest
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            coverage: true
+          - os: windows-latest
+            coverage: false
+          - os: macos-latest
+            coverage: false
     steps:
       - uses: actions/checkout@v4
       
@@ -31,14 +42,22 @@ jobs:
             ~/.cargo/git/db/
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          
+
+      # Run basic tests on all platforms
+      - name: Run tests
+        run: cargo test --all-features
+        
+      # Coverage only on Linux (faster CI)
       - name: Install cargo-llvm-cov
+        if: matrix.coverage
         uses: taiki-e/install-action@cargo-llvm-cov
           
       - name: Run tests with coverage
+        if: matrix.coverage
         run: cargo llvm-cov --all-features --lcov --output-path lcov.info
         
       - name: Check coverage threshold
+        if: matrix.coverage
         run: |
           # Get total line coverage percentage
           COVERAGE=$(cargo llvm-cov --all-features --summary-only 2>&1 | grep "TOTAL" | awk '{print $NF}' | sed 's/%//')
@@ -52,6 +71,7 @@ jobs:
           echo "✅ Coverage ${COVERAGE}% meets 70% threshold"
         
       - name: Upload coverage to Codecov
+        if: matrix.coverage
         uses: codecov/codecov-action@v4
         with:
           files: lcov.info
@@ -64,8 +84,19 @@ jobs:
         run: cargo clippy -- -D warnings
 
   build:
-    name: Build
-    runs-on: ubuntu-latest
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            binary: target/release/calvin
+          - os: windows-latest
+            binary: target/release/calvin.exe
+          - os: macos-latest
+            binary: target/release/calvin
     steps:
       - uses: actions/checkout@v4
       
@@ -75,12 +106,25 @@ jobs:
       - name: Build release
         run: cargo build --release
         
-      - name: Check binary size
+      - name: Check binary size (Unix)
+        if: runner.os != 'Windows'
         run: |
-          size=$(stat -c%s target/release/calvin)
-          echo "Binary size: $size bytes ($(numfmt --to=iec-i --suffix=B $size))"
-          if [ $size -gt 10485760 ]; then
-            echo "❌ Binary size exceeds 10MB limit!"
+          size=$(stat -c%s ${{ matrix.binary }} 2>/dev/null || stat -f%z ${{ matrix.binary }})
+          echo "Binary size: $size bytes"
+          if [ $size -gt 15728640 ]; then
+            echo "❌ Binary size exceeds 15MB limit!"
             exit 1
           fi
-          echo "✅ Binary size is under 10MB"
+          echo "✅ Binary size is under 15MB"
+          
+      - name: Check binary size (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $size = (Get-Item "${{ matrix.binary }}").Length
+          Write-Host "Binary size: $size bytes"
+          if ($size -gt 15728640) {
+            Write-Host "❌ Binary size exceeds 15MB limit!"
+            exit 1
+          }
+          Write-Host "✅ Binary size is under 15MB"

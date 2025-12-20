@@ -1,6 +1,16 @@
+//! CLI Argument Parsing
+//!
+//! This module defines the CLI interface using clap.
+//!
+//! ## Design Notes
+//!
+//! - Global flags (--json, --color, --verbose, --no-animation) are inherited by all subcommands
+//! - Hidden commands (sync, install, doctor, audit) are deprecated and redirect to new unified commands
+//! - The CLI supports both interactive and non-interactive modes
+
 use std::path::PathBuf;
 
-use calvin::Target;
+use crate::Target;
 use clap::{Parser, Subcommand};
 
 #[derive(clap::ValueEnum, Debug, Clone, Copy, PartialEq, Eq)]

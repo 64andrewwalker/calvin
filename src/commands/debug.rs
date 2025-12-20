@@ -2,8 +2,8 @@ use std::path::Path;
 
 use anyhow::Result;
 
-use crate::cli::ColorWhen;
 use crate::ui::output::print_config_warnings;
+use calvin::presentation::ColorWhen;
 
 pub fn cmd_version(
     json: bool,
