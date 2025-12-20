@@ -5,16 +5,23 @@
 
 use crate::application::{DeployUseCase, DiffUseCase};
 use crate::domain::ports::TargetAdapter;
+use crate::infrastructure::fs::DestinationFs;
 use crate::infrastructure::{
     all_adapters, ClaudeCodeAdapter, CursorAdapter, FsAssetRepository, LocalFs,
     TomlLockfileRepository,
 };
+use std::path::PathBuf;
+use std::sync::Arc;
 
 /// Type alias for the concrete DeployUseCase with all dependencies
 pub type ConcreteDeployUseCase = DeployUseCase<FsAssetRepository, TomlLockfileRepository, LocalFs>;
 
 /// Type alias for the concrete DiffUseCase with all dependencies
 pub type ConcreteDiffUseCase = DiffUseCase<FsAssetRepository, TomlLockfileRepository, LocalFs>;
+
+/// Type alias for remote deploy use case
+pub type RemoteDeployUseCase<D> =
+    DeployUseCase<FsAssetRepository, TomlLockfileRepository, DestinationFs<D>>;
 
 /// Create a deploy use case with all dependencies wired up
 ///
@@ -66,6 +73,40 @@ pub fn create_diff_use_case_with_adapters(
     let file_system = LocalFs::new();
 
     DiffUseCase::new(asset_repo, lockfile_repo, file_system, adapters)
+}
+
+/// Create a deploy use case for a remote destination
+///
+/// Uses the SyncDestination abstraction to support SSH/rsync.
+pub fn create_deploy_use_case_for_remote(
+    remote_spec: &str,
+    source: PathBuf,
+) -> RemoteDeployUseCase<crate::infrastructure::RemoteDestination> {
+    use crate::infrastructure::RemoteDestination;
+
+    let asset_repo = FsAssetRepository::new();
+    let lockfile_repo = TomlLockfileRepository::new();
+    let destination = Arc::new(RemoteDestination::new(remote_spec, source));
+    let file_system = DestinationFs::new(destination);
+    let adapters = all_adapters();
+
+    DeployUseCase::new(asset_repo, lockfile_repo, file_system, adapters)
+}
+
+/// Create a deploy use case for a remote destination with specific adapters
+pub fn create_deploy_use_case_for_remote_with_adapters(
+    remote_spec: &str,
+    source: PathBuf,
+    adapters: Vec<Box<dyn TargetAdapter>>,
+) -> RemoteDeployUseCase<crate::infrastructure::RemoteDestination> {
+    use crate::infrastructure::RemoteDestination;
+
+    let asset_repo = FsAssetRepository::new();
+    let lockfile_repo = TomlLockfileRepository::new();
+    let destination = Arc::new(RemoteDestination::new(remote_spec, source));
+    let file_system = DestinationFs::new(destination);
+
+    DeployUseCase::new(asset_repo, lockfile_repo, file_system, adapters)
 }
 
 /// Create adapters for specific targets

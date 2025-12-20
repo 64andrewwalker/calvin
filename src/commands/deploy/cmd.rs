@@ -192,12 +192,32 @@ pub fn cmd_deploy_with_explicit_target(
     }
 
     // Run deploy
-    // Note: Remote targets always use legacy engine (new engine doesn't support SSH/rsync yet)
     let is_remote_target = matches!(&target_for_bridge, DeployTarget::Remote(_));
 
     let result = if is_remote_target {
-        // Remote: always use legacy DeployRunner (has SSH/rsync support)
-        runner.run()?
+        // Remote: use new engine with SyncDestination abstraction
+        if let DeployTarget::Remote(remote_spec) = &target_for_bridge {
+            let use_case_options = super::bridge::convert_options(
+                source,
+                &target_for_bridge,
+                &options_for_bridge,
+                cleanup,
+            );
+            let effective_targets = if options_for_bridge.targets.is_empty() {
+                config.enabled_targets()
+            } else {
+                options_for_bridge.targets.clone()
+            };
+            let use_case_result = super::bridge::run_remote_deployment(
+                remote_spec,
+                source,
+                &use_case_options,
+                &effective_targets,
+            );
+            super::bridge::convert_result(&use_case_result)
+        } else {
+            unreachable!("is_remote_target check failed")
+        }
     } else if json {
         // JSON mode: use new engine with JsonEventSink
         use calvin::infrastructure::JsonEventSink;

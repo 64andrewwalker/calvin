@@ -2,8 +2,10 @@
 //!
 //! Concrete implementations of the FileSystem port.
 
+mod destination;
 mod local;
 
+pub use destination::DestinationFs;
 pub use local::LocalFs;
 
 // Remote FS is more complex and will be migrated later
