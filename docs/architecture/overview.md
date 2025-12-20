@@ -1,6 +1,7 @@
 # 架构概览
 
-> **Status**: Design Proposal
+> **Status**: Implemented (2025-12-20)
+> **Updated**: 与实际代码同步
 
 ## 设计目标
 
