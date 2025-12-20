@@ -72,7 +72,7 @@ pub fn cmd_deploy_with_explicit_target(
     color: Option<ColorWhen>,
     no_animation: bool,
 ) -> Result<()> {
-    use calvin::config::DeployTargetConfig;
+    use calvin::domain::value_objects::DeployTarget as DeployTargetValue;
 
     // Validate args
     if home && remote.is_some() {
@@ -93,8 +93,8 @@ pub fn cmd_deploy_with_explicit_target(
         false // Remote or explicit project takes precedence
     } else {
         match config.deploy.target {
-            DeployTargetConfig::Home => true,
-            DeployTargetConfig::Project | DeployTargetConfig::Unset => false,
+            DeployTargetValue::Home => true,
+            DeployTargetValue::Project | DeployTargetValue::Unset => false,
         }
     };
 
@@ -274,9 +274,9 @@ pub fn cmd_deploy_with_explicit_target(
     if !dry_run && result.is_success() && target_for_bridge.is_local() {
         let config_path = source.join("config.toml");
         let target_config = if use_home {
-            calvin::config::DeployTargetConfig::Home
+            DeployTargetValue::Home
         } else {
-            calvin::config::DeployTargetConfig::Project
+            DeployTargetValue::Project
         };
         // Silently save - don't fail deploy if config save fails
         let _ = calvin::config::Config::save_deploy_target(&config_path, target_config);

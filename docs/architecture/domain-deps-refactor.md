@@ -1,7 +1,7 @@
 # Domain 层依赖重构计划
 
 > **Created**: 2025-12-20
-> **Status**: 部分完成
+> **Status**: ✅ 完成
 > **Priority**: P1
 > **Updated**: 2025-12-20
 
@@ -11,13 +11,13 @@
 
 Domain 层（`src/domain/`）违反了"领域层不依赖外层"的架构原则，存在以下依赖：
 
-### 当前违规
+### 原违规（已修复）
 
-| 文件 | 依赖 | 问题 |
-|------|------|------|
-| `domain/policies/security.rs` | `crate::config::SecurityMode` | 依赖 config 模块的类型 |
-| `domain/ports/config_repository.rs` | `crate::config::{Config, ConfigWarning, DeployTargetConfig}` | 依赖整个 Config 结构 |
-| `domain/policies/scope_policy.rs` | `crate::models::PromptAsset` | 依赖 legacy models 模块 |
+| 文件 | 依赖 | 问题 | 状态 |
+|------|------|------|------|
+| `domain/policies/security.rs` | `crate::config::SecurityMode` | 依赖 config 模块的类型 | ✅ 已修复 |
+| `domain/ports/config_repository.rs` | `crate::config::{Config, ConfigWarning, DeployTargetConfig}` | 依赖整个 Config 结构 | ✅ 已修复 |
+| `domain/policies/scope_policy.rs` | `crate::models::PromptAsset` | 依赖 legacy models 模块 | ✅ 已修复 |
 
 ### 为什么这是问题？
 
@@ -134,25 +134,29 @@ impl ScopePolicy {
   - [x] 更新 `domain/value_objects/mod.rs`
   - [x] 更新 `domain/policies/security.rs` 导入
   - [x] 更新 `config/types.rs` 为 re-export
-  - [x] 运行测试验证 (505 tests passed)
+  - [x] 运行测试验证
 
-- [ ] **Step 2**: 提取 DeployTarget (延期)
-  - 需要更大范围重构
-  - ConfigRepository port 仍依赖完整 Config 类型
-  - 优先级降为 P3
+- [x] **Step 2**: 提取 DeployTarget 和 ConfigWarning ✅ 完成
+  - [x] 创建 `domain/value_objects/deploy_target.rs`
+  - [x] 创建 `domain/value_objects/config_warning.rs`
+  - [x] 重构 `ConfigRepository` trait 使用泛型 `DomainConfig`
+  - [x] 创建 `DomainConfig` trait 抽象配置接口
+  - [x] `Config` 实现 `DomainConfig` trait
+  - [x] 移动 `Target` 到 domain 层，`models.rs` 重新导出
+  - [x] 运行测试验证 (636 tests passed)
 
 - [x] **Step 3**: 移动 ScopePolicyExt ✅ 完成
   - [x] 将 `ScopePolicyExt` trait 移到 `application/pipeline.rs`
   - [x] 从 `domain/policies/scope_policy.rs` 移除 PromptAsset 依赖
   - [x] 将相关测试移到 application 层
-  - [x] 运行测试验证 (505 tests passed)
+  - [x] 运行测试验证
 
 - [x] **Step 4**: 验证依赖图 ✅ 完成
   - [x] domain/policies/security.rs 不再依赖 crate::config
   - [x] domain/policies/scope_policy.rs 不再依赖 crate::models
-  - [ ] domain/ports/config_repository.rs 仍依赖 crate::config (已知，延期修复)
-  - [ ] domain/entities/asset.rs 测试中仍依赖 crate::models (可接受)
-  - [x] 全部 505 个单元测试 + 131 个集成测试通过
+  - [x] domain/ports/config_repository.rs 不再依赖 crate::config (使用 DomainConfig trait)
+  - [x] domain/entities/asset.rs 测试中仍依赖 crate::models (可接受，用于 From trait 测试)
+  - [x] 全部 636 个测试通过
 
 ---
 

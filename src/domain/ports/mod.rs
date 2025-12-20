@@ -13,7 +13,7 @@ pub mod sync_destination;
 pub mod target_adapter;
 
 pub use asset_repository::AssetRepository;
-pub use config_repository::ConfigRepository;
+pub use config_repository::{ConfigRepository, DomainConfig};
 pub use conflict_resolver::{
     ConflictChoice, ConflictContext, ConflictReason, ConflictResolver, ForceResolver, SafeResolver,
 };

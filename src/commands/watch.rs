@@ -11,7 +11,7 @@ pub fn cmd_watch(
     color: Option<ColorWhen>,
     no_animation: bool,
 ) -> Result<()> {
-    use calvin::config::DeployTargetConfig;
+    use calvin::domain::value_objects::DeployTarget;
     use calvin::watcher::{watch, WatchEvent, WatchOptions};
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
@@ -34,9 +34,9 @@ pub fn cmd_watch(
         true
     } else {
         match config.deploy.target {
-            DeployTargetConfig::Home => true,
-            DeployTargetConfig::Project => false,
-            DeployTargetConfig::Unset => {
+            DeployTarget::Home => true,
+            DeployTarget::Project => false,
+            DeployTarget::Unset => {
                 if json {
                     bail!("No deploy target configured. Add [deploy].target to config.toml or use --home flag.");
                 }

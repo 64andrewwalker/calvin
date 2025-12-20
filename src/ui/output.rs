@@ -67,7 +67,7 @@ fn format_allow_naked_warning(supports_color: bool, supports_unicode: bool) -> S
 
 pub fn print_config_warnings(
     path: &Path,
-    warnings: &[calvin::config::ConfigWarning],
+    warnings: &[calvin::domain::value_objects::ConfigWarning],
     ui: &UiContext,
 ) {
     if warnings.is_empty() {
@@ -120,7 +120,7 @@ pub fn print_config_warnings(
 
 pub fn format_config_warnings(
     path: &Path,
-    warnings: &[calvin::config::ConfigWarning],
+    warnings: &[calvin::domain::value_objects::ConfigWarning],
     supports_color: bool,
     supports_unicode: bool,
 ) -> String {
@@ -138,7 +138,7 @@ pub fn format_config_warnings(
 
 fn format_config_warning(
     path: &Path,
-    warning: &calvin::config::ConfigWarning,
+    warning: &calvin::domain::value_objects::ConfigWarning,
     supports_color: bool,
     supports_unicode: bool,
 ) -> String {
@@ -180,7 +180,7 @@ mod tests {
         let dir = tempdir().unwrap();
         let path = dir.path().join("config.toml");
 
-        let warning = calvin::config::ConfigWarning {
+        let warning = calvin::domain::value_objects::ConfigWarning {
             key: "targtes".to_string(),
             file: path.clone(),
             line: Some(12),

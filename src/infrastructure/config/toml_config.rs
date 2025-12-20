@@ -4,8 +4,9 @@ use std::path::Path;
 
 use anyhow::Result;
 
-use crate::config::{Config, ConfigWarning, DeployTargetConfig};
+use crate::config::Config;
 use crate::domain::ports::ConfigRepository;
+use crate::domain::value_objects::{ConfigWarning, DeployTarget};
 
 /// TOML configuration repository implementation.
 ///
@@ -20,7 +21,7 @@ impl TomlConfigRepository {
     }
 }
 
-impl ConfigRepository for TomlConfigRepository {
+impl ConfigRepository<Config> for TomlConfigRepository {
     fn load(&self, path: &Path) -> Result<Config> {
         Config::load(path).map_err(Into::into)
     }
@@ -33,7 +34,7 @@ impl ConfigRepository for TomlConfigRepository {
         Config::load_or_default(project_root)
     }
 
-    fn save_deploy_target(&self, config_path: &Path, target: DeployTargetConfig) -> Result<()> {
+    fn save_deploy_target(&self, config_path: &Path, target: DeployTarget) -> Result<()> {
         Config::save_deploy_target(config_path, target).map_err(Into::into)
     }
 
@@ -45,7 +46,7 @@ impl ConfigRepository for TomlConfigRepository {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::SecurityMode;
+    use crate::domain::value_objects::SecurityMode;
     use std::fs;
     use tempfile::tempdir;
 
@@ -144,7 +145,7 @@ unknown_key = "value"
         fs::write(&config_path, "[format]\nversion = \"1.0\"\n").unwrap();
 
         let repo = TomlConfigRepository::new();
-        repo.save_deploy_target(&config_path, DeployTargetConfig::Home)
+        repo.save_deploy_target(&config_path, DeployTarget::Home)
             .unwrap();
 
         let content = fs::read_to_string(&config_path).unwrap();
@@ -171,7 +172,7 @@ target = "home"
         .unwrap();
 
         let repo = TomlConfigRepository::new();
-        repo.save_deploy_target(&config_path, DeployTargetConfig::Project)
+        repo.save_deploy_target(&config_path, DeployTarget::Project)
             .unwrap();
 
         let content = fs::read_to_string(&config_path).unwrap();
@@ -203,7 +204,7 @@ target = "home"
         fs::write(&config_path, original).unwrap();
 
         let repo = TomlConfigRepository::new();
-        repo.save_deploy_target(&config_path, DeployTargetConfig::Unset)
+        repo.save_deploy_target(&config_path, DeployTarget::Unset)
             .unwrap();
 
         let content = fs::read_to_string(&config_path).unwrap();

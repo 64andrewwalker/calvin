@@ -122,8 +122,7 @@ pub fn cmd_migrate(
 
 pub fn cmd_diff(source: &Path, home: bool, json: bool) -> Result<()> {
     use calvin::application::DiffOptions;
-    use calvin::config::DeployTargetConfig;
-    use calvin::domain::value_objects::Scope;
+    use calvin::domain::value_objects::{DeployTarget, Scope};
     use calvin::presentation::factory::create_diff_use_case;
     use std::fs;
 
@@ -134,7 +133,7 @@ pub fn cmd_diff(source: &Path, home: bool, json: bool) -> Result<()> {
     let ui = crate::ui::context::UiContext::new(json, 0, None, true, &config);
 
     // Determine effective scope: CLI flag overrides config
-    let scope = if home || config.deploy.target == DeployTargetConfig::Home {
+    let scope = if home || config.deploy.target == DeployTarget::Home {
         Scope::User
     } else {
         Scope::Project

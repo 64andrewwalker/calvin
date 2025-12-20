@@ -396,26 +396,27 @@
 
 ---
 
-## 🔴 已知架构技术债务
+## ✅ 架构技术债务 (已清理)
 
-以下是已识别但尚未修复的架构问题：
+以下问题已在 2025-12-20 完成修复。详细重构计划见 [domain-deps-refactor.md](./domain-deps-refactor.md)。
 
-### Domain 层外部依赖 (违反分层原则)
+### Domain 层外部依赖 (已修复)
 
-| 问题 | 位置 | 影响 | 修复方案 |
-|------|------|------|----------|
-| Domain 依赖 `crate::config::SecurityMode` | `policies/security.rs` | 中 | 将 SecurityMode 移到 `domain/value_objects/` |
-| Domain 依赖 `crate::config::Config` | `ports/config_repository.rs` | 高 | 定义 DomainConfig trait 或移动类型 |
-| Domain 依赖 `crate::models::PromptAsset` | `policies/scope_policy.rs` | 中 | 使用 Asset 实体替代 |
+| 问题 | 位置 | 修复方案 | 状态 |
+|------|------|----------|------|
+| Domain 依赖 `crate::config::SecurityMode` | `policies/security.rs` | 移动到 `domain/value_objects/security_mode.rs` | ✅ |
+| Domain 依赖 `crate::config::Config` | `ports/config_repository.rs` | 定义 `DomainConfig` trait，使用泛型参数 | ✅ |
+| Domain 依赖 `crate::config::{ConfigWarning, DeployTargetConfig}` | `ports/config_repository.rs` | 移动到 `domain/value_objects/` | ✅ |
+| Domain 依赖 `crate::models::PromptAsset` | `policies/scope_policy.rs` | 移动 `ScopePolicyExt` 到 `application/pipeline.rs` | ✅ |
+| Domain 依赖 `crate::models::Target` | 多处 | 移动到 `domain/value_objects/target.rs`，models.rs 重导出 | ✅ |
 
-**说明**: 这些依赖是历史遗留。理想情况下，Domain 层应该只依赖自身定义的类型。
+**当前状态**: Domain 层不再直接依赖 `crate::config` 或 `crate::models`。唯一例外是测试代码中的 `From<PromptAsset>` 测试（可接受）。
 
-**修复优先级**: P2 (v0.4.0+)
-
-**修复策略**:
-1. 将 `SecurityMode` 枚举移动到 `domain/value_objects/security_mode.rs`
-2. 在 `domain/ports/` 定义 `DomainConfig` trait，只暴露 Domain 需要的配置
-3. 逐步用 `Asset` 替代 `PromptAsset` 的使用
+**新增 Domain 类型**:
+- `domain/value_objects/security_mode.rs` - SecurityMode 枚举
+- `domain/value_objects/deploy_target.rs` - DeployTarget 枚举
+- `domain/value_objects/config_warning.rs` - ConfigWarning 结构
+- `domain/ports/config_repository.rs` - DomainConfig trait
 
 ---
 
@@ -448,6 +449,7 @@
 
 | 日期 | 更新内容 |
 |------|----------|
+| 2025-12-20 | **Domain 层依赖重构完成** - 移动 SecurityMode/DeployTarget/ConfigWarning/Target 到 domain 层，创建 DomainConfig trait |
 | 2025-12-20 | **文档对齐分析** - 发现并记录 Domain 层外部依赖技术债务 |
 | 2025-12-20 | **Docker 测试通过** - Linux 环境所有测试通过 |
 | 2025-12-20 | **冲突解决测试** - 添加 30+ 测试用例 |
