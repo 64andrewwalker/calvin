@@ -2,8 +2,6 @@
 //!
 //! This module provides conversion functions between the old and new architectures,
 //! allowing for a gradual migration.
-//!
-//! These functions are currently unused but will be used when we switch to the new engine.
 #![allow(dead_code)]
 
 use calvin::application::{DeployOptions as UseCaseOptions, DeployResult as UseCaseResult};
@@ -12,7 +10,6 @@ use calvin::presentation::factory::{
     create_adapters_for_targets, create_deploy_use_case_for_remote_with_adapters,
     ConcreteDeployUseCase,
 };
-use calvin::sync::SyncResult;
 
 use super::options::DeployOptions as RunnerOptions;
 use super::targets::DeployTarget;
@@ -53,11 +50,6 @@ pub fn convert_options(
         dry_run: runner_options.dry_run,
         clean_orphans: cleanup, // Pass through cleanup flag
     }
-}
-
-/// Convert use case result to runner result (for compatibility)
-pub fn convert_result(use_case_result: &UseCaseResult) -> SyncResult {
-    use_case_result.clone().into()
 }
 
 /// Create a deploy use case for the given targets (local destinations)

@@ -8,18 +8,18 @@
 //!
 //! Calvin follows a layered architecture:
 //! - `domain/` - Pure business logic (no I/O dependencies)
-//! - `adapters/` - Target platform adapters (will move to infrastructure/)
-//! - `sync/` - Sync engine (will be split across layers)
+//! - `application/` - Use cases and orchestration
+//! - `infrastructure/` - Adapters and external integrations
 //!
 //! See `docs/architecture/` for the full design.
 
-// New architecture layers (v2)
+// Architecture layers
 pub mod application;
 pub mod domain;
 pub mod infrastructure;
 pub mod presentation;
 
-// Legacy modules (will be refactored)
+// Core modules
 pub mod config;
 pub mod error;
 pub mod fs;
@@ -27,11 +27,10 @@ pub mod models;
 pub mod parser;
 pub mod security;
 pub(crate) mod security_baseline;
-pub mod sync;
 pub mod watcher;
 
 // Re-exports for convenience
-// Note: OutputFile and TargetAdapter are now from the domain layer
+pub use application::{compile_assets, DeployResult};
 pub use config::{Config, SecurityMode};
 pub use domain::entities::OutputFile;
 pub use domain::ports::TargetAdapter;
@@ -40,5 +39,4 @@ pub use infrastructure::adapters::{all_adapters, get_adapter};
 pub use models::{AssetKind, Frontmatter, PromptAsset, Scope, Target};
 pub use parser::parse_frontmatter;
 pub use security::{run_doctor, DoctorReport, DoctorSink};
-pub use sync::{compile_assets, SyncOptions, SyncResult};
 pub use watcher::{parse_incremental, watch, IncrementalCache, WatchEvent, WatchOptions};
