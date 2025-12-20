@@ -3,7 +3,7 @@ use std::path::Path;
 use crate::ui::blocks::header::CommandHeader;
 use crate::ui::blocks::summary::ResultSummary;
 use crate::ui::primitives::icon::Icon;
-use calvin::SyncResult;
+use calvin::application::DeployResult;
 
 pub fn render_deploy_header(
     action: &str,
@@ -34,7 +34,7 @@ pub fn render_deploy_summary(
     action: &str,
     asset_count: usize,
     target_count: usize,
-    result: &SyncResult,
+    result: &DeployResult,
     supports_color: bool,
     supports_unicode: bool,
 ) -> String {
@@ -93,6 +93,7 @@ pub fn render_deploy_summary(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
 
     #[test]
     fn header_includes_source_label() {
@@ -110,8 +111,14 @@ mod tests {
 
     #[test]
     fn summary_includes_written_stat() {
-        let mut result = SyncResult::new();
-        result.written.push("a".to_string());
+        let result = DeployResult {
+            written: vec![PathBuf::from("a")],
+            skipped: vec![],
+            deleted: vec![],
+            errors: vec![],
+            asset_count: 1,
+            output_count: 1,
+        };
 
         let rendered = render_deploy_summary("Deploy", 1, 1, &result, false, false);
         assert!(rendered.contains("1 files written"));

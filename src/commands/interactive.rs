@@ -232,16 +232,13 @@ fn deploy_both(
     let result_project = use_case.execute(&project_options);
     let asset_count_project = result_project.asset_count;
 
-    // Convert to SyncResult for UI compatibility
-    let sync_result_project: calvin::sync::SyncResult = result_project.clone().into();
-
     print!(
         "{}",
         render_deploy_summary(
             "Deploy (Project)",
             asset_count_project,
             5,
-            &sync_result_project,
+            &result_project,
             ui.color,
             ui.unicode,
         )
@@ -255,15 +252,13 @@ fn deploy_both(
     let result_home = use_case.execute(&home_options);
     let asset_count_home = result_home.asset_count;
 
-    let sync_result_home: calvin::sync::SyncResult = result_home.clone().into();
-
     print!(
         "{}",
         render_deploy_summary(
             "Deploy (Home)",
             asset_count_home,
             5,
-            &sync_result_home,
+            &result_home,
             ui.color,
             ui.unicode,
         )

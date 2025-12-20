@@ -197,13 +197,12 @@ pub fn cmd_deploy_with_explicit_target(
             } else {
                 options_for_bridge.targets.clone()
             };
-            let use_case_result = super::bridge::run_remote_deployment(
+            super::bridge::run_remote_deployment(
                 remote_spec,
                 source,
                 &use_case_options,
                 &effective_targets,
-            );
-            super::bridge::convert_result(&use_case_result)
+            )
         } else {
             unreachable!("is_remote_target check failed")
         }
@@ -225,8 +224,7 @@ pub fn cmd_deploy_with_explicit_target(
         };
         let use_case = super::bridge::create_use_case_for_targets(&effective_targets);
         let json_sink = Arc::new(JsonEventSink::stdout());
-        let use_case_result = use_case.execute_with_events(&use_case_options, json_sink);
-        super::bridge::convert_result(&use_case_result)
+        use_case.execute_with_events(&use_case_options, json_sink)
     } else {
         // Non-JSON local mode: use new DeployUseCase architecture
         let use_case_options = super::bridge::convert_options(
@@ -242,8 +240,7 @@ pub fn cmd_deploy_with_explicit_target(
             options_for_bridge.targets.clone()
         };
         let use_case = super::bridge::create_use_case_for_targets(&effective_targets);
-        let use_case_result = use_case.execute(&use_case_options);
-        super::bridge::convert_result(&use_case_result)
+        use_case.execute(&use_case_options)
     };
 
     // Render summary

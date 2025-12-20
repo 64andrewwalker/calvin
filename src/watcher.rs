@@ -15,12 +15,11 @@ use std::time::{Duration, Instant};
 
 use notify::{Config, Event, RecommendedWatcher, RecursiveMode, Watcher};
 
-use crate::application::AssetPipeline;
+use crate::application::{AssetPipeline, DeployResult};
 use crate::domain::policies::ScopePolicy;
 use crate::error::CalvinResult;
 use crate::models::{PromptAsset, Target};
 use crate::parser::{parse_directory, parse_file};
-use crate::sync::SyncResult;
 
 /// Debounce duration in milliseconds
 const DEBOUNCE_MS: u64 = 100;
@@ -377,7 +376,7 @@ fn perform_sync_incremental(
     options: &WatchOptions,
     changed_files: &[PathBuf],
     cache: &mut IncrementalCache,
-) -> CalvinResult<SyncResult> {
+) -> CalvinResult<DeployResult> {
     use crate::application::{DeployOutputOptions, DeployUseCase};
     use crate::domain::value_objects::Scope;
     use crate::infrastructure::adapters::all_adapters;
@@ -433,8 +432,7 @@ fn perform_sync_incremental(
 
     let result = deploy.deploy_outputs(outputs, &deploy_options);
 
-    // Convert DeployResult to SyncResult for backward compatibility
-    Ok(result.into())
+    Ok(result)
 }
 
 #[cfg(test)]
