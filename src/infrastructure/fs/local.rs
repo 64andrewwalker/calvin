@@ -55,13 +55,22 @@ impl FileSystem for LocalFs {
     }
 
     fn hash(&self, path: &Path) -> FsResult<String> {
+        use sha2::{Digest, Sha256};
         let expanded = self.expand_home(path);
-        crate::sync::writer::hash_file(&expanded)
-            .map_err(|e| crate::domain::ports::file_system::FsError::Other(e.to_string()))
+        let content = std::fs::read(&expanded)?;
+        let mut hasher = Sha256::new();
+        hasher.update(&content);
+        Ok(format!("sha256:{:x}", hasher.finalize()))
     }
 
     fn expand_home(&self, path: &Path) -> PathBuf {
-        crate::sync::expand_home_dir(path)
+        let path_str = path.to_string_lossy();
+        if path_str.starts_with("~/") || path_str == "~" {
+            if let Some(home) = dirs::home_dir() {
+                return home.join(path_str.strip_prefix("~/").unwrap_or(""));
+            }
+        }
+        path.to_path_buf()
     }
 }
 
