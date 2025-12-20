@@ -23,7 +23,7 @@ use crate::parser::parse_directory;
 pub use crate::domain::policies::ScopePolicy as ScopePolicyType;
 
 // Import the trait for the apply() method
-use crate::sync::scope::ScopePolicyExt;
+use crate::domain::policies::ScopePolicyExt;
 
 /// Unified pipeline for parsing + scope filtering + compilation.
 ///

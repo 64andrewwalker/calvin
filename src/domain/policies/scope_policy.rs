@@ -4,6 +4,7 @@
 //! This is a pure policy - it operates on generic types via traits.
 
 use crate::domain::value_objects::Scope;
+use crate::models::PromptAsset;
 
 /// Deployment target type (where outputs should be written).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -84,6 +85,28 @@ impl ScopePolicy {
     /// Is this a transform policy (changes scope)?
     pub fn is_transform(&self) -> bool {
         matches!(self, ScopePolicy::ForceUser | ScopePolicy::ForceProject)
+    }
+}
+
+/// Extension trait for applying ScopePolicy to PromptAsset vectors
+///
+/// This trait bridges the domain policy with the legacy PromptAsset model.
+/// It provides the `apply` method that filters and transforms assets based on scope.
+pub trait ScopePolicyExt {
+    /// Apply the policy to a list of assets.
+    fn apply(&self, assets: Vec<PromptAsset>) -> Vec<PromptAsset>;
+}
+
+impl ScopePolicyExt for ScopePolicy {
+    fn apply(&self, assets: Vec<PromptAsset>) -> Vec<PromptAsset> {
+        assets
+            .into_iter()
+            .filter(|a| self.should_include(a.frontmatter.scope.into()))
+            .map(|mut a| {
+                a.frontmatter.scope = self.transform_scope(a.frontmatter.scope.into()).into();
+                a
+            })
+            .collect()
     }
 }
 
@@ -210,5 +233,98 @@ mod tests {
         assert!(!ScopePolicy::UserOnly.is_transform());
         assert!(ScopePolicy::ForceUser.is_transform());
         assert!(ScopePolicy::ForceProject.is_transform());
+    }
+
+    // === TDD: ScopePolicyExt trait ===
+
+    use crate::models::Frontmatter;
+
+    fn make_asset(id: &str, scope: crate::models::Scope) -> PromptAsset {
+        let mut fm = Frontmatter::new(format!("asset {id}"));
+        fm.scope = scope;
+        PromptAsset::new(id, format!("{id}.md"), fm, "Content")
+    }
+
+    #[test]
+    fn apply_keep_keeps_all_assets() {
+        use crate::models::Scope as ModelScope;
+        let assets = vec![
+            make_asset("a", ModelScope::Project),
+            make_asset("b", ModelScope::User),
+        ];
+        let out = ScopePolicy::Keep.apply(assets);
+        assert_eq!(out.len(), 2);
+        assert_eq!(out[0].frontmatter.scope, ModelScope::Project);
+        assert_eq!(out[1].frontmatter.scope, ModelScope::User);
+    }
+
+    #[test]
+    fn apply_project_only_filters_user_assets() {
+        use crate::models::Scope as ModelScope;
+        let assets = vec![
+            make_asset("a", ModelScope::Project),
+            make_asset("b", ModelScope::User),
+        ];
+        let out = ScopePolicy::ProjectOnly.apply(assets);
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].id, "a");
+        assert_eq!(out[0].frontmatter.scope, ModelScope::Project);
+    }
+
+    #[test]
+    fn apply_user_only_filters_project_assets() {
+        use crate::models::Scope as ModelScope;
+        let assets = vec![
+            make_asset("a", ModelScope::Project),
+            make_asset("b", ModelScope::User),
+        ];
+        let out = ScopePolicy::UserOnly.apply(assets);
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].id, "b");
+        assert_eq!(out[0].frontmatter.scope, ModelScope::User);
+    }
+
+    #[test]
+    fn apply_force_user_rewrites_scope() {
+        use crate::models::Scope as ModelScope;
+        let assets = vec![
+            make_asset("a", ModelScope::Project),
+            make_asset("b", ModelScope::User),
+        ];
+        let out = ScopePolicy::ForceUser.apply(assets);
+        assert_eq!(out.len(), 2);
+        assert!(out.iter().all(|a| a.frontmatter.scope == ModelScope::User));
+    }
+
+    #[test]
+    fn apply_force_project_rewrites_scope() {
+        use crate::models::Scope as ModelScope;
+        let assets = vec![
+            make_asset("a", ModelScope::Project),
+            make_asset("b", ModelScope::User),
+        ];
+        let out = ScopePolicy::ForceProject.apply(assets);
+        assert_eq!(out.len(), 2);
+        assert!(out
+            .iter()
+            .all(|a| a.frontmatter.scope == ModelScope::Project));
+    }
+
+    #[test]
+    fn apply_empty_input_returns_empty() {
+        let assets = vec![];
+        let out = ScopePolicy::ForceUser.apply(assets);
+        assert!(out.is_empty());
+    }
+
+    #[test]
+    fn apply_project_only_on_user_only_input_returns_empty() {
+        use crate::models::Scope as ModelScope;
+        let assets = vec![
+            make_asset("a", ModelScope::User),
+            make_asset("b", ModelScope::User),
+        ];
+        let out = ScopePolicy::ProjectOnly.apply(assets);
+        assert!(out.is_empty());
     }
 }
