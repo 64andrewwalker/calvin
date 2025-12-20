@@ -3,7 +3,7 @@
 use std::path::Path;
 
 use anyhow::Result;
-use calvin::sync::ScopePolicy;
+use calvin::domain::policies::ScopePolicy;
 use calvin::Target;
 
 use super::options::DeployOptions;

@@ -234,7 +234,7 @@ fn cmd_diff_new_engine(source: &Path, home: bool, json: bool) -> Result<()> {
         if !json {
             // Read existing content to generate diff
             let target_path = if path_str.starts_with('~') {
-                calvin::sync::expand_home_dir(&entry.path)
+                calvin::infrastructure::fs::expand_home(&entry.path)
             } else {
                 compare_root.join(&entry.path)
             };
@@ -284,7 +284,7 @@ fn cmd_diff_new_engine(source: &Path, home: bool, json: bool) -> Result<()> {
         if !json {
             // Read existing content to generate diff
             let target_path = if path_str.starts_with('~') {
-                calvin::sync::expand_home_dir(&entry.path)
+                calvin::infrastructure::fs::expand_home(&entry.path)
             } else {
                 compare_root.join(&entry.path)
             };
@@ -338,11 +338,13 @@ fn cmd_diff_new_engine(source: &Path, home: bool, json: bool) -> Result<()> {
 
 /// Legacy engine implementation (original)
 fn cmd_diff_legacy(source: &Path, home: bool, json: bool) -> Result<()> {
+    use calvin::application::AssetPipeline;
     use calvin::config::DeployTargetConfig;
+    use calvin::domain::policies::ScopePolicy;
+    use calvin::domain::value_objects::LockfileNamespace;
     use calvin::infrastructure::fs::LocalFs;
-    use calvin::sync::lockfile::{Lockfile, LockfileNamespace};
+    use calvin::sync::lockfile::Lockfile;
     use calvin::sync::orphan::detect_orphans;
-    use calvin::sync::{AssetPipeline, ScopePolicy};
     use std::fs;
 
     // Load configuration
@@ -433,7 +435,7 @@ fn cmd_diff_legacy(source: &Path, home: bool, json: bool) -> Result<()> {
         }
 
         let target_path = if output_path_str.starts_with('~') {
-            calvin::sync::expand_home_dir(output.path())
+            calvin::infrastructure::fs::expand_home(output.path())
         } else {
             compare_root.join(output.path())
         };
