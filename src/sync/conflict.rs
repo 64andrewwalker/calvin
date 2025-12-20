@@ -3,7 +3,16 @@
 //! Provides `ConflictResolver` trait for handling file conflicts during sync.
 //! Use `InteractiveResolver` for production (stdin/stderr prompts) or
 //! implement a mock resolver for testing.
+//!
+//! **Migration Note**: Core types are now defined in `domain::ports::conflict_resolver`
+//! and re-exported here for backward compatibility.
 
+// Re-export domain types
+pub use crate::domain::ports::{ConflictChoice, ConflictReason};
+
+/// Generate a unified diff between old and new content.
+///
+/// Uses the `similar` crate to create a human-readable diff.
 pub fn unified_diff(path: &str, old: &str, new: &str) -> String {
     use similar::TextDiff;
     TextDiff::from_lines(old, new)
@@ -12,36 +21,12 @@ pub fn unified_diff(path: &str, old: &str, new: &str) -> String {
         .to_string()
 }
 
-/// Reason why a file is in conflict
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ConflictReason {
-    /// File was modified externally after it was deployed
-    Modified,
-    /// File exists but is not tracked by Calvin
-    Untracked,
-}
-
-/// User's choice for resolving a conflict
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ConflictChoice {
-    /// Overwrite the file with new content
-    Overwrite,
-    /// Skip this file, keep existing content
-    Skip,
-    /// Show diff between existing and new content
-    Diff,
-    /// Abort the entire sync operation
-    Abort,
-    /// Overwrite this and all remaining conflicts
-    OverwriteAll,
-    /// Skip this and all remaining conflicts
-    SkipAll,
-}
-
-/// Trait for resolving conflicts during sync
+/// Legacy trait for resolving conflicts during sync.
 ///
-/// Implement this trait to customize conflict resolution behavior.
-/// Use `InteractiveResolver` for production (prompts user via stdin/stderr).
+/// **Note**: For new code, prefer using `domain::ports::ConflictResolver` which
+/// uses a more immutable design pattern with `&self` instead of `&mut self`.
+///
+/// This trait is kept for backward compatibility with existing sync code.
 pub trait ConflictResolver {
     /// Prompt to resolve a single conflict
     fn resolve_conflict(&mut self, path: &str, reason: ConflictReason) -> ConflictChoice;

@@ -1,6 +1,13 @@
 //! Atomic file writer with retry logic
 //!
 //! Implements TD-14: Atomic writes via tempfile + rename
+//!
+//! **Migration Note**: Most functions in this module are now available through
+//! `infrastructure::fs::LocalFs` or `domain::value_objects::ContentHash`.
+//!
+//! - `atomic_write` → Use `LocalFs::write()` or `LocalFs::write_atomic()`
+//! - `hash_content` → Use `ContentHash::from_bytes()`
+//! - `hash_file` → Use `LocalFs::hash()` or `FileSystem::hash_file()`
 
 use std::fs;
 use std::io::Write;
@@ -8,7 +15,6 @@ use std::path::Path;
 use std::thread;
 use std::time::Duration;
 
-use sha2::{Digest, Sha256};
 use tempfile::NamedTempFile;
 
 use crate::error::CalvinResult;
@@ -23,6 +29,8 @@ const RETRY_DELAYS_MS: [u64; 3] = [100, 500, 1000];
 ///
 /// Uses tempfile + rename pattern to ensure atomic writes.
 /// On Windows, retries with backoff if file is locked.
+///
+/// **Note**: For new code, prefer using `LocalFs::write()` which has the same behavior.
 pub fn atomic_write(path: &Path, content: &[u8]) -> CalvinResult<()> {
     let dir = path.parent().unwrap_or(Path::new("."));
 
@@ -56,18 +64,23 @@ pub fn atomic_write(path: &Path, content: &[u8]) -> CalvinResult<()> {
 }
 
 /// Compute SHA-256 hash of file content
+///
+/// **Note**: For new code, prefer using `ContentHash::from_bytes()`.
 pub fn hash_content(content: &[u8]) -> String {
-    let hash = Sha256::digest(content);
-    format!("sha256:{:x}", hash)
+    crate::domain::value_objects::ContentHash::from_bytes(content).to_string()
 }
 
 /// Compute SHA-256 hash of a file
+///
+/// **Note**: For new code, prefer using `LocalFs::hash()` or `FileSystem::hash_file()`.
 pub fn hash_file(path: &Path) -> CalvinResult<String> {
     let content = fs::read(path)?;
     Ok(hash_content(&content))
 }
 
 /// Check if file has the expected hash
+///
+/// **Note**: For new code, prefer using `LocalFs::hash()` and comparing directly.
 pub fn verify_hash(path: &Path, expected: &str) -> CalvinResult<bool> {
     let actual = hash_file(path)?;
     Ok(actual == expected)
