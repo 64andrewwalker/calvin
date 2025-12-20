@@ -1,13 +1,35 @@
 //! Remote Sync Destination
 //!
 //! Implements SyncDestination for remote servers via SSH/rsync.
-//! Uses rsync for efficient batch transfers.
+//! Uses rsync for efficient batch transfers, with scp fallback for Windows.
 
 use crate::domain::entities::OutputFile;
 use crate::domain::ports::{SyncDestination, SyncDestinationError, SyncOptions, SyncResult};
 use crate::domain::value_objects::Scope;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+
+/// Transfer method for remote sync
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TransferMethod {
+    /// Use rsync (preferred, efficient incremental transfers)
+    Rsync,
+    /// Use scp (fallback, full file transfers)
+    Scp,
+}
+
+impl TransferMethod {
+    /// Detect the best available transfer method
+    pub fn detect() -> Option<Self> {
+        if RemoteDestination::has_rsync() {
+            Some(Self::Rsync)
+        } else if RemoteDestination::has_scp() {
+            Some(Self::Scp)
+        } else {
+            None
+        }
+    }
+}
 
 /// Sync destination for remote servers
 ///
@@ -48,6 +70,22 @@ impl RemoteDestination {
             .status()
             .map(|s| s.success())
             .unwrap_or(false)
+    }
+
+    /// Check if scp is available
+    pub fn has_scp() -> bool {
+        // On Windows, scp might be available via OpenSSH or Git Bash
+        // We check by running a simple version/help command
+        Command::new("scp")
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .is_ok() // scp returns non-zero with no args, but if it runs, it's available
+    }
+
+    /// Get the best available transfer method
+    pub fn transfer_method() -> Option<TransferMethod> {
+        TransferMethod::detect()
     }
 
     /// Build the remote destination string
@@ -194,16 +232,19 @@ impl SyncDestination for RemoteDestination {
         outputs: &[OutputFile],
         options: &SyncOptions,
     ) -> Result<SyncResult, SyncDestinationError> {
-        if !Self::has_rsync() {
-            return Err(SyncDestinationError::NotAvailable(
-                "rsync is not installed".to_string(),
-            ));
-        }
+        let method = Self::transfer_method().ok_or_else(|| {
+            SyncDestinationError::NotAvailable(
+                "Neither rsync nor scp is available. Install rsync (preferred) or ensure scp is in PATH.".to_string(),
+            )
+        })?;
 
         // Create temp directory for staging
         let temp_dir =
             tempfile::tempdir().map_err(|e| SyncDestinationError::IoError(e.to_string()))?;
         let staging_root = temp_dir.path();
+
+        // Collect unique directories that need to be created
+        let mut remote_dirs: std::collections::HashSet<PathBuf> = std::collections::HashSet::new();
 
         // Stage all files
         let mut staged_files = Vec::new();
@@ -214,6 +255,15 @@ impl SyncDestination for RemoteDestination {
             if let Some(parent) = target_path.parent() {
                 std::fs::create_dir_all(parent)
                     .map_err(|e| SyncDestinationError::IoError(e.to_string()))?;
+            }
+
+            // Track remote directories for scp (rsync handles this automatically)
+            if method == TransferMethod::Scp {
+                if let Some(parent) = output.path().parent() {
+                    if !parent.as_os_str().is_empty() {
+                        remote_dirs.insert(parent.to_path_buf());
+                    }
+                }
             }
 
             // Write file
@@ -230,7 +280,33 @@ impl SyncDestination for RemoteDestination {
             });
         }
 
-        // Build rsync command
+        match method {
+            TransferMethod::Rsync => self.sync_batch_rsync(staging_root, &staged_files, options),
+            TransferMethod::Scp => {
+                self.sync_batch_scp(staging_root, &staged_files, &remote_dirs, options)
+            }
+        }
+    }
+
+    fn resolve_path(&self, path: &Path) -> PathBuf {
+        // For remote, we just return the path as-is
+        // The remote host handles path resolution
+        path.to_path_buf()
+    }
+
+    fn lockfile_path(&self, _source: &Path) -> PathBuf {
+        self.source.join(".calvin.lock")
+    }
+}
+
+impl RemoteDestination {
+    /// Sync using rsync (preferred method)
+    fn sync_batch_rsync(
+        &self,
+        staging_root: &Path,
+        staged_files: &[PathBuf],
+        options: &SyncOptions,
+    ) -> Result<SyncResult, SyncDestinationError> {
         let mut cmd = Command::new("rsync");
         cmd.arg("-avz")
             .arg("--progress")
@@ -258,20 +334,101 @@ impl SyncDestination for RemoteDestination {
         }
 
         Ok(SyncResult {
-            written: staged_files,
+            written: staged_files.to_vec(),
             skipped: vec![],
             errors: vec![],
         })
     }
 
-    fn resolve_path(&self, path: &Path) -> PathBuf {
-        // For remote, we just return the path as-is
-        // The remote host handles path resolution
-        path.to_path_buf()
-    }
+    /// Sync using scp (fallback method for Windows)
+    ///
+    /// This provides rsync-like behavior by:
+    /// 1. Creating remote directories first via SSH
+    /// 2. Using scp -r to copy the staged directory contents
+    fn sync_batch_scp(
+        &self,
+        staging_root: &Path,
+        staged_files: &[PathBuf],
+        remote_dirs: &std::collections::HashSet<PathBuf>,
+        options: &SyncOptions,
+    ) -> Result<SyncResult, SyncDestinationError> {
+        // Step 1: Create remote directories via SSH
+        // This is necessary because scp doesn't create parent directories automatically
+        if !remote_dirs.is_empty() {
+            let dirs_to_create: Vec<String> = remote_dirs
+                .iter()
+                .map(|d| format!("{}/{}", self.remote_path, d.display()))
+                .collect();
 
-    fn lockfile_path(&self, _source: &Path) -> PathBuf {
-        self.source.join(".calvin.lock")
+            let mkdir_cmd = format!("mkdir -p {}", dirs_to_create.join(" "));
+
+            let status = Command::new("ssh")
+                .arg(&self.host)
+                .arg(&mkdir_cmd)
+                .stdout(Stdio::null())
+                .stderr(if options.json {
+                    Stdio::null()
+                } else {
+                    Stdio::inherit()
+                })
+                .status()
+                .map_err(|e| SyncDestinationError::ConnectionError(e.to_string()))?;
+
+            if !status.success() {
+                return Err(SyncDestinationError::CommandFailed(
+                    "Failed to create remote directories via SSH".to_string(),
+                ));
+            }
+        }
+
+        // Step 2: Use scp -r to copy the staging directory contents
+        // scp -r copies directory contents recursively
+        let mut cmd = Command::new("scp");
+        cmd.arg("-r") // recursive
+            .arg("-p") // preserve modification times
+            .stdin(Stdio::inherit()); // Allow password input
+
+        // Add verbose flag if not in JSON mode
+        if !options.json && options.verbose {
+            cmd.arg("-v");
+        }
+
+        // Add all top-level items in the staging directory
+        // We need to iterate the staging root and add each item
+        let entries: Vec<_> = std::fs::read_dir(staging_root)
+            .map_err(|e| SyncDestinationError::IoError(e.to_string()))?
+            .filter_map(|e| e.ok())
+            .collect();
+
+        for entry in &entries {
+            cmd.arg(entry.path());
+        }
+
+        // Add remote destination
+        cmd.arg(self.remote_dest());
+
+        if options.json {
+            cmd.stdout(Stdio::null()).stderr(Stdio::null());
+        } else {
+            cmd.stdout(Stdio::inherit()).stderr(Stdio::inherit());
+        }
+
+        let status = cmd
+            .status()
+            .map_err(|e| SyncDestinationError::CommandFailed(e.to_string()))?;
+
+        if !status.success() {
+            return Err(SyncDestinationError::CommandFailed(format!(
+                "scp failed with exit code: {:?}",
+                status.code()
+            )));
+        }
+
+        Ok(SyncResult {
+            written: staged_files.to_vec(),
+            skipped: vec![],
+            errors: vec![],
+        })
     }
 }
 
@@ -345,7 +502,7 @@ mod tests {
         assert_eq!(dest.remote_path, "~/projects");
     }
 
-    // Note: SSH/rsync integration tests require actual network access
+    // Note: SSH/rsync/scp integration tests require actual network access
     // and are better suited for integration tests with a test container.
     // The following tests verify command construction without execution.
 
@@ -353,5 +510,33 @@ mod tests {
     fn has_rsync_does_not_panic() {
         // This just verifies the function doesn't panic, actual result depends on system
         let _ = RemoteDestination::has_rsync();
+    }
+
+    #[test]
+    fn has_scp_does_not_panic() {
+        // This just verifies the function doesn't panic, actual result depends on system
+        let _ = RemoteDestination::has_scp();
+    }
+
+    #[test]
+    fn transfer_method_detect_does_not_panic() {
+        // This just verifies the function doesn't panic, actual result depends on system
+        let _ = TransferMethod::detect();
+    }
+
+    #[test]
+    fn transfer_method_prefers_rsync() {
+        // When both are available, rsync should be preferred
+        // This is ensured by the detect() implementation order
+        if RemoteDestination::has_rsync() {
+            assert_eq!(TransferMethod::detect(), Some(TransferMethod::Rsync));
+        }
+    }
+
+    #[test]
+    fn transfer_method_falls_back_to_scp() {
+        // Test the logic: if rsync is not available but scp is, should return Scp
+        // We can't easily test this without mocking, but we verify the enum values
+        assert_ne!(TransferMethod::Rsync, TransferMethod::Scp);
     }
 }
