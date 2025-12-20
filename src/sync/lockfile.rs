@@ -2,8 +2,23 @@
 //!
 //! Implements TD-15: Lockfile system (.promptpack/.calvin.lock)
 //!
-//! **Migration Note**: `LockfileNamespace` and `lockfile_key` are now defined in
-//! `domain::value_objects` and re-exported here for backward compatibility.
+//! ## Migration Status
+//!
+//! This module provides backward-compatible types for legacy code.
+//! For new code, use the domain layer types:
+//!
+//! - **Domain entity**: `domain::entities::Lockfile` (pure data structure)
+//! - **Repository**: `infrastructure::repositories::TomlLockfileRepository` (I/O operations)
+//! - **Namespace**: Re-exported from `domain::value_objects::LockfileNamespace`
+//! - **Key generation**: Re-exported from `domain::value_objects::lockfile_key`
+//!
+//! ### Why Two Lockfile Types?
+//!
+//! - `sync::lockfile::Lockfile`: Serializable struct with embedded I/O methods (legacy)
+//! - `domain::entities::Lockfile`: Pure data structure, I/O via `LockfileRepository`
+//!
+//! The domain version follows hexagonal architecture principles where entities
+//! don't have I/O dependencies. The sync version is kept for backward compatibility.
 
 use std::collections::BTreeMap;
 use std::path::Path;
