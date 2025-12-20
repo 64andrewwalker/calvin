@@ -32,16 +32,6 @@ fn test_compile_assets_single() {
 }
 
 #[test]
-fn test_compile_assets_available_via_compile_module() {
-    let fm = Frontmatter::new("Test asset");
-    let asset = PromptAsset::new("test", "test.md", fm, "Content");
-    let config = crate::config::Config::default();
-
-    let outputs = super::compile::compile_assets(&[asset], &[], &config).unwrap();
-    assert!(!outputs.is_empty());
-}
-
-#[test]
 fn test_compile_assets_target_filter() {
     let fm = Frontmatter::new("Test asset");
     let asset = PromptAsset::new("test", "test.md", fm, "Content");
@@ -90,11 +80,10 @@ fn test_expand_home_dir() {
     assert_eq!(unchanged, Path::new(".claude/settings.json"));
 }
 
-// Note: Interactive sync tests have been migrated to sync/engine.rs tests.
-// Those tests use SyncEngine with MockFileSystem and MockConflictResolver for
-// better isolation and testability. See:
-// - engine_mock_fs_* tests for basic sync behavior
-// - engine_conflict_resolver_* tests for interactive conflict resolution
+// Note: Interactive sync tests were removed along with SyncEngine (engine.rs).
+// Conflict resolution and file sync testing is now done via:
+// - Integration tests in tests/cli_deploy*.rs for end-to-end behavior
+// - Unit tests in domain/services/ for core logic
 
 // --- Variants ---
 
