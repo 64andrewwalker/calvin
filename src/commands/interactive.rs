@@ -200,24 +200,14 @@ fn deploy_both(
     color: Option<ColorWhen>,
     no_animation: bool,
 ) -> Result<()> {
-    use calvin::sync::ScopePolicy;
+    use calvin::application::DeployOptions as UseCaseOptions;
+    use calvin::domain::value_objects::Scope;
+    use calvin::presentation::factory::create_deploy_use_case;
 
-    use crate::commands::deploy::{
-        options::DeployOptions, runner::DeployRunner, targets::DeployTarget,
-    };
     use crate::ui::views::deploy::{render_deploy_header, render_deploy_summary};
 
-    let project_root = source.parent().unwrap_or(source).to_path_buf();
     let config = calvin::config::Config::load_or_default(Some(source));
     let ui = crate::ui::context::UiContext::new(false, verbose, color, no_animation, &config);
-
-    let mut options = DeployOptions::new();
-    options.force = false;
-    options.interactive = true;
-    options.dry_run = false;
-    options.json = false;
-    options.verbose = verbose;
-    options.no_animation = no_animation;
 
     // One header, two deploy phases.
     print!(
@@ -233,43 +223,71 @@ fn deploy_both(
         )
     );
 
-    let runner_project = DeployRunner::new(
-        source.to_path_buf(),
-        DeployTarget::Project(project_root),
-        ScopePolicy::ProjectOnly,
-        options.clone(),
-        ui,
-    );
-    let result_project = runner_project.run()?;
-    let asset_count_project = result_project.written.len() / 4;
+    // Deploy to Project scope
+    let use_case = create_deploy_use_case();
+    let project_options = UseCaseOptions::new(source)
+        .with_scope(Scope::Project)
+        .with_force(false)
+        .with_interactive(true);
+    let result_project = use_case.execute(&project_options);
+    let asset_count_project = result_project.asset_count;
+
+    // Convert to SyncResult for UI compatibility
+    let sync_result_project = calvin::sync::SyncResult {
+        written: result_project
+            .written
+            .iter()
+            .map(|p| p.display().to_string())
+            .collect(),
+        skipped: result_project
+            .skipped
+            .iter()
+            .map(|p| p.display().to_string())
+            .collect(),
+        errors: result_project.errors.clone(),
+    };
+
     print!(
         "{}",
         render_deploy_summary(
             "Deploy (Project)",
             asset_count_project,
             5,
-            &result_project,
+            &sync_result_project,
             ui.color,
             ui.unicode,
         )
     );
 
-    let runner_home = DeployRunner::new(
-        source.to_path_buf(),
-        DeployTarget::Home,
-        ScopePolicy::UserOnly,
-        options,
-        ui,
-    );
-    let result_home = runner_home.run()?;
-    let asset_count_home = result_home.written.len() / 4;
+    // Deploy to User (Home) scope
+    let home_options = UseCaseOptions::new(source)
+        .with_scope(Scope::User)
+        .with_force(false)
+        .with_interactive(true);
+    let result_home = use_case.execute(&home_options);
+    let asset_count_home = result_home.asset_count;
+
+    let sync_result_home = calvin::sync::SyncResult {
+        written: result_home
+            .written
+            .iter()
+            .map(|p| p.display().to_string())
+            .collect(),
+        skipped: result_home
+            .skipped
+            .iter()
+            .map(|p| p.display().to_string())
+            .collect(),
+        errors: result_home.errors.clone(),
+    };
+
     print!(
         "{}",
         render_deploy_summary(
             "Deploy (Home)",
             asset_count_home,
             5,
-            &result_home,
+            &sync_result_home,
             ui.color,
             ui.unicode,
         )
