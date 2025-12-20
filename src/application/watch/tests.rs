@@ -1,14 +1,18 @@
-//! Tests for the watcher module
+//! Tests for the watch module
 
-use super::cache::{parse_incremental, IncrementalCache};
+use super::cache::{compute_content_hash, parse_incremental, IncrementalCache};
 use super::event::{WatchEvent, WatchOptions, WatcherState, DEBOUNCE_MS};
-use super::sync::watch;
+use super::use_case::WatchUseCase;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tempfile::tempdir;
+
+use crate::domain::value_objects::Scope;
+
+// === WatchEvent tests ===
 
 #[test]
 fn test_watch_event_to_json_started() {
@@ -53,6 +57,8 @@ fn test_watch_event_to_json_error() {
     assert!(json.contains("\"event\":\"error\""));
     assert!(json.contains("\\\"failed\\\""));
 }
+
+// === WatcherState tests ===
 
 #[test]
 fn test_watcher_state_debouncing() {
@@ -112,6 +118,8 @@ fn test_watcher_state_multiple_files() {
     assert_eq!(changes.len(), 3);
 }
 
+// === WatchUseCase tests ===
+
 #[test]
 fn test_watch_initial_sync() {
     let dir = tempdir().unwrap();
@@ -125,21 +133,15 @@ fn test_watch_initial_sync() {
     )
     .unwrap();
 
-    let options = WatchOptions {
-        source: source.clone(),
-        project_root: dir.path().to_path_buf(),
-        targets: vec![],
-        config: crate::config::Config::default(),
-        json: false,
-        deploy_to_home: false,
-    };
+    let options = WatchOptions::new(source.clone(), dir.path().to_path_buf());
 
     let events: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
     let events_clone = events.clone();
 
     let running = Arc::new(AtomicBool::new(false)); // Stop immediately
 
-    let _ = watch(options, running, |event| {
+    let use_case = WatchUseCase::new(options);
+    let _ = use_case.start(running, |event| {
         events_clone.lock().unwrap().push(event.to_json());
     });
 
@@ -148,7 +150,17 @@ fn test_watch_initial_sync() {
     assert!(captured[0].contains("watch_started"));
 }
 
-// === TDD: Incremental Compilation Tests (P1 Fix) ===
+#[test]
+fn test_watch_options_builder() {
+    let options = WatchOptions::new(PathBuf::from(".promptpack"), PathBuf::from("."))
+        .with_scope(Scope::User)
+        .with_json(true);
+
+    assert!(options.deploy_to_home());
+    assert!(options.json);
+}
+
+// === IncrementalCache tests ===
 
 #[test]
 fn test_incremental_cache_new() {
@@ -224,4 +236,14 @@ fn test_incremental_parse_changed_only() {
     // Should still return all assets (cached + reparsed)
     let assets = result.unwrap();
     assert_eq!(assets.len(), 2);
+}
+
+#[test]
+fn test_compute_content_hash() {
+    let hash1 = compute_content_hash("hello world");
+    let hash2 = compute_content_hash("hello world");
+    let hash3 = compute_content_hash("different content");
+
+    assert_eq!(hash1, hash2);
+    assert_ne!(hash1, hash3);
 }

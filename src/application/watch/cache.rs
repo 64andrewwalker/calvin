@@ -1,6 +1,8 @@
 //! Incremental cache for efficient reparsing
 
+use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 
 use crate::error::CalvinResult;
@@ -63,6 +65,11 @@ impl IncrementalCache {
     /// Get cached asset for a file
     pub fn get_asset(&self, path: &Path) -> Option<&PromptAsset> {
         self.cached_assets.get(path)
+    }
+
+    /// Get a clone of the file hashes map
+    pub fn file_hashes(&self) -> HashMap<PathBuf, String> {
+        self.file_hashes.clone()
     }
 }
 
@@ -134,10 +141,7 @@ pub fn parse_incremental(
 }
 
 /// Compute a simple hash of content for change detection
-pub(crate) fn compute_content_hash(content: &str) -> String {
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
-
+pub fn compute_content_hash(content: &str) -> String {
     let mut hasher = DefaultHasher::new();
     content.hash(&mut hasher);
     format!("{:x}", hasher.finish())

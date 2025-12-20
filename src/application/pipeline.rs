@@ -103,9 +103,10 @@ impl AssetPipeline {
     pub fn compile_incremental(
         &self,
         changed_files: &[PathBuf],
-        cache: &mut crate::watcher::IncrementalCache,
+        cache: &mut crate::application::watch::IncrementalCache,
     ) -> CalvinResult<Vec<OutputFile>> {
-        let assets = crate::watcher::parse_incremental(&self.source, changed_files, cache)?;
+        let assets =
+            crate::application::watch::parse_incremental(&self.source, changed_files, cache)?;
         let filtered = self.scope_policy.apply(assets);
         compile_assets(&filtered, &self.targets, &self.config)
     }
@@ -175,7 +176,7 @@ Hello
         write_asset(&source, "actions/test.md", "project");
 
         let config = Config::default();
-        let mut cache = crate::watcher::IncrementalCache::new();
+        let mut cache = crate::application::watch::IncrementalCache::new();
 
         let outputs = AssetPipeline::new(source, config)
             .with_scope_policy(ScopePolicy::Keep)

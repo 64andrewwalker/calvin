@@ -27,7 +27,6 @@ pub mod models;
 pub mod parser;
 pub mod security;
 pub(crate) mod security_baseline;
-pub mod watcher;
 
 // Re-exports for convenience
 pub use application::{compile_assets, DeployResult};
@@ -39,4 +38,8 @@ pub use infrastructure::adapters::{all_adapters, get_adapter};
 pub use models::{AssetKind, Frontmatter, PromptAsset, Scope, Target};
 pub use parser::parse_frontmatter;
 pub use security::{run_doctor, DoctorReport, DoctorSink};
-pub use watcher::{parse_incremental, watch, IncrementalCache, WatchEvent, WatchOptions};
+
+// Watch module re-exports (from application layer)
+pub use application::watch::{
+    parse_incremental, IncrementalCache, WatchEvent, WatchOptions, WatchUseCase,
+};

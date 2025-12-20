@@ -1,7 +1,7 @@
 # 架构重构进度追踪
 
 > **Created**: 2025-12-19  
-> **Updated**: 2025-12-20 (文件拆分完成)  
+> **Updated**: 2025-12-21 (Legacy 模块清理完成)  
 > **Status**: ✅ 完成 (100%)
 
 ---
@@ -19,13 +19,15 @@
 | Infrastructure Adapters | 100% | 5/5 适配器 |
 | Infrastructure Repos | 100% | FsAssetRepo, TomlLockfileRepo, TomlConfigRepo ✅ |
 | Application UseCases | 100% | DeployUseCase ✅, CheckUseCase ✅, WatchUseCase ✅, DiffUseCase ✅ |
-| Command Integration | 100% | Deploy ✅, Check ✅, Diff ✅ (新引擎唯一引擎) |
-| Legacy sync/ | 100% | **简化为兼容层** - 核心逻辑迁移到新架构，保留 2 个重导出文件 ✅ |
+| Command Integration | 100% | Deploy ✅, Check ✅, Diff ✅, Watch ✅ (新引擎唯一引擎) |
+| Legacy sync/ | 100% | **已删除** - 孤立模块，从未被编译 ✅ |
+| Legacy watcher/ | 100% | **已迁移** - 整合到 application/watch/ ✅ |
 | Presentation | 70% | factory + output, UI 使用 DeployResult ✅ |
 | 文件拆分 | 100% | 大文件已拆分为模块化结构 ✅ |
 
 **状态**: 架构迁移完成！
-- sync/ 模块简化为兼容层（2 个文件：compile.rs 重导出, orphan.rs 兼容函数）
+- sync/ 模块已完全删除（发现是孤立代码，从未在 lib.rs 中声明）
+- watcher/ 模块迁移到 application/watch/（完整的 WatchUseCase 实现）
 - 核心逻辑已迁移到 domain/application/infrastructure 层
 - Legacy 环境变量不再支持
 
@@ -453,6 +455,8 @@
 
 | 日期 | 更新内容 |
 |------|----------|
+| 2025-12-21 | **Legacy 模块清理** - 删除孤立的 `src/sync/` 目录（未在 lib.rs 中声明）|
+| 2025-12-21 | **watcher 迁移完成** - `src/watcher/` → `application/watch/` (WatchUseCase 完整实现) |
 | 2025-12-20 | **Domain 层依赖重构完成** - 移动 SecurityMode/DeployTarget/ConfigWarning/Target 到 domain 层，创建 DomainConfig trait |
 | 2025-12-20 | **文档对齐分析** - 发现并记录 Domain 层外部依赖技术债务 |
 | 2025-12-20 | **Docker 测试通过** - Linux 环境所有测试通过 |

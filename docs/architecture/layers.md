@@ -1,6 +1,6 @@
 # 分层架构
 
-> **Updated**: 2025-12-20 (与实际代码同步)
+> **Updated**: 2025-12-21 (watcher 迁移到 application 层)
 
 ## 四层结构
 
@@ -71,7 +71,7 @@ Layer 0 → Layer 1 → Layer 2 ← Layer 3
 |------|------|------|
 | `DeployUseCase` | `application/deploy/` | 编排部署流程 |
 | `CheckUseCase` | `application/check.rs` | 编排安全检查流程 |
-| `WatchUseCase` | `application/watch.rs` | 编排文件监控流程 |
+| `WatchUseCase` | `application/watch/` | 编排文件监控流程 (含增量编译缓存) |
 | `DiffUseCase` | `application/diff.rs` | 编排差异预览流程 |
 | `compile_assets` | `application/compiler.rs` | 资产编译服务 |
 | `AssetPipeline` | `application/pipeline.rs` | 资产处理管道 |
@@ -116,7 +116,6 @@ Layer 0 → Layer 1 → Layer 2 ← Layer 3
 |------|------|------|
 | `config/` | `src/config/` | 配置类型和加载 |
 | `security/` | `src/security/` | 安全检查逻辑 |
-| `watcher/` | `src/watcher/` | 文件监控实现 |
 
 ## Legacy 模块
 
@@ -127,4 +126,3 @@ Layer 0 → Layer 1 → Layer 2 ← Layer 3
 | `models.rs` | 保留 | PromptAsset 等类型定义 |
 | `parser.rs` | 保留 | frontmatter 解析 |
 | `fs.rs` | 待评估 | FileSystem trait (与 infrastructure/fs 重复) |
-| `sync/` | 兼容层 | 重导出到新位置 |

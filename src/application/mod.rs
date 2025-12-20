@@ -30,4 +30,7 @@ pub use compiler::compile_assets;
 pub use deploy::{DeployOptions, DeployOutputOptions, DeployResult, DeployUseCase};
 pub use diff::{ChangeType, DiffEntry, DiffOptions, DiffResult, DiffUseCase};
 pub use pipeline::{AssetPipeline, ScopePolicyExt};
-pub use watch::{WatchEvent, WatchOptions, WatchUseCase};
+pub use watch::{
+    compute_content_hash, parse_incremental, IncrementalCache, SyncResult, WatchEvent,
+    WatchOptions, WatchUseCase, WatcherState, DEBOUNCE_MS,
+};

@@ -1,6 +1,6 @@
 # 目录结构
 
-> **Updated**: 2025-12-20 (与实际代码同步)
+> **Updated**: 2025-12-21 (sync/ watcher/ 模块已清理)
 
 ## 代码目录
 
@@ -55,11 +55,16 @@ src/
 │   │   ├── use_case.rs     # 核心 UseCase
 │   │   ├── tests.rs
 │   │   └── mod.rs
+│   ├── watch/              # WatchUseCase 模块
+│   │   ├── cache.rs        # IncrementalCache (增量编译缓存)
+│   │   ├── event.rs        # WatchEvent, WatchOptions
+│   │   ├── use_case.rs     # 核心 UseCase
+│   │   ├── tests.rs
+│   │   └── mod.rs
 │   ├── check.rs            # CheckUseCase
 │   ├── compiler.rs         # compile_assets 服务
 │   ├── diff.rs             # DiffUseCase
 │   ├── pipeline.rs         # AssetPipeline
-│   ├── watch.rs            # WatchUseCase
 │   └── mod.rs
 │
 ├── domain/                 # Layer 2: 领域层 (核心!)
@@ -142,17 +147,6 @@ src/
 │   ├── tests.rs
 │   └── mod.rs
 │
-├── watcher/                # 文件监控模块 (独立)
-│   ├── cache.rs            # IncrementalCache
-│   ├── event.rs            # WatchEvent
-│   ├── sync.rs             # watch 函数
-│   ├── tests.rs
-│   └── mod.rs
-│
-├── sync/                   # 兼容层 (待移除)
-│   ├── compile.rs          # 重导出 application::compile_assets
-│   └── orphan.rs           # 兼容函数 detect_orphans/delete_orphans
-│
 ├── error.rs                # 错误类型定义
 ├── fs.rs                   # FileSystem trait (legacy, 与 infrastructure/fs 重复)
 ├── models.rs               # PromptAsset 等模型 (legacy)
@@ -171,8 +165,7 @@ src/
 | `application/` | Layer 1 | UseCase 和应用服务 |
 | `domain/` | Layer 2 | 领域逻辑 (核心) |
 | `infrastructure/` | Layer 3 | 适配器和外部实现 |
-| `config/`, `security/`, `watcher/` | 独立 | 功能模块 |
-| `sync/` | 兼容层 | 待移除，保留向后兼容 |
+| `config/`, `security/` | 独立 | 功能模块 |
 | `*.rs` (根目录) | Legacy | 待迁移到合适位置 |
 
 ## 迁移说明

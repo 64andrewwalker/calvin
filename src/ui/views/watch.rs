@@ -1,6 +1,6 @@
 use crate::ui::blocks::header::CommandHeader;
 use crate::ui::primitives::icon::Icon;
-use calvin::watcher::WatchEvent;
+use calvin::application::watch::WatchEvent;
 
 #[allow(dead_code)]
 pub fn render_watch_header(source: &str, supports_color: bool, supports_unicode: bool) -> String {
