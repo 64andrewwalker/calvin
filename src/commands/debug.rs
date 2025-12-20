@@ -339,7 +339,7 @@ fn cmd_diff_new_engine(source: &Path, home: bool, json: bool) -> Result<()> {
 /// Legacy engine implementation (original)
 fn cmd_diff_legacy(source: &Path, home: bool, json: bool) -> Result<()> {
     use calvin::config::DeployTargetConfig;
-    use calvin::fs::LocalFileSystem;
+    use calvin::infrastructure::fs::LocalFs;
     use calvin::sync::lockfile::{Lockfile, LockfileNamespace};
     use calvin::sync::orphan::detect_orphans;
     use calvin::sync::{AssetPipeline, ScopePolicy};
@@ -384,7 +384,7 @@ fn cmd_diff_legacy(source: &Path, home: bool, json: bool) -> Result<()> {
 
     // Load lockfile and detect orphans
     let lockfile_path = source.join(".calvin.lock");
-    let fs = LocalFileSystem;
+    let fs = LocalFs::new();
     let lockfile = Lockfile::load_or_new(&lockfile_path, &fs);
     let namespace = if use_home {
         LockfileNamespace::Home
