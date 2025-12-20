@@ -3,32 +3,6 @@ use std::path::Path;
 use crate::ui::context::UiContext;
 use crate::ui::primitives::icon::Icon;
 
-/// Print a deprecation warning for a command
-pub fn print_deprecation_warning(old_cmd: &str, new_cmd: &str, json: bool) {
-    if json {
-        let _ = crate::ui::json::emit(serde_json::json!({
-            "event": "warning",
-            "kind": "deprecation",
-            "old_command": old_cmd,
-            "new_command": new_cmd,
-            "message": format!("`{}` is deprecated; use `{}`.", old_cmd, new_cmd)
-        }));
-        return;
-    }
-
-    eprintln!("[WARN] `{}` is deprecated; use `{}`.", old_cmd, new_cmd);
-}
-
-#[cfg(test)]
-fn format_allow_naked_warning(supports_color: bool, supports_unicode: bool) -> String {
-    use crate::ui::blocks::warning::WarningBlock;
-    let mut block = WarningBlock::new("Security protections disabled!");
-    block.add_line("You have set security.allow_naked = true.");
-    block.add_line(".env, private keys, and .git may be visible to AI assistants.");
-    block.add_line("This is your responsibility.");
-    block.render(supports_color, supports_unicode)
-}
-
 pub fn print_config_warnings(
     path: &Path,
     warnings: &[calvin::domain::value_objects::ConfigWarning],
@@ -132,12 +106,6 @@ fn format_config_warning(
 mod tests {
     use super::*;
     use tempfile::tempdir;
-
-    #[test]
-    fn allow_naked_warning_has_actionable_key() {
-        let rendered = format_allow_naked_warning(false, false);
-        assert!(rendered.contains("security.allow_naked = true"));
-    }
 
     #[test]
     fn config_warning_includes_suggestion_when_available() {

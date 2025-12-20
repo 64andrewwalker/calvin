@@ -11,4 +11,4 @@ pub mod cmd;
 pub mod options;
 pub mod targets;
 
-pub use cmd::{cmd_deploy, cmd_deploy_with_explicit_target, cmd_install, cmd_sync};
+pub use cmd::{cmd_deploy, cmd_deploy_with_explicit_target};

@@ -74,72 +74,11 @@ fn dispatch(
             strict_warnings,
         } => commands::check::cmd_check(&mode, strict_warnings, json, verbose, color, no_animation),
         Commands::Explain { brief } => commands::explain::cmd_explain(brief, json, verbose),
-        Commands::Sync {
-            source,
-            remote,
-            force,
-            yes,
-            dry_run,
-            targets,
-        } => {
-            ui::output::print_deprecation_warning("calvin sync", "calvin deploy", json);
-            commands::deploy::cmd_sync(
-                &source,
-                remote,
-                &targets,
-                force || yes,
-                is_interactive_run(json, yes),
-                dry_run,
-                json,
-                verbose,
-                color,
-                no_animation,
-            )
-        }
         Commands::Watch { source, home } => {
             commands::watch::cmd_watch(&source, home, json, color, no_animation)
         }
         Commands::Diff { source, home } => commands::debug::cmd_diff(&source, home, json),
-        Commands::Doctor { mode } => {
-            ui::output::print_deprecation_warning("calvin doctor", "calvin check", json);
-            commands::check::cmd_doctor(&mode, json, verbose, color, no_animation)
-        }
-        Commands::Audit {
-            mode,
-            strict_warnings,
-        } => {
-            ui::output::print_deprecation_warning("calvin audit", "calvin check", json);
-            commands::check::cmd_audit(&mode, strict_warnings, json, verbose, color, no_animation)
-        }
         Commands::Parse { source } => commands::debug::cmd_parse(&source, json),
-        Commands::Install {
-            source,
-            user,
-            global,
-            targets,
-            force,
-            yes,
-            dry_run,
-        } => {
-            ui::output::print_deprecation_warning(
-                "calvin install",
-                "calvin deploy` or `calvin deploy --home",
-                json,
-            );
-            commands::deploy::cmd_install(
-                &source,
-                user,
-                global,
-                &targets,
-                force || yes,
-                is_interactive_run(json, yes),
-                dry_run,
-                json,
-                verbose,
-                color,
-                no_animation,
-            )
-        }
         Commands::Migrate {
             format,
             adapter,
