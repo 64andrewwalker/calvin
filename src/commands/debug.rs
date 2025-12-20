@@ -11,7 +11,7 @@ pub fn cmd_version(
     color: Option<ColorWhen>,
     no_animation: bool,
 ) -> Result<()> {
-    let adapters = calvin::adapters::all_adapters();
+    let adapters = calvin::infrastructure::adapters::all_adapters();
     let cwd = std::env::current_dir()?;
     let config = calvin::config::Config::load_or_default(Some(&cwd));
     let ui = crate::ui::context::UiContext::new(json, verbose, color, no_animation, &config);
@@ -416,7 +416,7 @@ fn cmd_diff_legacy(source: &Path, home: bool, json: bool) -> Result<()> {
     };
 
     for output in &outputs {
-        let output_path_str = output.path.display().to_string();
+        let output_path_str = output.path().display().to_string();
         let path_str = if use_home {
             if output_path_str.starts_with('~') {
                 output_path_str.clone()
@@ -433,15 +433,15 @@ fn cmd_diff_legacy(source: &Path, home: bool, json: bool) -> Result<()> {
         }
 
         let target_path = if output_path_str.starts_with('~') {
-            calvin::sync::expand_home_dir(&output.path)
+            calvin::sync::expand_home_dir(output.path())
         } else {
-            compare_root.join(&output.path)
+            compare_root.join(output.path())
         };
 
         if target_path.exists() {
             // Compare content
             let existing = fs::read_to_string(&target_path).unwrap_or_default();
-            if existing == output.content {
+            if existing == output.content() {
                 unchanged_files.push(path_str.clone());
                 if let Some(out) = &mut json_out {
                     let _ = crate::ui::json::write_event(
@@ -471,7 +471,7 @@ fn cmd_diff_legacy(source: &Path, home: bool, json: bool) -> Result<()> {
                     rendered_diffs.push_str(&crate::ui::views::diff::render_file_diff(
                         &path_str,
                         &existing,
-                        &output.content,
+                        output.content(),
                         ui.color,
                     ));
                     rendered_diffs.push('\n');
@@ -494,7 +494,7 @@ fn cmd_diff_legacy(source: &Path, home: bool, json: bool) -> Result<()> {
                 rendered_diffs.push_str(&crate::ui::views::diff::render_file_diff(
                     &path_str,
                     "",
-                    &output.content,
+                    output.content(),
                     ui.color,
                 ));
                 rendered_diffs.push('\n');

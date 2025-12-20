@@ -6,6 +6,7 @@
 use std::path::PathBuf;
 
 use super::OutputFile;
+use crate::domain::value_objects::Target;
 use crate::error::CalvinResult;
 use crate::fs::FileSystem;
 use crate::sync::lockfile::{lockfile_key, Lockfile, LockfileNamespace};
@@ -35,7 +36,8 @@ pub struct Conflict {
 impl Conflict {
     /// Convert conflict to output file (for overwrite)
     pub fn into_output(self) -> OutputFile {
-        OutputFile::new(self.path, self.new_content)
+        // Use Target::All as default since legacy Conflict doesn't store target info
+        OutputFile::new(self.path, self.new_content, Target::All)
     }
 }
 
@@ -117,15 +119,15 @@ pub(crate) fn plan_sync_with_namespace<FS: crate::fs::FileSystem + ?Sized>(
     };
 
     for output in outputs {
-        let path_str = output.path.display().to_string();
-        let lock_key = lockfile_key(namespace, &output.path);
+        let path_str = output.path().display().to_string();
+        let lock_key = lockfile_key(namespace, output.path());
 
         // Expand ~ in the *output* path too so `~/.foo` writes to the real home directory.
-        let expanded_output_path = fs.expand_home(&output.path);
+        let expanded_output_path = fs.expand_home(output.path());
         let target_path = root.join(expanded_output_path);
 
         // Compute hash of new content we want to write
-        let new_content_hash = crate::sync::lockfile::hash_content(&output.content);
+        let new_content_hash = crate::sync::lockfile::hash_content(output.content());
 
         // Check if file exists
         if fs.exists(&target_path) {
@@ -149,17 +151,17 @@ pub(crate) fn plan_sync_with_namespace<FS: crate::fs::FileSystem + ?Sized>(
                 } else {
                     // Modified since last sync - conflict
                     plan.conflicts.push(Conflict {
-                        path: output.path.clone(),
+                        path: output.path().to_path_buf(),
                         reason: ConflictReason::Modified,
-                        new_content: output.content.clone(),
+                        new_content: output.content().to_string(),
                     });
                 }
             } else {
                 // Not tracked - conflict
                 plan.conflicts.push(Conflict {
-                    path: output.path.clone(),
+                    path: output.path().to_path_buf(),
                     reason: ConflictReason::Untracked,
-                    new_content: output.content.clone(),
+                    new_content: output.content().to_string(),
                 });
             }
         } else {
@@ -215,10 +217,10 @@ pub(crate) fn plan_sync_remote_with_namespace(
     let file_status = fs.batch_check_files(&target_paths)?;
 
     for output in outputs {
-        let path_str = output.path.display().to_string();
-        let lock_key = lockfile_key(namespace, &output.path);
+        let path_str = output.path().display().to_string();
+        let lock_key = lockfile_key(namespace, output.path());
 
-        let target_path = root.join(fs.expand_home(&output.path));
+        let target_path = root.join(fs.expand_home(output.path()));
 
         let (exists, remote_hash) = file_status
             .get(&target_path)
@@ -226,7 +228,7 @@ pub(crate) fn plan_sync_remote_with_namespace(
             .unwrap_or((false, None));
 
         // Compute hash of new content we want to write
-        let new_content_hash = crate::sync::lockfile::hash_content(&output.content);
+        let new_content_hash = crate::sync::lockfile::hash_content(output.content());
 
         if !exists {
             // New file, no conflict
@@ -246,17 +248,17 @@ pub(crate) fn plan_sync_remote_with_namespace(
                 } else {
                     // Remote was modified externally (differs from lockfile)
                     plan.conflicts.push(Conflict {
-                        path: output.path.clone(),
+                        path: output.path().to_path_buf(),
                         reason: ConflictReason::Modified,
-                        new_content: output.content.clone(),
+                        new_content: output.content().to_string(),
                     });
                 }
             } else {
                 // File exists but not tracked - conflict
                 plan.conflicts.push(Conflict {
-                    path: output.path.clone(),
+                    path: output.path().to_path_buf(),
                     reason: ConflictReason::Untracked,
-                    new_content: output.content.clone(),
+                    new_content: output.content().to_string(),
                 });
             }
         } else {
@@ -267,9 +269,9 @@ pub(crate) fn plan_sync_remote_with_namespace(
             } else {
                 // Untracked file
                 plan.conflicts.push(Conflict {
-                    path: output.path.clone(),
+                    path: output.path().to_path_buf(),
                     reason: ConflictReason::Untracked,
-                    new_content: output.content.clone(),
+                    new_content: output.content().to_string(),
                 });
             }
         }
@@ -401,7 +403,7 @@ mod tests {
     use std::path::Path;
 
     fn make_output(path: &str, content: &str) -> OutputFile {
-        OutputFile::new(PathBuf::from(path), content.to_string())
+        OutputFile::new(PathBuf::from(path), content.to_string(), Target::All)
     }
 
     #[test]

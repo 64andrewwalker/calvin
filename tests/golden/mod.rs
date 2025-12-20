@@ -68,10 +68,10 @@ mod snapshot_tests {
         // Find the code-style output
         let policy_output = outputs
             .iter()
-            .find(|o| o.path.to_string_lossy().contains("code-style"))
+            .find(|o| o.path().to_string_lossy().contains("code-style"))
             .expect("Should have code-style output");
 
-        assert_snapshot!("claude_code_policy", &policy_output.content);
+        assert_snapshot!("claude_code_policy", &policy_output.content());
     }
 
     #[test]
@@ -88,11 +88,11 @@ mod snapshot_tests {
         // Find the generate-tests output
         let action_output = outputs
             .iter()
-            .find(|o| o.path.to_string_lossy().contains("generate-tests"))
+            .find(|o| o.path().to_string_lossy().contains("generate-tests"))
             .expect("Should have generate-tests output");
 
         // This tests that quotes in content are preserved correctly
-        assert_snapshot!("claude_code_action_quotes", &action_output.content);
+        assert_snapshot!("claude_code_action_quotes", &action_output.content());
     }
 
     #[test]
@@ -108,10 +108,10 @@ mod snapshot_tests {
 
         let policy_output = outputs
             .iter()
-            .find(|o| o.path.to_string_lossy().contains("code-style"))
+            .find(|o| o.path().to_string_lossy().contains("code-style"))
             .expect("Should have code-style output");
 
-        assert_snapshot!("cursor_policy", &policy_output.content);
+        assert_snapshot!("cursor_policy", &policy_output.content());
     }
 
     #[test]
@@ -129,13 +129,13 @@ mod snapshot_tests {
         let instr_output = outputs
             .iter()
             .find(|o| {
-                o.path
+                o.path()
                     .to_string_lossy()
                     .contains("code-style.instructions.md")
             })
             .expect("Should have code-style.instructions.md output");
 
-        assert_snapshot!("vscode_instructions", &instr_output.content);
+        assert_snapshot!("vscode_instructions", &instr_output.content());
     }
 
     #[test]
@@ -151,10 +151,10 @@ mod snapshot_tests {
 
         let rule_output = outputs
             .iter()
-            .find(|o| o.path.to_string_lossy().contains("code-style"))
+            .find(|o| o.path().to_string_lossy().contains("code-style"))
             .expect("Should have code-style output");
 
-        assert_snapshot!("antigravity_rule", &rule_output.content);
+        assert_snapshot!("antigravity_rule", &rule_output.content());
     }
 
     #[test]
@@ -170,10 +170,10 @@ mod snapshot_tests {
 
         let prompt_output = outputs
             .iter()
-            .find(|o| o.path.to_string_lossy().contains("generate-tests"))
+            .find(|o| o.path().to_string_lossy().contains("generate-tests"))
             .expect("Should have generate-tests output");
 
-        assert_snapshot!("codex_prompt", &prompt_output.content);
+        assert_snapshot!("codex_prompt", &prompt_output.content());
     }
 }
 
@@ -207,15 +207,16 @@ Look for variables named "bar" and "baz".
             // Filter to only markdown outputs (not settings.json etc)
             let md_outputs: Vec<_> = outputs
                 .iter()
-                .filter(|o| o.path.extension().map(|e| e == "md").unwrap_or(false))
+                .filter(|o| o.path().extension().map(|e| e == "md").unwrap_or(false))
                 .collect();
 
             for output in &md_outputs {
                 // Content should preserve the quotes in markdown files
                 assert!(
-                    output.content.contains("\"foo\"") || output.content.contains("\\\"foo\\\""),
+                    output.content().contains("\"foo\"")
+                        || output.content().contains("\\\"foo\\\""),
                     "Quotes should be preserved or escaped in {:?} output for {:?}",
-                    output.path,
+                    output.path(),
                     target
                 );
             }
@@ -277,12 +278,12 @@ Line 3
 
         let output = outputs
             .iter()
-            .find(|o| o.path.to_string_lossy().contains("multiline"))
+            .find(|o| o.path().to_string_lossy().contains("multiline"))
             .expect("Should have multiline output");
 
         // Content should have preserved newlines
-        assert!(output.content.contains("Line 1"));
-        assert!(output.content.contains("Line 2"));
-        assert!(output.content.contains("Line 3"));
+        assert!(output.content().contains("Line 1"));
+        assert!(output.content().contains("Line 2"));
+        assert!(output.content().contains("Line 3"));
     }
 }

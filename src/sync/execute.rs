@@ -145,7 +145,7 @@ where
     };
 
     for (index, output) in outputs.iter().enumerate() {
-        let path_str = output.path.display().to_string();
+        let path_str = output.path().display().to_string();
 
         if let Some(ref mut cb) = callback {
             cb(SyncEvent::ItemStart {
@@ -154,7 +154,7 @@ where
             });
         }
 
-        let expanded_output_path = fs.expand_home(&output.path);
+        let expanded_output_path = fs.expand_home(output.path());
         let target_path = root.join(expanded_output_path);
 
         // Ensure parent directory exists
@@ -173,7 +173,7 @@ where
         }
 
         // Write file
-        match fs.write_atomic(&target_path, &output.content) {
+        match fs.write_atomic(&target_path, output.content()) {
             Ok(()) => {
                 if let Some(ref mut cb) = callback {
                     cb(SyncEvent::ItemWritten {
@@ -206,7 +206,8 @@ mod tests {
     use std::path::PathBuf;
 
     fn make_output(path: &str, content: &str) -> OutputFile {
-        OutputFile::new(PathBuf::from(path), content.to_string())
+        use crate::domain::value_objects::Target;
+        OutputFile::new(PathBuf::from(path), content.to_string(), Target::All)
     }
 
     #[test]

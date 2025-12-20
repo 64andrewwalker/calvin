@@ -38,7 +38,7 @@ pub fn sync_remote_rsync(
     // Write all files to staging directory
     let mut staged_files = Vec::new();
     for output in outputs {
-        let target_path = staging_root.join(&output.path);
+        let target_path = staging_root.join(output.path());
 
         // Create parent directories
         if let Some(parent) = target_path.parent() {
@@ -46,8 +46,8 @@ pub fn sync_remote_rsync(
         }
 
         // Write file
-        std::fs::write(&target_path, &output.content)?;
-        staged_files.push(output.path.display().to_string());
+        std::fs::write(&target_path, output.content())?;
+        staged_files.push(output.path().display().to_string());
     }
 
     if options.dry_run {
@@ -138,12 +138,12 @@ pub fn sync_local_rsync(
     let mut staged_files = Vec::new();
     for output in outputs {
         // Handle paths that start with ~ (user home)
-        let output_path_str = output.path.display().to_string();
+        let output_path_str = output.path().display().to_string();
         let target_path = if output_path_str.starts_with("~") {
             // Skip ~ prefixed paths - they go to different locations
             continue;
         } else {
-            staging_root.join(&output.path)
+            staging_root.join(output.path())
         };
 
         // Create parent directories
@@ -152,8 +152,8 @@ pub fn sync_local_rsync(
         }
 
         // Write file
-        std::fs::write(&target_path, &output.content)?;
-        staged_files.push(output.path.display().to_string());
+        std::fs::write(&target_path, output.content())?;
+        staged_files.push(output.path().display().to_string());
     }
 
     if options.dry_run {
@@ -214,7 +214,8 @@ mod tests {
     use std::path::PathBuf;
 
     fn make_output(path: &str, content: &str) -> OutputFile {
-        OutputFile::new(PathBuf::from(path), content.to_string())
+        use crate::domain::value_objects::Target;
+        OutputFile::new(PathBuf::from(path), content.to_string(), Target::All)
     }
 
     #[test]

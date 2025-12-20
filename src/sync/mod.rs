@@ -37,9 +37,8 @@ pub use pipeline::AssetPipeline;
 pub use scope::{DeploymentTarget, ScopePolicy};
 pub use writer::atomic_write;
 
-// Re-export OutputFile from adapters for internal use
-// TODO: Migrate to domain::entities::OutputFile
-pub use crate::adapters::OutputFile;
+// Re-export OutputFile from domain entities
+pub use crate::domain::entities::OutputFile;
 
 // Re-export new two-stage sync API
 pub use engine::{SyncEngine, SyncEngineOptions};

@@ -214,6 +214,7 @@ mod tests {
         let outputs = vec![OutputFile::new(
             PathBuf::from("~/.claude/commands/current.md"),
             "content",
+            crate::domain::value_objects::Target::All,
         )];
 
         let result = detect_orphans(&lockfile, &outputs, LockfileNamespace::Home);
@@ -383,6 +384,7 @@ mod tests {
         let outputs = vec![OutputFile::new(
             PathBuf::from("~/.claude/commands/global.md"),
             "content",
+            crate::domain::value_objects::Target::All,
         )];
 
         let result = detect_orphans(&lockfile, &outputs, LockfileNamespace::Home);
@@ -406,6 +408,7 @@ mod tests {
         let outputs = vec![OutputFile::new(
             PathBuf::from("~/.claude/commands/cmd.md"),
             "new content",
+            crate::domain::value_objects::Target::All,
         )];
 
         let result = detect_orphans(&lockfile, &outputs, LockfileNamespace::Home);
