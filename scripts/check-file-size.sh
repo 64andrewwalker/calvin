@@ -5,6 +5,10 @@
 # - < 200 lines impl: Comfortable zone
 # - 200-400 lines impl: Gray zone (watch for multiple concerns)
 # - > 500 lines impl: Alarm zone (likely needs refactoring)
+#
+# Files with `calvin-no-split` marker in their doc comments are exempt
+# from ALARM warnings (they are intentionally large).
+# Use --strict to ignore the marker and report all large files.
 
 set -e
 
@@ -14,16 +18,27 @@ GREEN='\033[0;32m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 BOLD='\033[1m'
+DIM='\033[2m'
 
 GRAY_LIMIT=400
 ALARM_LIMIT=500
 
+# Parse arguments
+STRICT_MODE=false
+if [ "$1" = "--strict" ]; then
+    STRICT_MODE=true
+fi
+
 echo -e "${BOLD}📏 File Size Health Check${NC}"
+if [ "$STRICT_MODE" = true ]; then
+    echo -e "${DIM}   (strict mode - ignoring calvin-no-split markers)${NC}"
+fi
 echo "================================================"
 echo ""
 
 alarm_count=0
 gray_count=0
+exempt_count=0
 
 # Find all .rs files and check their sizes
 for file in $(find src -name "*.rs" -type f | sort); do
@@ -40,12 +55,27 @@ for file in $(find src -name "*.rs" -type f | sort); do
     impl_lines=$((total - test_lines - doc_lines))
     if [ "$impl_lines" -lt 0 ]; then impl_lines=$total; fi
     
+    # Check for calvin-no-split marker (exempt from normal alarm)
+    has_no_split_marker=false
+    if grep -q "calvin-no-split" "$file" 2>/dev/null; then
+        has_no_split_marker=true
+    fi
+    
     if [ "$impl_lines" -gt "$ALARM_LIMIT" ]; then
-        echo -e "${RED}🔴 ALARM${NC}: $file"
-        echo -e "   Total: ${total} lines (impl: ~${impl_lines})"
-        echo -e "   ${RED}→ Consider breaking into smaller modules${NC}"
-        echo ""
-        alarm_count=$((alarm_count + 1))
+        if [ "$has_no_split_marker" = true ] && [ "$STRICT_MODE" = false ]; then
+            # File is exempt - show info instead of alarm
+            echo -e "${CYAN}📝 EXEMPT${NC}: $file"
+            echo -e "   Total: ${total} lines (impl: ~${impl_lines})"
+            echo -e "   ${DIM}→ Marked with calvin-no-split (see file for justification)${NC}"
+            echo ""
+            exempt_count=$((exempt_count + 1))
+        else
+            echo -e "${RED}🔴 ALARM${NC}: $file"
+            echo -e "   Total: ${total} lines (impl: ~${impl_lines})"
+            echo -e "   ${RED}→ Consider breaking into smaller modules${NC}"
+            echo ""
+            alarm_count=$((alarm_count + 1))
+        fi
     elif [ "$impl_lines" -gt "$GRAY_LIMIT" ]; then
         echo -e "${YELLOW}🟡 WATCH${NC}: $file"
         echo -e "   Total: ${total} lines (impl: ~${impl_lines})"
@@ -67,12 +97,17 @@ if [ "$alarm_count" -gt 0 ]; then
     echo ""
 fi
 
+if [ "$exempt_count" -gt 0 ]; then
+    echo -e "${CYAN}${BOLD}$exempt_count file(s) exempt (marked with calvin-no-split)${NC}"
+    echo ""
+fi
+
 if [ "$gray_count" -gt 0 ]; then
     echo -e "${YELLOW}${BOLD}$gray_count file(s) to watch (>${GRAY_LIMIT} impl lines)${NC}"
     echo ""
 fi
 
-if [ "$alarm_count" -eq 0 ] && [ "$gray_count" -eq 0 ]; then
+if [ "$alarm_count" -eq 0 ] && [ "$gray_count" -eq 0 ] && [ "$exempt_count" -eq 0 ]; then
     echo -e "${GREEN}✅ All files are within healthy size limits${NC}"
 fi
 

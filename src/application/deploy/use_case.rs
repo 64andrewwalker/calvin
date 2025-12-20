@@ -8,6 +8,14 @@
 //! 5. Update the lockfile
 //!
 //! This use case is pure orchestration - all business logic lives in domain services.
+//!
+//! # Size Justification
+//!
+//! calvin-no-split: This file is intentionally kept as a single unit because:
+//! - All 20 methods belong to a single `DeployUseCase` struct
+//! - Methods form a cohesive deployment pipeline
+//! - Splitting would break encapsulation of private helper methods
+//! - The struct follows the UseCase pattern from Clean Architecture
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;

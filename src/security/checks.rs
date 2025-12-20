@@ -1,4 +1,14 @@
 //! Platform-specific security checks
+//!
+//! This module contains security validation logic for each supported platform.
+//!
+//! # Size Justification
+//!
+//! calvin-no-split: This file is intentionally kept as a single unit because:
+//! - All 8 check functions follow the same pattern (check_xxx)
+//! - They share common imports and helper constants
+//! - Splitting by platform would create many tiny files (20-150 lines each)
+//! - The current structure allows easy comparison between platforms
 
 use std::path::Path;
 
