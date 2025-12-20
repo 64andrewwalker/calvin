@@ -208,7 +208,7 @@ pub(crate) fn plan_sync_remote_with_namespace(
     // Collect all target paths for batch check
     let target_paths: Vec<std::path::PathBuf> = outputs
         .iter()
-        .map(|o| root.join(fs.expand_home(&o.path)))
+        .map(|o| root.join(fs.expand_home(o.path())))
         .collect();
 
     // Single SSH call to check all files (existence + hash)

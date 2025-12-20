@@ -56,7 +56,7 @@ where
     let has_home_paths = plan
         .to_write
         .iter()
-        .any(|o| o.path.to_string_lossy().starts_with('~'));
+        .any(|o| o.path().to_string_lossy().starts_with('~'));
 
     // Determine actual strategy
     let use_rsync = match strategy {

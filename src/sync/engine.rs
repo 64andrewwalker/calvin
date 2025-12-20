@@ -197,7 +197,7 @@ impl<'a, FS: FileSystem> SyncEngine<'a, FS> {
                 written: plan
                     .to_write
                     .iter()
-                    .map(|o| o.path.display().to_string())
+                    .map(|o| o.path().display().to_string())
                     .collect(),
                 skipped: plan.to_skip,
                 errors: vec![],

@@ -61,7 +61,7 @@ pub fn detect_orphans(
     // Build set of current output keys
     let current_keys: HashSet<String> = outputs
         .iter()
-        .map(|o| lockfile_key(namespace, &o.path))
+        .map(|o| lockfile_key(namespace, o.path()))
         .collect();
 
     // Determine namespace prefix to filter lockfile entries
