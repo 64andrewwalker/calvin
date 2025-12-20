@@ -125,3 +125,62 @@ fn safety__allows_tilde_slash() {
     let root = Path::new("/project");
     assert!(validate_path_safety(Path::new("~/foo"), root).is_ok());
 }
+
+// === TDD: Adapter output consistency ===
+
+/// Test that new adapters produce compatible output paths
+#[test]
+fn new_adapter_output_paths_match_legacy() {
+    use crate::domain::entities::Asset;
+    use crate::infrastructure::adapters::all_adapters as new_all_adapters;
+    use crate::models::{AssetKind, Frontmatter};
+
+    // Create a test POLICY asset (policies generate rules in Cursor)
+    let mut legacy_fm = Frontmatter::new("Test policy");
+    legacy_fm.kind = AssetKind::Policy;
+    let legacy_asset = PromptAsset::new("test-policy", "test-policy.md", legacy_fm, "# Content");
+
+    // Convert to new format
+    let new_asset = Asset::from(legacy_asset.clone());
+
+    // Get adapters
+    let legacy_adapters = crate::adapters::all_adapters();
+    let new_adapters = new_all_adapters();
+
+    // Compare Cursor adapter output paths
+    let legacy_cursor = legacy_adapters
+        .iter()
+        .find(|a| a.target() == Target::Cursor)
+        .unwrap();
+    let new_cursor = new_adapters
+        .iter()
+        .find(|a| a.target() == crate::domain::value_objects::Target::Cursor)
+        .unwrap();
+
+    let legacy_outputs = legacy_cursor.compile(&legacy_asset).unwrap();
+    let new_outputs = new_cursor.compile(&new_asset).unwrap();
+
+    // Both should produce at least one output
+    assert!(
+        !legacy_outputs.is_empty(),
+        "Legacy cursor should produce output"
+    );
+    assert!(!new_outputs.is_empty(), "New cursor should produce output");
+
+    // Paths should be similar (new uses .cursor/rules/<id>/RULE.md format)
+    // Just check that both produce .cursor/rules/ paths
+    for output in &legacy_outputs {
+        assert!(
+            output.path.to_string_lossy().contains(".cursor/rules"),
+            "Legacy output should be in .cursor/rules: {:?}",
+            output.path
+        );
+    }
+    for output in &new_outputs {
+        assert!(
+            output.path().to_string_lossy().contains(".cursor/rules"),
+            "New output should be in .cursor/rules: {:?}",
+            output.path()
+        );
+    }
+}
