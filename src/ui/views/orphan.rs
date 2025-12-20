@@ -53,7 +53,7 @@ pub fn render_orphan_list(
         };
 
         // Extract path from key for display
-        let path = calvin::sync::orphan::extract_path_from_key(&orphan.key);
+        let path = &orphan.path;
 
         let line = if supports_color {
             format!(
@@ -107,11 +107,13 @@ mod tests {
         let orphans = vec![
             OrphanFile {
                 key: "home:~/.claude/commands/safe.md".to_string(),
+                path: "~/.claude/commands/safe.md".to_string(),
                 has_signature: true,
                 exists: true,
             },
             OrphanFile {
                 key: "home:~/.claude/commands/unsafe.md".to_string(),
+                path: "~/.claude/commands/unsafe.md".to_string(),
                 has_signature: false,
                 exists: true,
             },
@@ -130,6 +132,7 @@ mod tests {
     fn orphan_list_shows_not_found() {
         let orphans = vec![OrphanFile {
             key: "home:~/.claude/commands/gone.md".to_string(),
+            path: "~/.claude/commands/gone.md".to_string(),
             has_signature: true,
             exists: false,
         }];
@@ -163,6 +166,7 @@ mod tests {
         // Test that colored rendering doesn't panic and includes content
         let orphans = vec![OrphanFile {
             key: "home:~/.claude/commands/test.md".to_string(),
+            path: "~/.claude/commands/test.md".to_string(),
             has_signature: true,
             exists: true,
         }];
