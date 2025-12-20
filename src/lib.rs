@@ -40,5 +40,5 @@ pub use infrastructure::adapters::{all_adapters, get_adapter};
 pub use models::{AssetKind, Frontmatter, PromptAsset, Scope, Target};
 pub use parser::parse_frontmatter;
 pub use security::{run_doctor, DoctorReport, DoctorSink};
-pub use sync::{compile_assets, SyncEngine, SyncEngineOptions, SyncOptions, SyncResult};
+pub use sync::{compile_assets, SyncOptions, SyncResult};
 pub use watcher::{parse_incremental, watch, IncrementalCache, WatchEvent, WatchOptions};

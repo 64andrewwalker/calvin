@@ -376,7 +376,11 @@ fn perform_sync_incremental(
     changed_files: &[PathBuf],
     cache: &mut IncrementalCache,
 ) -> CalvinResult<SyncResult> {
-    use crate::sync::engine::{SyncEngine, SyncEngineOptions};
+    use crate::application::{DeployOutputOptions, DeployUseCase};
+    use crate::domain::value_objects::Scope;
+    use crate::infrastructure::adapters::all_adapters;
+    use crate::infrastructure::fs::LocalFs;
+    use crate::infrastructure::repositories::{FsAssetRepository, TomlLockfileRepository};
 
     let scope_policy = if options.deploy_to_home {
         ScopePolicy::ForceUser
@@ -388,26 +392,59 @@ fn perform_sync_incremental(
         .with_scope_policy(scope_policy)
         .with_targets(options.targets.clone());
 
-    let outputs = pipeline.compile_incremental(changed_files, cache)?;
+    // Compile assets incrementally
+    let legacy_outputs = pipeline.compile_incremental(changed_files, cache)?;
 
-    // Use SyncEngine for unified sync logic
-    // - Incremental detection via lockfile
-    // - Proper "X written, Y skipped" reporting
-    // - Automatic lockfile updates
-    let engine_options = SyncEngineOptions {
-        force: true, // Watch mode always force-overwrites (no conflict prompts)
-        interactive: false,
-        dry_run: false,
-        verbose: false,
-    };
+    // Convert legacy OutputFile to domain OutputFile
+    let outputs: Vec<crate::domain::entities::OutputFile> = legacy_outputs
+        .into_iter()
+        .map(|o| {
+            crate::domain::entities::OutputFile::new(
+                o.path().to_path_buf(),
+                o.content().to_string(),
+                crate::domain::value_objects::Target::All, // Watch mode outputs to all targets
+            )
+        })
+        .collect();
 
-    let engine = if options.deploy_to_home {
-        SyncEngine::home(&outputs, options.source.clone(), engine_options)
+    // Create DeployUseCase
+    let fs = LocalFs::new();
+    let lockfile_repo = TomlLockfileRepository::new();
+    let asset_repo = FsAssetRepository::new();
+    let adapters = all_adapters();
+
+    let deploy = DeployUseCase::new(asset_repo, lockfile_repo, fs, adapters);
+
+    // Determine scope and lockfile path
+    let scope = if options.deploy_to_home {
+        Scope::User
     } else {
-        SyncEngine::local(&outputs, options.project_root.clone(), engine_options)
+        Scope::Project
     };
 
-    engine.sync()
+    let lockfile_path = options.source.join(".calvin.lock");
+
+    // Deploy outputs directly
+    let deploy_options = DeployOutputOptions::new(lockfile_path)
+        .with_scope(scope)
+        .with_clean_orphans(true);
+
+    let result = deploy.deploy_outputs(outputs, &deploy_options);
+
+    // Convert DeployResult to SyncResult for backward compatibility
+    Ok(SyncResult {
+        written: result
+            .written
+            .into_iter()
+            .map(|p| p.display().to_string())
+            .collect(),
+        skipped: result
+            .skipped
+            .into_iter()
+            .map(|p| p.display().to_string())
+            .collect(),
+        errors: result.errors,
+    })
 }
 
 #[cfg(test)]
