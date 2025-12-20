@@ -233,19 +233,7 @@ fn deploy_both(
     let asset_count_project = result_project.asset_count;
 
     // Convert to SyncResult for UI compatibility
-    let sync_result_project = calvin::sync::SyncResult {
-        written: result_project
-            .written
-            .iter()
-            .map(|p| p.display().to_string())
-            .collect(),
-        skipped: result_project
-            .skipped
-            .iter()
-            .map(|p| p.display().to_string())
-            .collect(),
-        errors: result_project.errors.clone(),
-    };
+    let sync_result_project: calvin::sync::SyncResult = result_project.clone().into();
 
     print!(
         "{}",
@@ -267,19 +255,7 @@ fn deploy_both(
     let result_home = use_case.execute(&home_options);
     let asset_count_home = result_home.asset_count;
 
-    let sync_result_home = calvin::sync::SyncResult {
-        written: result_home
-            .written
-            .iter()
-            .map(|p| p.display().to_string())
-            .collect(),
-        skipped: result_home
-            .skipped
-            .iter()
-            .map(|p| p.display().to_string())
-            .collect(),
-        errors: result_home.errors.clone(),
-    };
+    let sync_result_home: calvin::sync::SyncResult = result_home.clone().into();
 
     print!(
         "{}",

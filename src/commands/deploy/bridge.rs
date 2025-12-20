@@ -57,19 +57,7 @@ pub fn convert_options(
 
 /// Convert use case result to runner result (for compatibility)
 pub fn convert_result(use_case_result: &UseCaseResult) -> SyncResult {
-    SyncResult {
-        written: use_case_result
-            .written
-            .iter()
-            .map(|p| p.display().to_string())
-            .collect(),
-        skipped: use_case_result
-            .skipped
-            .iter()
-            .map(|p| p.display().to_string())
-            .collect(),
-        errors: use_case_result.errors.clone(),
-    }
+    use_case_result.clone().into()
 }
 
 /// Create a deploy use case for the given targets (local destinations)
