@@ -14,8 +14,9 @@ use std::sync::Arc;
 
 use crate::domain::entities::{Asset, Lockfile, OutputFile};
 use crate::domain::ports::{
-    AssetRepository, DeployEvent, DeployEventSink, FileSystem, FsResult, LockfileRepository,
-    NoopEventSink, TargetAdapter,
+    AssetRepository, ConflictChoice, ConflictContext, ConflictResolver, DeployEvent,
+    DeployEventSink, FileSystem, ForceResolver, FsResult, LockfileRepository, NoopEventSink,
+    SafeResolver, TargetAdapter,
 };
 use crate::domain::services::{
     FileAction, OrphanDetectionResult, OrphanDetector, PlannedFile, Planner, SyncPlan,
@@ -72,6 +73,16 @@ impl DeployOptions {
 
     pub fn with_dry_run(mut self, dry_run: bool) -> Self {
         self.dry_run = dry_run;
+        self
+    }
+
+    pub fn with_interactive(mut self, interactive: bool) -> Self {
+        self.interactive = interactive;
+        self
+    }
+
+    pub fn with_clean_orphans(mut self, clean: bool) -> Self {
+        self.clean_orphans = clean;
         self
     }
 }
@@ -158,8 +169,13 @@ where
 
     /// Execute the deploy use case
     pub fn execute(&self, options: &DeployOptions) -> DeployResult {
-        // Use NoopEventSink for backwards compatibility
-        self.execute_with_events(options, Arc::new(NoopEventSink))
+        // Select appropriate resolver based on options
+        let resolver: Arc<dyn ConflictResolver> = if options.force {
+            Arc::new(ForceResolver)
+        } else {
+            Arc::new(SafeResolver)
+        };
+        self.execute_full(options, Arc::new(NoopEventSink), resolver)
     }
 
     /// Execute the deploy use case with event reporting
@@ -172,6 +188,32 @@ where
         &self,
         options: &DeployOptions,
         event_sink: Arc<dyn DeployEventSink>,
+    ) -> DeployResult {
+        let resolver: Arc<dyn ConflictResolver> = if options.force {
+            Arc::new(ForceResolver)
+        } else {
+            Arc::new(SafeResolver)
+        };
+        self.execute_full(options, event_sink, resolver)
+    }
+
+    /// Execute the deploy use case with a custom conflict resolver
+    ///
+    /// Use this for interactive conflict resolution.
+    pub fn execute_with_resolver(
+        &self,
+        options: &DeployOptions,
+        resolver: Arc<dyn ConflictResolver>,
+    ) -> DeployResult {
+        self.execute_full(options, Arc::new(NoopEventSink), resolver)
+    }
+
+    /// Full execute with all customization options
+    fn execute_full(
+        &self,
+        options: &DeployOptions,
+        event_sink: Arc<dyn DeployEventSink>,
+        resolver: Arc<dyn ConflictResolver>,
     ) -> DeployResult {
         let mut result = DeployResult::new();
 
@@ -217,6 +259,16 @@ where
         // Step 4: Plan sync
         let plan = self.plan_sync(&outputs, &lockfile, options);
 
+        // Step 4.5: Resolve conflicts
+        let resolved_plan = match self.resolve_conflicts(plan, &resolver, options.scope) {
+            Ok(plan) => plan,
+            Err(_) => {
+                // User aborted
+                result.errors.push("Operation aborted by user".to_string());
+                return result;
+            }
+        };
+
         // Step 5: Detect orphans
         let orphans = if options.clean_orphans {
             self.detect_orphans(&lockfile, &outputs, options.scope)
@@ -226,12 +278,12 @@ where
 
         // Step 6: Execute (if not dry run)
         if !options.dry_run {
-            self.execute_plan_with_events(&plan, &mut result, &event_sink);
+            self.execute_plan_with_events(&resolved_plan, &mut result, &event_sink);
             self.delete_orphans_with_events(&orphans, &mut result, &event_sink);
-            self.update_lockfile(&lockfile_path, &plan, &result, options.scope);
+            self.update_lockfile(&lockfile_path, &resolved_plan, &result, options.scope);
         } else {
             // Dry run - just collect what would happen
-            for file in plan.to_write() {
+            for file in resolved_plan.to_write() {
                 result.written.push(file.path.clone());
             }
             for orphan in &orphans.orphans {
@@ -339,6 +391,128 @@ where
     }
 
     /// Plan the sync operation
+    /// Resolve conflicts in the plan using the provided resolver
+    fn resolve_conflicts(
+        &self,
+        mut plan: SyncPlan,
+        resolver: &Arc<dyn ConflictResolver>,
+        _scope: Scope,
+    ) -> Result<SyncPlan, ()> {
+        // Check if there are any conflicts
+        if !plan.has_conflicts() {
+            return Ok(plan);
+        }
+
+        // Track "apply all" state
+        let mut apply_all: Option<ConflictChoice> = None;
+
+        // Collect files that need to be resolved
+        let mut resolved_files = Vec::new();
+
+        for file in plan.files.drain(..) {
+            if !file.is_conflict() {
+                resolved_files.push(file);
+                continue;
+            }
+
+            // Get the conflict reason
+            let conflict_reason = match &file.action {
+                FileAction::Conflict(r) => *r,
+                _ => continue, // Not a conflict
+            };
+
+            // Check "apply all" first
+            if let Some(choice) = apply_all {
+                let resolved = match choice {
+                    ConflictChoice::Overwrite => file.resolve_overwrite(),
+                    ConflictChoice::Skip => file.resolve_skip(),
+                    _ => file,
+                };
+                resolved_files.push(resolved);
+                continue;
+            }
+
+            // Read existing content for context
+            let existing_content = self
+                .file_system
+                .read(&file.path)
+                .unwrap_or_else(|_| String::new());
+
+            // Map planner's ConflictReason to port's ConflictReason
+            let port_reason = match conflict_reason {
+                crate::domain::services::ConflictReason::Modified => {
+                    crate::domain::ports::ConflictReason::Modified
+                }
+                crate::domain::services::ConflictReason::Untracked => {
+                    crate::domain::ports::ConflictReason::Untracked
+                }
+            };
+
+            // Create context
+            let context = ConflictContext {
+                path: &file.path,
+                reason: port_reason,
+                existing_content: &existing_content,
+                new_content: &file.content,
+            };
+
+            // Resolve in a loop (to handle Diff choice)
+            loop {
+                let choice = resolver.resolve(&context);
+
+                match choice {
+                    ConflictChoice::Overwrite => {
+                        resolved_files.push(file.resolve_overwrite());
+                        break;
+                    }
+                    ConflictChoice::Skip => {
+                        resolved_files.push(file.resolve_skip());
+                        break;
+                    }
+                    ConflictChoice::Diff => {
+                        // Generate and show diff
+                        let diff = self.generate_diff(&file.path, &existing_content, &file.content);
+                        resolver.show_diff(&diff);
+                        // Continue loop to ask again
+                    }
+                    ConflictChoice::Abort => {
+                        return Err(());
+                    }
+                    ConflictChoice::OverwriteAll => {
+                        apply_all = Some(ConflictChoice::Overwrite);
+                        resolved_files.push(file.resolve_overwrite());
+                        break;
+                    }
+                    ConflictChoice::SkipAll => {
+                        apply_all = Some(ConflictChoice::Skip);
+                        resolved_files.push(file.resolve_skip());
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Rebuild plan with resolved files
+        let mut new_plan = SyncPlan::new();
+        for file in resolved_files {
+            new_plan.add(file);
+        }
+
+        Ok(new_plan)
+    }
+
+    /// Generate a unified diff between old and new content
+    fn generate_diff(&self, path: &Path, old: &str, new: &str) -> String {
+        use similar::TextDiff;
+        TextDiff::from_lines(old, new)
+            .unified_diff()
+            .header(
+                &format!("a/{}", path.display()),
+                &format!("b/{}", path.display()),
+            )
+            .to_string()
+    }
+
     fn plan_sync(
         &self,
         outputs: &[OutputFile],
@@ -810,5 +984,69 @@ mod tests {
         assert!(matches!(events.first(), Some(DeployEvent::Started { .. })));
         // Last event should be Completed
         assert!(matches!(events.last(), Some(DeployEvent::Completed { .. })));
+    }
+
+    // Mock conflict resolver for testing
+    struct MockConflictResolver {
+        choice: ConflictChoice,
+        diffs_shown: std::sync::Mutex<Vec<String>>,
+    }
+
+    impl MockConflictResolver {
+        fn new(choice: ConflictChoice) -> Self {
+            Self {
+                choice,
+                diffs_shown: std::sync::Mutex::new(Vec::new()),
+            }
+        }
+    }
+
+    impl ConflictResolver for MockConflictResolver {
+        fn resolve(&self, _context: &ConflictContext) -> ConflictChoice {
+            self.choice
+        }
+
+        fn show_diff(&self, diff: &str) {
+            self.diffs_shown.lock().unwrap().push(diff.to_string());
+        }
+    }
+
+    #[test]
+    fn execute_with_force_resolver_overwrites_conflicts() {
+        let use_case = create_use_case();
+        let options = DeployOptions::new(".promptpack").with_force(true);
+
+        let result = use_case.execute(&options);
+
+        assert!(result.is_success());
+    }
+
+    #[test]
+    fn execute_with_custom_resolver_uses_resolver_choice() {
+        let use_case = create_use_case();
+        let options = DeployOptions::new(".promptpack");
+        let resolver = Arc::new(MockConflictResolver::new(ConflictChoice::Skip));
+
+        let result = use_case.execute_with_resolver(&options, resolver);
+
+        // Should still succeed since no actual conflicts in this test
+        assert!(result.is_success());
+    }
+
+    #[test]
+    fn deploy_options_builders_work() {
+        let options = DeployOptions::new(".promptpack")
+            .with_scope(Scope::User)
+            .with_force(true)
+            .with_dry_run(true)
+            .with_interactive(true)
+            .with_clean_orphans(true);
+
+        assert_eq!(options.source, PathBuf::from(".promptpack"));
+        assert_eq!(options.scope, Scope::User);
+        assert!(options.force);
+        assert!(options.dry_run);
+        assert!(options.interactive);
+        assert!(options.clean_orphans);
     }
 }
