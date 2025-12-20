@@ -170,8 +170,13 @@ mod tests {
         assert!(options.clean_orphans);
     }
 
+    // Note: These tests modify environment variables and must run serially.
+    // Using a static mutex to prevent race conditions.
+    static ENV_TEST_MUTEX: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     #[test]
     fn should_use_new_engine_default_true() {
+        let _lock = ENV_TEST_MUTEX.lock().unwrap();
         // Clear any existing env var
         std::env::remove_var("CALVIN_LEGACY_ENGINE");
         assert!(should_use_new_engine());
@@ -179,6 +184,7 @@ mod tests {
 
     #[test]
     fn should_use_legacy_engine_when_flag_set() {
+        let _lock = ENV_TEST_MUTEX.lock().unwrap();
         std::env::set_var("CALVIN_LEGACY_ENGINE", "1");
         assert!(!should_use_new_engine());
         std::env::remove_var("CALVIN_LEGACY_ENGINE");
