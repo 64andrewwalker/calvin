@@ -29,5 +29,5 @@ pub use check::{CheckItem, CheckOptions, CheckResult, CheckStatus, CheckUseCase}
 pub use compiler::compile_assets;
 pub use deploy::{DeployOptions, DeployOutputOptions, DeployResult, DeployUseCase};
 pub use diff::{ChangeType, DiffEntry, DiffOptions, DiffResult, DiffUseCase};
-pub use pipeline::AssetPipeline;
+pub use pipeline::{AssetPipeline, ScopePolicyExt};
 pub use watch::{WatchEvent, WatchOptions, WatchUseCase};
