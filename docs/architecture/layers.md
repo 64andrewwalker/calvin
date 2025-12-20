@@ -58,8 +58,12 @@ Layer 0 → Layer 1 → Layer 2 ← Layer 3
 | `cli.rs` | `presentation/` | CLI 参数定义 (clap) |
 | `factory.rs` | `presentation/` | UseCase 工厂 (依赖注入) |
 | `output.rs` | `presentation/` | 输出渲染 |
-| `commands/` | `src/commands/` | 命令处理器 (参数解析 + 调用 UseCase) |
-| `ui/` | `src/ui/` | UI 渲染组件 |
+| `commands/` | `src/commands/` ¹ | 命令处理器 (参数解析 + 调用 UseCase) |
+| `ui/` | `src/ui/` ¹ | UI 渲染组件 |
+
+> ¹ **架构说明**: `commands/` 和 `ui/` 物理上位于 main crate（`src/main.rs` 声明），
+> 逻辑上属于 Presentation 层。这是 Rust 项目的常见模式：lib crate 暴露核心功能，
+> bin crate 处理 CLI 交互。考虑到迁移成本与收益比，保持现状是合理的设计决策。
 
 ### Layer 1: Application
 
