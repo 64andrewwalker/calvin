@@ -261,8 +261,8 @@ pub fn cmd_deploy_with_explicit_target(
     };
 
     // Track if we used the new engine (for skipping legacy orphan detection)
-    // Remote targets always use legacy engine, others depend on json/flag
-    let used_new_engine = !is_remote_target && (json || super::bridge::should_use_new_engine());
+    // All paths now use new engine except CALVIN_LEGACY_ENGINE=1 fallback
+    let used_new_engine = is_remote_target || json || super::bridge::should_use_new_engine();
 
     // Render summary
     if json {
