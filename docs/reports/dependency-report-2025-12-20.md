@@ -27,9 +27,9 @@
 |-------|---------|---------|---------|
 | `anyhow` | 1.0.100 | MIT OR Apache-2.0 | Application error handling |
 | `clap` | 4.5.53 | MIT OR Apache-2.0 | CLI framework |
-| `crossterm` | 0.28.1 | MIT | Terminal control |
+| `crossterm` | 0.29.0 | MIT | Terminal control |
 | `ctrlc` | 3.5.1 | MIT/Apache-2.0 | Graceful shutdown |
-| `dialoguer` | 0.11.0 | MIT | Interactive prompts |
+| `dialoguer` | 0.12.0 | MIT | Interactive prompts |
 | `dirs` | 6.0.0 | MIT OR Apache-2.0 | Platform directories |
 | `is-terminal` | 0.4.17 | MIT OR Apache-2.0 | TTY detection |
 | `notify` | 8.2.0 | CC0-1.0 | File watching |
@@ -48,7 +48,7 @@
 
 | Crate | Version | License | Purpose |
 |-------|---------|---------|---------|
-| `insta` | 1.44.3 | Apache-2.0 | Snapshot testing |
+| `insta` | 1.45.0 | Apache-2.0 | Snapshot testing |
 
 ---
 
@@ -108,21 +108,26 @@ All licenses are **permissive** and compatible with MIT:
 | Crate | Versions | Reason |
 |-------|----------|--------|
 | `bitflags` | 1.3.2, 2.10.0 | `kqueue-sys` uses v1, others use v2 |
-| `rustix` | 0.38.44, 1.1.2 | `crossterm` vs `tempfile` |
-| `thiserror` | 1.0.69, 2.0.17 | `dialoguer` uses v1, calvin uses v2 |
+| `console` | 0.15.11, 0.16.2 | `insta` vs `dialoguer` |
 
 ### Impact
 
-- **Binary size**: Minimal (~20KB extra)
+- **Binary size**: Minimal (~10KB extra)
 - **Compile time**: Slight increase
 - **Runtime**: No impact (different types)
 
-### Recommendations
+### Progress (2025-12-20)
+
+✅ **Resolved duplicates**:
+- `rustix`: Unified to 1.1.2 (crossterm 0.29 update)
+- `thiserror`: Unified to 2.0.17 (dialoguer 0.12 update)
+
+### Remaining Recommendations
 
 | Action | Priority | Impact |
 |--------|----------|--------|
-| Update `dialoguer` when it releases v0.12 with thiserror v2 | Low | Reduces duplicates |
 | Wait for `notify` v9 with bitflags v2 | Low | Reduces duplicates |
+| Wait for `insta` to update `console` | Low | Reduces duplicates |
 | No immediate action needed | - | - |
 
 ---
@@ -135,22 +140,23 @@ All licenses are **permissive** and compatible with MIT:
 |-------|---------|--------|
 | `anyhow` | 1.0.100 | ✅ Latest |
 | `clap` | 4.5.53 | ✅ Latest |
-| `crossterm` | 0.28.1 | ✅ Latest |
+| `crossterm` | 0.29.0 | ✅ Latest (updated) |
 | `ctrlc` | 3.5.1 | ✅ Latest |
-| `dialoguer` | 0.11.0 | ✅ Latest |
+| `dialoguer` | 0.12.0 | ✅ Latest (updated) |
 | `dirs` | 6.0.0 | ✅ Latest |
 | `is-terminal` | 0.4.17 | ✅ Latest |
 | `notify` | 8.2.0 | ✅ Latest |
 | `serde` | 1.0.228 | ✅ Latest |
 | `serde_json` | 1.0.145 | ✅ Latest |
-| `serde_yml` | 0.0.12 | ✅ Latest |
+| `serde_yml` | 0.0.12 | ⚠️ Advisory |
 | `sha2` | 0.10.9 | ✅ Latest |
 | `similar` | 2.7.0 | ✅ Latest |
 | `tempfile` | 3.23.0 | ✅ Latest |
 | `thiserror` | 2.0.17 | ✅ Latest |
 | `toml` | 0.8.23 | ✅ Latest |
+| `insta` | 1.45.0 | ✅ Latest (updated) |
 
-**All dependencies are up-to-date.**
+**Dependencies updated in this cleanup**: crossterm 0.28→0.29, dialoguer 0.11→0.12, insta 1.44→1.45
 
 ---
 
