@@ -28,7 +28,8 @@ pub struct DeployRunner {
     options: DeployOptions,
     /// Configuration
     config: Config,
-    /// UI context
+    /// UI context (legacy - used by old cmd.rs code path)
+    #[allow(dead_code)]
     ui: UiContext,
 }
 
@@ -383,13 +384,16 @@ impl DeployRunner {
         }
     }
 
-    // Getters for UI rendering
+    // Getters for UI rendering (legacy - used by old cmd.rs code path)
+    #[allow(dead_code)]
     pub fn source(&self) -> &Path {
         &self.source
     }
+    #[allow(dead_code)]
     pub fn target(&self) -> &DeployTarget {
         &self.target
     }
+    #[allow(dead_code)]
     pub fn ui(&self) -> &UiContext {
         &self.ui
     }
