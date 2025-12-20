@@ -6,5 +6,5 @@
 mod scope_policy;
 mod security;
 
-pub use scope_policy::{DeploymentTarget, ScopePolicy};
+pub use scope_policy::{DeploymentTarget, ScopePolicy, ScopePolicyExt};
 pub use security::SecurityPolicy;
