@@ -99,20 +99,24 @@ fn local_fs_expands_home() {
 
 ## 当前状态 (2025-12-20)
 
-### 已简化为重导出层
-- `sync/compile.rs` → 重导出 `application::compile_assets`
-- `sync/orphan.rs` → 重导出 `domain::services` 类型 + 保留兼容函数
-- `sync/pipeline.rs` → 重导出 `application::AssetPipeline`
-- `sync/scope.rs` → 重导出 `domain::policies` 类型 + ScopePolicyExt trait
+### 实际文件列表
+```
+src/sync/
+├── compile.rs   (10 行 - 纯重导出 application::compile_assets)
+└── orphan.rs    (305 行 - 重导出 + 兼容函数 detect_orphans/delete_orphans)
+```
 
-### 保留为兼容层
-- `sync/lockfile.rs` - 带 I/O 的 Lockfile (用于 debug.rs legacy)
-- `sync/mod.rs` - 统一导出入口
-- `sync/tests.rs` - 兼容性测试
+### 已删除的模块
+- `sync/engine.rs` - 迁移到 `application/deploy/use_case.rs`
+- `sync/pipeline.rs` - 迁移到 `application/pipeline.rs`
+- `sync/scope.rs` - 迁移到 `domain/policies/scope_policy.rs`
+- `sync/lockfile.rs` - 迁移到 `domain/entities/lockfile.rs` + `infrastructure/repositories/lockfile.rs`
+- `sync/mod.rs` (原版) - 大部分删除，保留 compile/orphan 两个文件
+- `sync/tests.rs` - 已合并到各模块的 tests 子模块
 
-### 可选删除 (暂不删除)
-- `sync/compile.rs` - 已变为 10 行重导出
-- `sync/tests.rs` - 部分测试仍有价值 (一致性验证)
+### 保留原因
+- `sync/compile.rs` - 纯重导出，10 行，保留向后兼容
+- `sync/orphan.rs` - 提供 `detect_orphans()` 和 `delete_orphans()` 兼容函数，这些函数使用旧版 sync::Lockfile 接口
 
 ---
 

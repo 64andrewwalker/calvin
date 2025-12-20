@@ -15,6 +15,8 @@ pub struct DeployResult {
     pub deleted: Vec<PathBuf>,
     /// Errors encountered
     pub errors: Vec<String>,
+    /// Warnings (non-fatal issues)
+    pub warnings: Vec<String>,
     /// Total asset count
     pub asset_count: usize,
     /// Total output count
@@ -28,9 +30,15 @@ impl DeployResult {
             skipped: Vec::new(),
             deleted: Vec::new(),
             errors: Vec::new(),
+            warnings: Vec::new(),
             asset_count: 0,
             output_count: 0,
         }
+    }
+
+    /// Add a warning to the result
+    pub fn add_warning(&mut self, warning: impl Into<String>) {
+        self.warnings.push(warning.into());
     }
 
     pub fn is_success(&self) -> bool {

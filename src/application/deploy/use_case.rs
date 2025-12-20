@@ -200,12 +200,14 @@ where
         if !options.dry_run {
             self.execute_plan_with_events(&resolved_plan, &mut result, &event_sink);
             self.delete_orphans_with_events(&orphans, &mut result, &event_sink);
-            self.update_lockfile(
+            if let Some(warning) = self.update_lockfile(
                 &options.lockfile_path,
                 &resolved_plan,
                 &result,
                 options.scope,
-            );
+            ) {
+                result.add_warning(warning);
+            }
         } else {
             for file in resolved_plan.to_write() {
                 result.written.push(file.path.clone());
@@ -298,7 +300,11 @@ where
         if !options.dry_run {
             self.execute_plan_with_events(&resolved_plan, &mut result, &event_sink);
             self.delete_orphans_with_events(&orphans, &mut result, &event_sink);
-            self.update_lockfile(&lockfile_path, &resolved_plan, &result, options.scope);
+            if let Some(warning) =
+                self.update_lockfile(&lockfile_path, &resolved_plan, &result, options.scope)
+            {
+                result.add_warning(warning);
+            }
         } else {
             // Dry run - just collect what would happen
             for file in resolved_plan.to_write() {
@@ -717,7 +723,15 @@ where
     }
 
     /// Update lockfile after sync
-    fn update_lockfile(&self, path: &Path, plan: &SyncPlan, result: &DeployResult, scope: Scope) {
+    ///
+    /// Returns an optional warning message if the lockfile could not be saved
+    fn update_lockfile(
+        &self,
+        path: &Path,
+        plan: &SyncPlan,
+        result: &DeployResult,
+        scope: Scope,
+    ) -> Option<String> {
         use std::collections::HashSet;
 
         let mut lockfile = self.lockfile_repo.load_or_new(path);
@@ -746,7 +760,9 @@ where
 
         // Save lockfile
         if let Err(e) = self.lockfile_repo.save(&lockfile, path) {
-            eprintln!("Warning: Failed to save lockfile: {}", e);
+            Some(format!("Failed to save lockfile: {}", e))
+        } else {
+            None
         }
     }
 }

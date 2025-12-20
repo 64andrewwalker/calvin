@@ -118,4 +118,82 @@ mod tests {
         // Verify internal state is initialized correctly
         assert!(resolver.apply_all.lock().unwrap().is_none());
     }
+
+    #[test]
+    fn interactive_resolver_new() {
+        let resolver = InteractiveResolver::new();
+        assert!(resolver.apply_all.lock().unwrap().is_none());
+    }
+
+    #[test]
+    fn interactive_resolver_is_send_sync() {
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<InteractiveResolver>();
+    }
+
+    #[test]
+    fn apply_all_state_can_be_set() {
+        let resolver = InteractiveResolver::new();
+
+        // Initially None
+        assert!(resolver.apply_all.lock().unwrap().is_none());
+
+        // Set to Overwrite
+        {
+            let mut guard = resolver.apply_all.lock().unwrap();
+            *guard = Some(ConflictChoice::Overwrite);
+        }
+
+        // Verify it's set
+        assert_eq!(
+            *resolver.apply_all.lock().unwrap(),
+            Some(ConflictChoice::Overwrite)
+        );
+    }
+
+    #[test]
+    fn apply_all_state_can_be_changed() {
+        let resolver = InteractiveResolver::new();
+
+        // Set to Overwrite
+        {
+            let mut guard = resolver.apply_all.lock().unwrap();
+            *guard = Some(ConflictChoice::Overwrite);
+        }
+
+        // Change to Skip
+        {
+            let mut guard = resolver.apply_all.lock().unwrap();
+            *guard = Some(ConflictChoice::Skip);
+        }
+
+        // Verify it's changed
+        assert_eq!(
+            *resolver.apply_all.lock().unwrap(),
+            Some(ConflictChoice::Skip)
+        );
+    }
+
+    #[test]
+    fn show_diff_does_not_panic() {
+        let resolver = InteractiveResolver::new();
+        // This should not panic
+        resolver.show_diff("--- a/file.md\n+++ b/file.md\n@@ -1 +1 @@\n-old\n+new\n");
+    }
+
+    #[test]
+    fn show_diff_handles_empty_string() {
+        let resolver = InteractiveResolver::new();
+        resolver.show_diff("");
+    }
+
+    #[test]
+    fn show_diff_handles_multiline() {
+        let resolver = InteractiveResolver::new();
+        resolver.show_diff("line1\nline2\nline3\n");
+    }
+
+    // Note: We cannot easily test prompt_single or resolve without mocking stdin.
+    // Those would require an integration test with controlled stdin, or
+    // refactoring to accept a Read/Write trait instead of using stdin/stderr directly.
 }

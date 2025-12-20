@@ -96,36 +96,84 @@ mod tests {
     use super::*;
     use std::path::PathBuf;
 
+    fn make_context<'a>(
+        path: &'a Path,
+        reason: ConflictReason,
+        existing: &'a str,
+        new: &'a str,
+    ) -> ConflictContext<'a> {
+        ConflictContext {
+            path,
+            reason,
+            existing_content: existing,
+            new_content: new,
+        }
+    }
+
     #[test]
     fn force_resolver_always_overwrites() {
         let resolver = ForceResolver;
         let path = PathBuf::from("test.md");
-        let context = ConflictContext {
-            path: &path,
-            reason: ConflictReason::Modified,
-            existing_content: "old",
-            new_content: "new",
-        };
+        let context = make_context(&path, ConflictReason::Modified, "old", "new");
         assert_eq!(resolver.resolve(&context), ConflictChoice::Overwrite);
+    }
+
+    #[test]
+    fn force_resolver_overwrites_untracked() {
+        let resolver = ForceResolver;
+        let path = PathBuf::from("untracked.md");
+        let context = make_context(&path, ConflictReason::Untracked, "old", "new");
+        assert_eq!(resolver.resolve(&context), ConflictChoice::Overwrite);
+    }
+
+    #[test]
+    fn force_resolver_show_diff_is_noop() {
+        let resolver = ForceResolver;
+        // Should not panic or do anything observable
+        resolver.show_diff("--- old\n+++ new\n@@ -1 +1 @@\n-old\n+new");
     }
 
     #[test]
     fn safe_resolver_always_skips() {
         let resolver = SafeResolver;
         let path = PathBuf::from("test.md");
-        let context = ConflictContext {
-            path: &path,
-            reason: ConflictReason::Untracked,
-            existing_content: "existing",
-            new_content: "new",
-        };
+        let context = make_context(&path, ConflictReason::Untracked, "existing", "new");
         assert_eq!(resolver.resolve(&context), ConflictChoice::Skip);
+    }
+
+    #[test]
+    fn safe_resolver_skips_modified() {
+        let resolver = SafeResolver;
+        let path = PathBuf::from("modified.md");
+        let context = make_context(
+            &path,
+            ConflictReason::Modified,
+            "old content",
+            "new content",
+        );
+        assert_eq!(resolver.resolve(&context), ConflictChoice::Skip);
+    }
+
+    #[test]
+    fn safe_resolver_show_diff_is_noop() {
+        let resolver = SafeResolver;
+        // Should not panic or do anything observable
+        resolver.show_diff("any diff content");
     }
 
     #[test]
     fn conflict_reason_equality() {
         assert_eq!(ConflictReason::Modified, ConflictReason::Modified);
         assert_ne!(ConflictReason::Modified, ConflictReason::Untracked);
+    }
+
+    #[test]
+    fn conflict_reason_debug() {
+        // Ensure Debug is implemented
+        let modified = format!("{:?}", ConflictReason::Modified);
+        let untracked = format!("{:?}", ConflictReason::Untracked);
+        assert!(modified.contains("Modified"));
+        assert!(untracked.contains("Untracked"));
     }
 
     #[test]
@@ -139,5 +187,55 @@ mod tests {
             ConflictChoice::SkipAll,
         ];
         assert_eq!(choices.len(), 6);
+    }
+
+    #[test]
+    fn conflict_choice_debug() {
+        // Ensure Debug is implemented for all variants
+        assert!(format!("{:?}", ConflictChoice::Overwrite).contains("Overwrite"));
+        assert!(format!("{:?}", ConflictChoice::Skip).contains("Skip"));
+        assert!(format!("{:?}", ConflictChoice::Diff).contains("Diff"));
+        assert!(format!("{:?}", ConflictChoice::Abort).contains("Abort"));
+        assert!(format!("{:?}", ConflictChoice::OverwriteAll).contains("OverwriteAll"));
+        assert!(format!("{:?}", ConflictChoice::SkipAll).contains("SkipAll"));
+    }
+
+    #[test]
+    fn conflict_choice_equality() {
+        assert_eq!(ConflictChoice::Overwrite, ConflictChoice::Overwrite);
+        assert_ne!(ConflictChoice::Overwrite, ConflictChoice::Skip);
+        assert_eq!(ConflictChoice::OverwriteAll, ConflictChoice::OverwriteAll);
+    }
+
+    #[test]
+    fn conflict_context_debug() {
+        let path = PathBuf::from("test.md");
+        let context = make_context(&path, ConflictReason::Modified, "old", "new");
+        let debug = format!("{:?}", context);
+        assert!(debug.contains("test.md"));
+        assert!(debug.contains("Modified"));
+    }
+
+    #[test]
+    fn conflict_context_clone() {
+        let path = PathBuf::from("test.md");
+        let context = make_context(&path, ConflictReason::Modified, "old", "new");
+        let cloned = context.clone();
+        assert_eq!(cloned.path, context.path);
+        assert_eq!(cloned.reason, context.reason);
+        assert_eq!(cloned.existing_content, context.existing_content);
+        assert_eq!(cloned.new_content, context.new_content);
+    }
+
+    #[test]
+    fn force_resolver_is_send_sync() {
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<ForceResolver>();
+    }
+
+    #[test]
+    fn safe_resolver_is_send_sync() {
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<SafeResolver>();
     }
 }

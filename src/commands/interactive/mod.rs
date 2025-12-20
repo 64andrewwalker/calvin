@@ -12,8 +12,8 @@ use std::path::Path;
 use anyhow::Result;
 use is_terminal::IsTerminal;
 
-use crate::cli::ColorWhen;
 use crate::state::{detect_state, ProjectState};
+use calvin::presentation::ColorWhen;
 
 pub fn cmd_interactive(
     cwd: &Path,
