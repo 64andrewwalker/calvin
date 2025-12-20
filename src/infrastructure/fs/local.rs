@@ -158,8 +158,11 @@ impl crate::fs::FileSystem for LocalFs {
     }
 }
 
-/// Internal expand_home implementation to avoid method ambiguity
-fn expand_home_internal(path: &Path) -> PathBuf {
+/// Expand ~/ prefix to user home directory
+///
+/// This is a standalone function for use outside of FileSystem trait.
+/// Prefer using `LocalFs::expand_home()` when working with a FileSystem instance.
+pub fn expand_home(path: &Path) -> PathBuf {
     let path_str = path.to_string_lossy();
     if path_str.starts_with("~/") || path_str == "~" {
         if let Some(home) = dirs::home_dir() {
@@ -167,6 +170,11 @@ fn expand_home_internal(path: &Path) -> PathBuf {
         }
     }
     path.to_path_buf()
+}
+
+// Internal alias for backward compatibility
+fn expand_home_internal(path: &Path) -> PathBuf {
+    expand_home(path)
 }
 
 #[cfg(test)]
