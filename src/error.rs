@@ -54,6 +54,10 @@ pub enum CalvinError {
     /// Sync was aborted by user in interactive mode
     #[error("sync aborted by user")]
     SyncAborted,
+
+    /// Compilation error
+    #[error("compile error: {message}")]
+    Compile { message: String },
 }
 
 #[cfg(test)]
