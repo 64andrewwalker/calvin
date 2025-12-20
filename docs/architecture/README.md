@@ -1,36 +1,39 @@
-# Calvin 架构
+# Calvin Architecture
 
 > **Created**: 2025-12-19  
-> **Status**: Design Proposal
+> **Updated**: 2025-12-20  
+> **Status**: Implemented (v2)
 
-本目录包含 Calvin 的架构设计文档。
+This directory contains Calvin's architecture design documents.
 
-## 文档索引
+## Document Index
 
-| 文档 | 描述 |
-|------|------|
-| [overview.md](./overview.md) | 架构概览：设计目标与核心洞察 |
-| [layers.md](./layers.md) | 分层架构详解 |
-| [directory.md](./directory.md) | 目录结构规范 |
-| [ports.md](./ports.md) | 接口定义 (Ports) |
-| [platform.md](./platform.md) | 跨平台兼容层设计 (macOS/Linux/Windows) |
-| [migration.md](./migration.md) | 迁移路径与对比 |
-| [docs.md](./docs.md) | 文档架构设计 |
+| Document | Description |
+|----------|-------------|
+| [overview.md](./overview.md) | Architecture overview: design goals and key insights |
+| [layers.md](./layers.md) | Four-layer architecture details |
+| [directory.md](./directory.md) | Directory structure specification |
+| [ports.md](./ports.md) | Port interfaces (dependency inversion) |
+| [platform.md](./platform.md) | Cross-platform layer design (macOS/Linux/Windows) |
+| [migration.md](./migration.md) | Migration path and comparison |
+| [docs.md](./docs.md) | Documentation architecture |
+| [file-size-guidelines.md](./file-size-guidelines.md) | File size and splitting guidelines |
+| [TODO.md](./TODO.md) | Refactoring progress tracking |
 
-## 核心洞察
+## Core Insight
 
 ```
 Assets → Outputs → Files
-(源)     (中间)    (目标)
+(source) (intermediate) (target)
 ```
 
-Calvin 是一个 **编译器 + 部署器**。
+Calvin is a **compiler + deployer**.
 
-## 依赖规则
+## Dependency Rule
 
 ```
 Presentation → Application → Domain ← Infrastructure
 ```
 
-Domain 不依赖任何外部层，这是可测试性和可扩展性的关键。
+Domain has no external dependencies - this is key to testability and extensibility.
 

@@ -139,14 +139,30 @@ calvin deploy --remote user@host:/path/to/project
 
 ## Documentation
 
+### Core Documentation
+
 - **[Architecture Overview](docs/architecture/overview.md)**: System design and goals
 - **[Layered Architecture](docs/architecture/layers.md)**: Four-layer clean architecture
 - **[Directory Structure](docs/architecture/directory.md)**: Codebase organization
 - **[Configuration](docs/configuration.md)**: Config file, environment variables
 - **[Target Platforms](docs/target-platforms.md)**: Supported IDEs and output formats
-- **[Tech Decisions](docs/tech-decisions.md)**: Technology choices and rationale
 - **[Command Reference](docs/command-reference.md)**: CLI commands and options
+
+### Guides
+
+- **[Scope Guide](docs/guides/scope-guide.md)**: Understanding project vs user scope
+- **[Pitfall Mitigations](docs/guides/pitfall-mitigations.md)**: Known issues and solutions
+
+### Reports
+
+- **[Security Audit](docs/reports/security-audit-report.md)**: Security analysis and findings
+- **[API Review](docs/reports/api-review-2025-12-19.md)**: CLI and library API review
+
+### Reference
+
+- **[Tech Decisions](docs/tech-decisions.md)**: Technology choices and rationale
 - **[Analysis Report](docs/analysis-report.md)**: Full project analysis with diagrams
+- **[API Changelog](docs/api/changelog.md)**: Format version history
 
 ## Project Status
 
