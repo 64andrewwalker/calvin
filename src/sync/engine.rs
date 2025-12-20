@@ -18,7 +18,8 @@ use std::path::{Path, PathBuf};
 
 use super::OutputFile;
 use crate::error::CalvinResult;
-use crate::fs::{FileSystem, LocalFileSystem, RemoteFileSystem};
+use crate::fs::{FileSystem, RemoteFileSystem};
+use crate::infrastructure::fs::LocalFs;
 use crate::sync::execute::{execute_sync_with_callback, SyncStrategy};
 use crate::sync::lockfile::{lockfile_key, Lockfile, LockfileNamespace};
 use crate::sync::plan::{
@@ -47,9 +48,9 @@ pub struct SyncEngineOptions {
 /// 3. Execute: Transfer files using optimal strategy
 /// 4. Update: Save lockfile with new hashes
 ///
-/// The engine is generic over `FS: FileSystem`, defaulting to `LocalFileSystem`.
+/// The engine is generic over `FS: FileSystem`, defaulting to `LocalFs`.
 /// Use `new_with_fs()` to provide a custom filesystem (e.g., for testing with `MockFileSystem`).
-pub struct SyncEngine<'a, FS: FileSystem = LocalFileSystem> {
+pub struct SyncEngine<'a, FS: FileSystem = LocalFs> {
     outputs: &'a [OutputFile],
     destination: SyncDestination,
     lockfile_path: PathBuf,
@@ -78,22 +79,16 @@ impl<'a, FS: FileSystem> SyncEngine<'a, FS> {
     }
 }
 
-/// Convenience constructors using LocalFileSystem
-impl<'a> SyncEngine<'a, LocalFileSystem> {
-    /// Create a new SyncEngine with LocalFileSystem
+/// Convenience constructors using LocalFs
+impl<'a> SyncEngine<'a, LocalFs> {
+    /// Create a new SyncEngine with LocalFs
     pub fn new(
         outputs: &'a [OutputFile],
         destination: SyncDestination,
         lockfile_path: PathBuf,
         options: SyncEngineOptions,
     ) -> Self {
-        Self::new_with_fs(
-            outputs,
-            destination,
-            lockfile_path,
-            options,
-            LocalFileSystem,
-        )
+        Self::new_with_fs(outputs, destination, lockfile_path, options, LocalFs::new())
     }
 
     /// Create for local destination (project directory)
@@ -590,7 +585,7 @@ mod tests {
         let lockfile_path = dir.path().join(".promptpack/.calvin.lock");
         assert!(lockfile_path.exists(), "Lockfile should exist");
 
-        let lockfile = Lockfile::load_or_new(&lockfile_path, &LocalFileSystem);
+        let lockfile = Lockfile::load_or_new(&lockfile_path, &LocalFs::new());
         let key = lockfile_key(LockfileNamespace::Project, Path::new("test.md"));
         assert!(
             lockfile.get(&key).is_some(),
