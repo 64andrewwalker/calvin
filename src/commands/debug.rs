@@ -121,6 +121,223 @@ pub fn cmd_migrate(
 }
 
 pub fn cmd_diff(source: &Path, home: bool, json: bool) -> Result<()> {
+    // Check if we should use the new engine
+    if should_use_new_diff_engine() {
+        cmd_diff_new_engine(source, home, json)
+    } else {
+        cmd_diff_legacy(source, home, json)
+    }
+}
+
+/// Check if we should use the new diff engine
+fn should_use_new_diff_engine() -> bool {
+    !std::env::var("CALVIN_LEGACY_DIFF").is_ok_and(|v| v == "1" || v.to_lowercase() == "true")
+}
+
+/// New engine implementation using DiffUseCase
+fn cmd_diff_new_engine(source: &Path, home: bool, json: bool) -> Result<()> {
+    use calvin::application::DiffOptions;
+    use calvin::config::DeployTargetConfig;
+    use calvin::domain::value_objects::Scope;
+    use calvin::presentation::factory::create_diff_use_case;
+    use std::fs;
+
+    // Load configuration
+    let config_path = source.join("config.toml");
+    let (config, warnings) = calvin::config::Config::load_with_warnings(&config_path)
+        .unwrap_or((calvin::config::Config::default(), Vec::new()));
+    let ui = crate::ui::context::UiContext::new(json, 0, None, true, &config);
+
+    // Determine effective scope: CLI flag overrides config
+    let scope = if home || config.deploy.target == DeployTargetConfig::Home {
+        Scope::User
+    } else {
+        Scope::Project
+    };
+
+    if json {
+        crate::ui::json::emit(serde_json::json!({
+            "event": "start",
+            "command": "diff",
+            "source": source.display().to_string(),
+            "home": scope == Scope::User
+        }))?;
+    } else {
+        print!(
+            "{}",
+            crate::ui::views::diff::render_diff_header(source, ui.color, ui.unicode)
+        );
+    }
+    print_config_warnings(&config_path, &warnings, &ui);
+
+    // Create and execute DiffUseCase
+    let use_case = create_diff_use_case();
+    let options = DiffOptions::new(source).with_scope(scope);
+    let result = use_case.execute(&options);
+
+    // Determine compare root for reading existing content
+    let project_root = source
+        .parent()
+        .map(|p| p.to_path_buf())
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+    let compare_root = if scope == Scope::User {
+        dirs::home_dir().unwrap_or_default()
+    } else {
+        project_root
+    };
+
+    let mut rendered_diffs = String::new();
+    let mut json_out = if json {
+        Some(std::io::stdout().lock())
+    } else {
+        None
+    };
+
+    // Process creates
+    for entry in &result.creates {
+        let path_str = entry.path.display().to_string();
+        if let Some(out) = &mut json_out {
+            let _ = crate::ui::json::write_event(
+                out,
+                &serde_json::json!({
+                    "event": "file",
+                    "command": "diff",
+                    "path": path_str,
+                    "status": "new"
+                }),
+            );
+        }
+        if !json {
+            if let Some(content) = &entry.new_content {
+                rendered_diffs.push_str(&crate::ui::views::diff::render_file_diff(
+                    &path_str, "", content, ui.color,
+                ));
+                rendered_diffs.push('\n');
+            }
+        }
+    }
+
+    // Process updates
+    for entry in &result.updates {
+        let path_str = entry.path.display().to_string();
+        if let Some(out) = &mut json_out {
+            let _ = crate::ui::json::write_event(
+                out,
+                &serde_json::json!({
+                    "event": "file",
+                    "command": "diff",
+                    "path": path_str,
+                    "status": "modified"
+                }),
+            );
+        }
+        if !json {
+            // Read existing content to generate diff
+            let target_path = if path_str.starts_with('~') {
+                calvin::sync::expand_home_dir(&entry.path)
+            } else {
+                compare_root.join(&entry.path)
+            };
+            let existing = fs::read_to_string(&target_path).unwrap_or_default();
+            if let Some(new_content) = &entry.new_content {
+                rendered_diffs.push_str(&crate::ui::views::diff::render_file_diff(
+                    &path_str,
+                    &existing,
+                    new_content,
+                    ui.color,
+                ));
+                rendered_diffs.push('\n');
+            }
+        }
+    }
+
+    // Process skipped (unchanged)
+    for entry in &result.skipped {
+        let path_str = entry.path.display().to_string();
+        if let Some(out) = &mut json_out {
+            let _ = crate::ui::json::write_event(
+                out,
+                &serde_json::json!({
+                    "event": "file",
+                    "command": "diff",
+                    "path": path_str,
+                    "status": "unchanged"
+                }),
+            );
+        }
+    }
+
+    // Process conflicts
+    for entry in &result.conflicts {
+        let path_str = entry.path.display().to_string();
+        if let Some(out) = &mut json_out {
+            let _ = crate::ui::json::write_event(
+                out,
+                &serde_json::json!({
+                    "event": "file",
+                    "command": "diff",
+                    "path": path_str,
+                    "status": "conflict"
+                }),
+            );
+        }
+        if !json {
+            // Read existing content to generate diff
+            let target_path = if path_str.starts_with('~') {
+                calvin::sync::expand_home_dir(&entry.path)
+            } else {
+                compare_root.join(&entry.path)
+            };
+            let existing = fs::read_to_string(&target_path).unwrap_or_default();
+            if let Some(new_content) = &entry.new_content {
+                rendered_diffs.push_str(&crate::ui::views::diff::render_file_diff(
+                    &path_str,
+                    &existing,
+                    new_content,
+                    ui.color,
+                ));
+                rendered_diffs.push('\n');
+            }
+        }
+    }
+
+    if json {
+        let mut out = std::io::stdout().lock();
+        let _ = crate::ui::json::write_event(
+            &mut out,
+            &serde_json::json!({
+                "event": "complete",
+                "command": "diff",
+                "new": result.creates.len(),
+                "modified": result.updates.len(),
+                "unchanged": result.skipped.len(),
+                "conflicts": result.conflicts.len(),
+                "orphans": result.orphans.len()
+            }),
+        );
+    } else {
+        if !rendered_diffs.is_empty() {
+            print!("{rendered_diffs}");
+        }
+
+        print!(
+            "{}",
+            crate::ui::views::diff::render_diff_summary_with_orphans(
+                result.creates.len(),
+                result.updates.len(),
+                result.skipped.len(),
+                result.orphans.len(),
+                ui.color,
+                ui.unicode
+            )
+        );
+    }
+
+    Ok(())
+}
+
+/// Legacy engine implementation (original)
+fn cmd_diff_legacy(source: &Path, home: bool, json: bool) -> Result<()> {
     use calvin::config::DeployTargetConfig;
     use calvin::fs::LocalFileSystem;
     use calvin::sync::lockfile::{Lockfile, LockfileNamespace};

@@ -10,10 +10,14 @@
 //!
 //! - `DeployUseCase` - Orchestrates the deploy flow (load, compile, plan, execute, update lockfile)
 //! - `CheckUseCase` - Orchestrates security checks
-//! - `WatchUseCase` - Orchestrates file watching with auto-deploy (TODO)
+//! - `WatchUseCase` - Orchestrates file watching with auto-deploy
 
 pub mod check;
 pub mod deploy;
+pub mod diff;
+pub mod watch;
 
 pub use check::{CheckItem, CheckOptions, CheckResult, CheckStatus, CheckUseCase};
 pub use deploy::{DeployOptions, DeployResult, DeployUseCase};
+pub use diff::{ChangeType, DiffEntry, DiffOptions, DiffResult, DiffUseCase};
+pub use watch::{WatchEvent, WatchOptions, WatchUseCase};

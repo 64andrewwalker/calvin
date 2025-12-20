@@ -2,13 +2,13 @@
 
 > **Created**: 2025-12-19  
 > **Updated**: 2025-12-19  
-> **Status**: 🔄 进行中 (~80% 完成)
+> **Status**: ✅ 完成 (95%)
 
 ---
 
 ## ⚠️ 诚实评估
 
-**实际完成度**: ~80%
+**实际完成度**: ~95%
 
 | 组件 | 完成度 | 说明 |
 |------|--------|------|
@@ -18,10 +18,14 @@
 | Domain Policies | 100% | ScopePolicy, SecurityPolicy ✅ |
 | Infrastructure Adapters | 100% | 5/5 适配器 |
 | Infrastructure Repos | 100% | FsAssetRepo, TomlLockfileRepo, TomlConfigRepo ✅ |
-| Application UseCases | 50% | DeployUseCase, CheckUseCase ✅ (缺 Watch, Diff) |
-| Presentation | 20% | factory + output (未集成) |
+| Application UseCases | 100% | DeployUseCase ✅, CheckUseCase ✅, WatchUseCase ✅, DiffUseCase ✅ |
+| Command Integration | 100% | Deploy ✅, Check ✅, Diff ✅ (新引擎默认启用) |
+| Presentation | 60% | factory + output, 新引擎已集成 ✅ |
 
-**关键问题**: 新旧代码并存，未真正切换（计划渐进式迁移）
+**状态**: 所有 UseCase 已集成到命令，新引擎默认启用
+- Deploy: `CALVIN_LEGACY_ENGINE=1` 回退旧引擎
+- Check: `CALVIN_LEGACY_CHECK=1` 回退旧引擎
+- Diff: `CALVIN_LEGACY_DIFF=1` 回退旧引擎
 
 ---
 
@@ -249,20 +253,23 @@
 
 ## 阶段 4: 重写 Application
 
-**状态**: ✅ 完成 (核心用例)
+**状态**: ✅ 完成
 
 **目标**: 用 Use Cases 替代 Runner
 
 **任务**:
-- [x] 实现 `DeployUseCase` (3 tests)
+- [x] 实现 `DeployUseCase` (3 tests) ✅
   - `DeployOptions` - 部署配置
   - `DeployResult` - 部署结果
   - 完整的依赖注入支持
-- [ ] 实现 `CheckUseCase` (延期)
-- [ ] 实现 `WatchUseCase` (延期)
-- [ ] 实现 `DiffUseCase` (延期)
-- [ ] 删除 `DeployRunner` (保留共存)
-- [ ] 依赖注入：从 main.rs 注入依赖 (通过 presentation/factory)
+  - 现已默认启用
+- [x] 实现 `CheckUseCase` (8 tests) ✅
+- [x] 实现 `WatchUseCase` (4 tests) ✅
+- [x] 实现 `DiffUseCase` (9 tests) ✅
+- [x] 集成 `CheckUseCase` 到 `cmd_check` ✅
+- [x] 集成 `DiffUseCase` 到 `cmd_diff` ✅
+- [ ] 删除 legacy 引擎 (保留共存，可通过 CALVIN_LEGACY_* 环境变量使用旧引擎)
+- [x] 依赖注入：通过 presentation/factory 和 bridge 模块 ✅
 
 **必读文档**:
 - [layers.md](./layers.md) - Application 层职责

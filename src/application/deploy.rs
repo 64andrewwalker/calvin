@@ -166,6 +166,9 @@ where
                 return result;
             }
         };
+
+        // Step 1.5: Apply scope policy - when deploying to User scope, force all assets to User
+        let assets = self.apply_scope_policy(assets, options.scope);
         result.asset_count = assets.len();
 
         // Step 2: Compile assets
@@ -215,6 +218,26 @@ where
         self.asset_repo
             .load_all(source)
             .map_err(|e| format!("{}", e))
+    }
+
+    /// Apply scope policy to assets
+    ///
+    /// When deploying to User scope (--home), force all assets to use User scope.
+    /// This matches the behavior of the old engine's ScopePolicy::ForceUser.
+    fn apply_scope_policy(&self, assets: Vec<Asset>, target_scope: Scope) -> Vec<Asset> {
+        match target_scope {
+            Scope::User => {
+                // Force all assets to User scope
+                assets
+                    .into_iter()
+                    .map(|a| a.with_scope(Scope::User))
+                    .collect()
+            }
+            Scope::Project => {
+                // Keep original scope from assets
+                assets
+            }
+        }
     }
 
     /// Compile assets for target platforms
@@ -298,7 +321,7 @@ where
 
             // Build target state
             let target_state = if exists {
-                if let Some(hash) = current_hash {
+                if let Some(hash) = current_hash.clone() {
                     TargetFileState::exists_with_hash(hash)
                 } else {
                     TargetFileState {
@@ -312,8 +335,12 @@ where
 
             // Plan this file
             let action = if options.force {
-                // Force mode - always write
-                FileAction::Write
+                // Force mode - skip content-identical files, overwrite all others
+                if target_state.exists && target_state.current_hash.as_ref() == Some(&new_hash) {
+                    FileAction::Skip
+                } else {
+                    FileAction::Write
+                }
             } else {
                 Planner::plan_file(&new_hash, &target_state, lockfile, &lockfile_key)
             };

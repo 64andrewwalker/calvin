@@ -136,7 +136,9 @@ pub fn cmd_deploy_with_explicit_target(
     // Create UI context
     let ui = UiContext::new(json, verbose, color, no_animation, &config);
 
-    // Create runner
+    // Create runner (clone target and options for potential new engine use)
+    let target_for_bridge = target.clone();
+    let options_for_bridge = options.clone();
     let runner = DeployRunner::new(source.to_path_buf(), target, scope_policy, options, ui);
 
     // Render header
@@ -276,8 +278,27 @@ pub fn cmd_deploy_with_explicit_target(
         result
     } else {
         // Non-JSON mode: run without callback
-        runner.run()?
+        // Check if new engine is enabled via CALVIN_NEW_ENGINE=1
+        if super::bridge::should_use_new_engine() {
+            // Use new DeployUseCase architecture
+            // Pass cleanup flag to let use case handle orphan cleanup
+            let use_case_options = super::bridge::convert_options(
+                source,
+                &target_for_bridge,
+                &options_for_bridge,
+                cleanup,
+            );
+            let use_case = super::bridge::create_use_case_for_targets(&options_for_bridge.targets);
+            let use_case_result = use_case.execute(&use_case_options);
+            super::bridge::convert_result(&use_case_result)
+        } else {
+            // Use legacy DeployRunner
+            runner.run()?
+        }
     };
+
+    // Track if we used the new engine (for skipping legacy orphan detection)
+    let used_new_engine = !json && super::bridge::should_use_new_engine();
 
     // Render summary
     if json {
@@ -306,7 +327,8 @@ pub fn cmd_deploy_with_explicit_target(
     // Orphan detection and cleanup (for local, successful deploys)
     // Skip for remote targets - deletion over SSH is complex
     // Note: dry_run mode will show what would be deleted but won't delete
-    if result.is_success() && runner.target().is_local() {
+    // Skip for new engine - it handles orphan cleanup internally
+    if result.is_success() && runner.target().is_local() && !used_new_engine {
         let fs = LocalFileSystem;
         let lockfile_path = runner.get_lockfile_path();
         let lockfile = Lockfile::load_or_new(&lockfile_path, &fs);
