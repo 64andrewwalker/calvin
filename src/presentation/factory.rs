@@ -3,7 +3,7 @@
 //! Creates use cases with infrastructure dependencies wired up.
 //! This is the dependency injection point for the application.
 
-use crate::application::DeployUseCase;
+use crate::application::{DeployUseCase, DiffUseCase};
 use crate::domain::ports::TargetAdapter;
 use crate::infrastructure::{
     all_adapters, ClaudeCodeAdapter, CursorAdapter, FsAssetRepository, LocalFs,
@@ -12,6 +12,9 @@ use crate::infrastructure::{
 
 /// Type alias for the concrete DeployUseCase with all dependencies
 pub type ConcreteDeployUseCase = DeployUseCase<FsAssetRepository, TomlLockfileRepository, LocalFs>;
+
+/// Type alias for the concrete DiffUseCase with all dependencies
+pub type ConcreteDiffUseCase = DiffUseCase<FsAssetRepository, TomlLockfileRepository, LocalFs>;
 
 /// Create a deploy use case with all dependencies wired up
 ///
@@ -37,6 +40,32 @@ pub fn create_deploy_use_case_with_adapters(
     let file_system = LocalFs::new();
 
     DeployUseCase::new(asset_repo, lockfile_repo, file_system, adapters)
+}
+
+/// Create a diff use case with all dependencies wired up
+///
+/// This is the main entry point for creating a diff use case.
+/// All infrastructure dependencies are automatically injected.
+pub fn create_diff_use_case() -> ConcreteDiffUseCase {
+    let asset_repo = FsAssetRepository::new();
+    let lockfile_repo = TomlLockfileRepository::new();
+    let file_system = LocalFs::new();
+    let adapters = all_adapters();
+
+    DiffUseCase::new(asset_repo, lockfile_repo, file_system, adapters)
+}
+
+/// Create a diff use case with specific adapters
+///
+/// Useful when you only want to diff specific targets.
+pub fn create_diff_use_case_with_adapters(
+    adapters: Vec<Box<dyn TargetAdapter>>,
+) -> ConcreteDiffUseCase {
+    let asset_repo = FsAssetRepository::new();
+    let lockfile_repo = TomlLockfileRepository::new();
+    let file_system = LocalFs::new();
+
+    DiffUseCase::new(asset_repo, lockfile_repo, file_system, adapters)
 }
 
 /// Create adapters for specific targets

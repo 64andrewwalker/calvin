@@ -19,6 +19,7 @@ pub fn convert_options(
     source: &std::path::Path,
     target: &DeployTarget,
     runner_options: &RunnerOptions,
+    cleanup: bool,
 ) -> UseCaseOptions {
     // Determine scope based on target
     let scope = match target {
@@ -47,7 +48,7 @@ pub fn convert_options(
         force: runner_options.force,
         interactive: runner_options.interactive,
         dry_run: runner_options.dry_run,
-        clean_orphans: false, // Handled separately in cmd_deploy
+        clean_orphans: cleanup, // Pass through cleanup flag
     }
 }
 
@@ -70,9 +71,9 @@ pub fn convert_result(use_case_result: &UseCaseResult) -> SyncResult {
 
 /// Check if we should use the new engine
 ///
-/// Currently controlled by environment variable for testing.
+/// The new engine is now the default. Set CALVIN_LEGACY_ENGINE=1 to use the old engine.
 pub fn should_use_new_engine() -> bool {
-    std::env::var("CALVIN_NEW_ENGINE").is_ok_and(|v| v == "1" || v.to_lowercase() == "true")
+    !std::env::var("CALVIN_LEGACY_ENGINE").is_ok_and(|v| v == "1" || v.to_lowercase() == "true")
 }
 
 /// Create a deploy use case for the given targets
@@ -105,6 +106,7 @@ mod tests {
             std::path::Path::new("/project/.promptpack"),
             &DeployTarget::Project(PathBuf::from("/project")),
             &runner_options,
+            false,
         );
 
         assert_eq!(options.scope, Scope::Project);
@@ -118,6 +120,7 @@ mod tests {
             std::path::Path::new("/project/.promptpack"),
             &DeployTarget::Home,
             &runner_options,
+            false,
         );
 
         assert_eq!(options.scope, Scope::User);
@@ -132,6 +135,7 @@ mod tests {
             std::path::Path::new("/project/.promptpack"),
             &DeployTarget::Project(PathBuf::from("/project")),
             &runner_options,
+            false,
         );
 
         assert!(options.force);
@@ -146,15 +150,37 @@ mod tests {
             std::path::Path::new("/project/.promptpack"),
             &DeployTarget::Project(PathBuf::from("/project")),
             &runner_options,
+            false,
         );
 
         assert!(options.dry_run);
     }
 
     #[test]
-    fn should_use_new_engine_default_false() {
+    fn convert_options_preserves_cleanup() {
+        let runner_options = RunnerOptions::new();
+
+        let options = convert_options(
+            std::path::Path::new("/project/.promptpack"),
+            &DeployTarget::Project(PathBuf::from("/project")),
+            &runner_options,
+            true,
+        );
+
+        assert!(options.clean_orphans);
+    }
+
+    #[test]
+    fn should_use_new_engine_default_true() {
         // Clear any existing env var
-        std::env::remove_var("CALVIN_NEW_ENGINE");
+        std::env::remove_var("CALVIN_LEGACY_ENGINE");
+        assert!(should_use_new_engine());
+    }
+
+    #[test]
+    fn should_use_legacy_engine_when_flag_set() {
+        std::env::set_var("CALVIN_LEGACY_ENGINE", "1");
         assert!(!should_use_new_engine());
+        std::env::remove_var("CALVIN_LEGACY_ENGINE");
     }
 }

@@ -21,35 +21,42 @@ impl LocalFs {
 
 impl FileSystem for LocalFs {
     fn read(&self, path: &Path) -> FsResult<String> {
-        std::fs::read_to_string(path).map_err(Into::into)
+        let expanded = self.expand_home(path);
+        std::fs::read_to_string(&expanded).map_err(Into::into)
     }
 
     fn write(&self, path: &Path, content: &str) -> FsResult<()> {
+        let expanded = self.expand_home(path);
+
         // Ensure parent directories exist
-        if let Some(parent) = path.parent() {
+        if let Some(parent) = expanded.parent() {
             std::fs::create_dir_all(parent)
                 .map_err(Into::<crate::domain::ports::file_system::FsError>::into)?;
         }
 
         // Use atomic write for safety
-        crate::sync::writer::atomic_write(path, content.as_bytes())
+        crate::sync::writer::atomic_write(&expanded, content.as_bytes())
             .map_err(|e| crate::domain::ports::file_system::FsError::Other(e.to_string()))
     }
 
     fn exists(&self, path: &Path) -> bool {
-        path.exists()
+        let expanded = self.expand_home(path);
+        expanded.exists()
     }
 
     fn remove(&self, path: &Path) -> FsResult<()> {
-        std::fs::remove_file(path).map_err(Into::into)
+        let expanded = self.expand_home(path);
+        std::fs::remove_file(&expanded).map_err(Into::into)
     }
 
     fn create_dir_all(&self, path: &Path) -> FsResult<()> {
-        std::fs::create_dir_all(path).map_err(Into::into)
+        let expanded = self.expand_home(path);
+        std::fs::create_dir_all(&expanded).map_err(Into::into)
     }
 
     fn hash(&self, path: &Path) -> FsResult<String> {
-        crate::sync::writer::hash_file(path)
+        let expanded = self.expand_home(path);
+        crate::sync::writer::hash_file(&expanded)
             .map_err(|e| crate::domain::ports::file_system::FsError::Other(e.to_string()))
     }
 

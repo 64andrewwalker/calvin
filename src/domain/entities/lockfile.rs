@@ -63,12 +63,20 @@ impl Lockfile {
     }
 
     /// Generate a lockfile key from scope and path
+    ///
+    /// This must match the logic in `sync/lockfile.rs::lockfile_key` for compatibility:
+    /// - Paths starting with `~` always use `home:` prefix (regardless of scope)
+    /// - User scope paths that don't start with `~` get `~/` prepended
     pub fn make_key(scope: Scope, path: &str) -> String {
-        let prefix = match scope {
-            Scope::Project => "project:",
-            Scope::User => "home:",
-        };
-        format!("{}{}", prefix, path)
+        // Paths starting with ~ always use home: prefix (even if scope is Project)
+        if path == "~" || path.starts_with("~/") {
+            return format!("home:{}", path);
+        }
+
+        match scope {
+            Scope::Project => format!("project:{}", path),
+            Scope::User => format!("home:~/{}", path),
+        }
     }
 
     /// Parse a lockfile key into scope and path
@@ -153,6 +161,20 @@ mod tests {
     fn lockfile_make_key_user() {
         let key = Lockfile::make_key(Scope::User, "~/.claude/commands/test.md");
         assert_eq!(key, "home:~/.claude/commands/test.md");
+    }
+
+    #[test]
+    fn lockfile_make_key_tilde_path_always_home() {
+        // Paths starting with ~ always use home: prefix, even if scope is Project
+        let key = Lockfile::make_key(Scope::Project, "~/.claude/commands/test.md");
+        assert_eq!(key, "home:~/.claude/commands/test.md");
+    }
+
+    #[test]
+    fn lockfile_make_key_user_without_tilde() {
+        // User scope paths without ~ get ~/ prepended
+        let key = Lockfile::make_key(Scope::User, ".claude/settings.json");
+        assert_eq!(key, "home:~/.claude/settings.json");
     }
 
     #[test]
