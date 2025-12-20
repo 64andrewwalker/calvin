@@ -19,8 +19,8 @@ use crate::domain::ports::{
     SafeResolver, TargetAdapter,
 };
 use crate::domain::services::{
-    FileAction, OrphanDetectionResult, OrphanDetector, PlannedFile, Planner, SyncPlan,
-    TargetFileState,
+    has_calvin_signature, FileAction, OrphanDetectionResult, OrphanDetector, PlannedFile, Planner,
+    SyncPlan, TargetFileState,
 };
 use crate::domain::value_objects::{Scope, Target};
 
@@ -581,7 +581,22 @@ where
         outputs: &[OutputFile],
         scope: Scope,
     ) -> OrphanDetectionResult {
-        OrphanDetector::detect(lockfile, outputs, scope)
+        let mut result = OrphanDetector::detect(lockfile, outputs, scope);
+
+        // Check status of each orphan (exists, has_signature)
+        for orphan in &mut result.orphans {
+            let path = self.file_system.expand_home(&PathBuf::from(&orphan.path));
+
+            orphan.exists = self.file_system.exists(&path);
+
+            if orphan.exists {
+                if let Ok(content) = self.file_system.read(&path) {
+                    orphan.has_signature = has_calvin_signature(&content);
+                }
+            }
+        }
+
+        result
     }
 
     /// Execute the sync plan
