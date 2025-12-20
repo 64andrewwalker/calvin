@@ -258,4 +258,82 @@ mod tests {
         assert_eq!(AssetKind::Policy, AssetKind::Policy);
         assert_ne!(AssetKind::Policy, AssetKind::Action);
     }
+
+    // === TDD: From<PromptAsset> ===
+
+    #[test]
+    fn asset_from_prompt_asset() {
+        use crate::models::{
+            AssetKind as ModelKind, Frontmatter, PromptAsset, Scope as ModelScope,
+        };
+
+        let frontmatter = Frontmatter {
+            description: "Test description".to_string(),
+            kind: ModelKind::Policy,
+            scope: ModelScope::User,
+            targets: vec![crate::models::Target::Cursor],
+            apply: Some("*.rs".to_string()),
+        };
+        let prompt_asset = PromptAsset::new("test-id", "test.md", frontmatter, "Test content");
+
+        let asset = Asset::from(prompt_asset);
+
+        assert_eq!(asset.id(), "test-id");
+        assert_eq!(asset.description(), "Test description");
+        assert_eq!(asset.kind(), AssetKind::Policy);
+        assert_eq!(asset.scope(), Scope::User);
+        assert_eq!(asset.targets(), &[Target::Cursor]);
+        assert_eq!(asset.apply(), Some("*.rs"));
+        assert_eq!(asset.content(), "Test content");
+    }
+}
+
+// === From implementations ===
+
+impl From<crate::models::PromptAsset> for Asset {
+    fn from(pa: crate::models::PromptAsset) -> Self {
+        // Convert AssetKind
+        let kind = match pa.frontmatter.kind {
+            crate::models::AssetKind::Policy => AssetKind::Policy,
+            crate::models::AssetKind::Action => AssetKind::Action,
+            crate::models::AssetKind::Agent => AssetKind::Agent,
+        };
+
+        // Convert Scope
+        let scope = match pa.frontmatter.scope {
+            crate::models::Scope::Project => Scope::Project,
+            crate::models::Scope::User => Scope::User,
+        };
+
+        // Convert Targets
+        let targets: Vec<Target> = pa
+            .frontmatter
+            .targets
+            .iter()
+            .map(|t| match t {
+                crate::models::Target::ClaudeCode => Target::ClaudeCode,
+                crate::models::Target::Cursor => Target::Cursor,
+                crate::models::Target::VSCode => Target::VSCode,
+                crate::models::Target::Antigravity => Target::Antigravity,
+                crate::models::Target::Codex => Target::Codex,
+                crate::models::Target::All => Target::All,
+            })
+            .collect();
+
+        let mut asset = Asset::new(
+            &pa.id,
+            &pa.source_path,
+            &pa.frontmatter.description,
+            &pa.content,
+        )
+        .with_kind(kind)
+        .with_scope(scope)
+        .with_targets(targets);
+
+        if let Some(apply) = pa.frontmatter.apply {
+            asset = asset.with_apply(apply);
+        }
+
+        asset
+    }
 }
