@@ -173,19 +173,18 @@ impl Default for SyncResult {
 }
 
 // ============================================================================
-// DEPRECATED: Old sync functions removed
+// MIGRATION STATUS
 //
-// The following functions have been removed in favor of SyncEngine:
-// - sync_outputs()
-// - sync_with_fs()
-// - sync_with_fs_with_prompter()
-// - sync_with_fs_with_callback()
-// - sync_outputs_with_callback()
-// - sync()
+// This module is being migrated to the new layered architecture:
+// - AssetPipeline -> application::pipeline (done, re-exported here)
+// - ScopePolicy -> domain::policies (done, re-exported here)
+// - Lockfile -> domain::entities::Lockfile (in progress)
+// - OrphanDetector -> domain::services::orphan_detector (in progress)
 //
-// Use SyncEngine instead:
-//   let engine = SyncEngine::local(&outputs, root, options);
-//   let result = engine.sync()?;
+// For new code, prefer using:
+// - application::DeployUseCase for deployment
+// - domain::services::OrphanDetector for orphan detection
+// - domain::entities::Lockfile for lockfile operations
 // ============================================================================
 
 #[cfg(test)]
