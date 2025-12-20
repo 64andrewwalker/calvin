@@ -45,6 +45,16 @@ impl OutputFile {
             atomic: true,
         }
     }
+
+    /// Get path (for compatibility with domain::entities::OutputFile API)
+    pub fn path(&self) -> &PathBuf {
+        &self.path
+    }
+
+    /// Get content (for compatibility with domain::entities::OutputFile API)
+    pub fn content(&self) -> &str {
+        &self.content
+    }
 }
 
 /// Diagnostic message from adapter validation

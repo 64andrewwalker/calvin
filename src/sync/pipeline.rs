@@ -103,7 +103,7 @@ Hello
             .unwrap();
         assert!(outputs_keep
             .iter()
-            .any(|o| o.path == PathBuf::from(".codex/prompts/test.md")));
+            .any(|o| o.path() == &PathBuf::from(".codex/prompts/test.md")));
 
         let outputs_force_user = AssetPipeline::new(source, config)
             .with_scope_policy(ScopePolicy::ForceUser)
@@ -111,7 +111,7 @@ Hello
             .unwrap();
         assert!(outputs_force_user
             .iter()
-            .any(|o| o.path == PathBuf::from("~/.codex/prompts/test.md")));
+            .any(|o| o.path() == &PathBuf::from("~/.codex/prompts/test.md")));
     }
 
     #[test]

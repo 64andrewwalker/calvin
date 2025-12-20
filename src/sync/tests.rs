@@ -57,7 +57,7 @@ fn test_compile_assets_target_filter() {
     let outputs = compile_assets(&[asset], &[Target::ClaudeCode], &config).unwrap();
 
     // Should only generate Claude Code output
-    assert!(outputs.iter().all(|o| o.path.starts_with(".claude")));
+    assert!(outputs.iter().all(|o| o.path().starts_with(".claude")));
 }
 
 #[test]
@@ -153,7 +153,7 @@ fn compile_assets_cursor_only_generates_commands() {
 
     // Should have command output for Cursor
     let has_cursor_command = outputs.iter().any(|o| {
-        o.path
+        o.path()
             .to_string_lossy()
             .contains(".cursor/commands/test-action.md")
     });
@@ -161,7 +161,7 @@ fn compile_assets_cursor_only_generates_commands() {
     assert!(
         has_cursor_command,
         "Cursor-only compile should generate commands. Got paths: {:?}",
-        outputs.iter().map(|o| &o.path).collect::<Vec<_>>()
+        outputs.iter().map(|o| o.path()).collect::<Vec<_>>()
     );
 }
 
