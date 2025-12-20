@@ -42,13 +42,6 @@ fn test_compile_assets_available_via_compile_module() {
 }
 
 #[test]
-fn test_unified_diff_available_via_conflict_module() {
-    let diff = super::conflict::unified_diff("file.txt", "old\n", "new\n");
-    assert!(diff.contains("a/file.txt"));
-    assert!(diff.contains("b/file.txt"));
-}
-
-#[test]
 fn test_compile_assets_target_filter() {
     let fm = Frontmatter::new("Test asset");
     let asset = PromptAsset::new("test", "test.md", fm, "Content");

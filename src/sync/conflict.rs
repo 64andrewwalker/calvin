@@ -13,7 +13,12 @@ pub use crate::domain::ports::{ConflictChoice, ConflictReason};
 /// Generate a unified diff between old and new content.
 ///
 /// Uses the `similar` crate to create a human-readable diff.
-pub fn unified_diff(path: &str, old: &str, new: &str) -> String {
+///
+/// Note: This function is currently only used in tests. In production,
+/// the `ui::components::diff::render_unified_diff_with_line_numbers` function
+/// provides enhanced diff rendering with line numbers and color support.
+#[cfg(test)]
+fn unified_diff(path: &str, old: &str, new: &str) -> String {
     use similar::TextDiff;
     TextDiff::from_lines(old, new)
         .unified_diff()
