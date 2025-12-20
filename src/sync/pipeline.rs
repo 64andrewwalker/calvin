@@ -5,6 +5,7 @@ use crate::config::Config;
 use crate::error::CalvinResult;
 use crate::models::Target;
 use crate::parser::parse_directory;
+use crate::sync::scope::ScopePolicyExt;
 use crate::sync::{compile_assets, ScopePolicy};
 
 /// Unified pipeline for parsing + scope filtering + compilation.
