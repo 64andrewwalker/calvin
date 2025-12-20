@@ -1,6 +1,9 @@
 //! Lockfile for tracking generated file checksums
 //!
 //! Implements TD-15: Lockfile system (.promptpack/.calvin.lock)
+//!
+//! **Migration Note**: `LockfileNamespace` and `lockfile_key` are now defined in
+//! `domain::value_objects` and re-exported here for backward compatibility.
 
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -9,25 +12,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::CalvinResult;
 
-/// Lockfile key namespace.
-///
-/// This allows a single lockfile to track multiple deployment destinations
-/// without key collisions (e.g., `.claude/settings.json` in project vs home).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LockfileNamespace {
-    Project,
-    Home,
-}
-
-impl LockfileNamespace {
-    /// Convert namespace to string for storage
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            LockfileNamespace::Project => "project",
-            LockfileNamespace::Home => "home",
-        }
-    }
-}
+// Re-export domain types for backward compatibility
+pub use crate::domain::value_objects::{lockfile_key, LockfileNamespace};
 
 /// Calvin lockfile
 ///
@@ -172,27 +158,11 @@ impl Lockfile {
 ///
 /// Returns the hash in format: `sha256:<64 hex digits>`
 /// This format is compatible with remote `sha256sum` output.
-pub fn hash_content(content: &str) -> String {
-    use sha2::{Digest, Sha256};
-
-    let hash = Sha256::digest(content.as_bytes());
-    format!("sha256:{:x}", hash)
-}
-
-/// Build a stable lockfile key for an output path under a given namespace.
 ///
-/// - Explicit home paths (`~/<...>`) always use the `home:` namespace.
-/// - Relative paths are keyed under `project:` or `home:` depending on the namespace.
-pub fn lockfile_key(namespace: LockfileNamespace, output_path: &Path) -> String {
-    let path_str = output_path.display().to_string();
-    if path_str == "~" || path_str.starts_with("~/") {
-        return format!("home:{path_str}");
-    }
-
-    match namespace {
-        LockfileNamespace::Project => format!("project:{path_str}"),
-        LockfileNamespace::Home => format!("home:~/{path_str}"),
-    }
+/// **Migration Note**: Consider using `domain::value_objects::ContentHash::from_content()`
+/// for new code.
+pub fn hash_content(content: &str) -> String {
+    crate::domain::value_objects::ContentHash::from_content(content).to_string()
 }
 
 #[cfg(test)]
