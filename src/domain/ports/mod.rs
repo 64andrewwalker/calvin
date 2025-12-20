@@ -7,10 +7,12 @@ pub mod asset_repository;
 pub mod config_repository;
 pub mod file_system;
 pub mod lockfile_repository;
+pub mod sync_destination;
 pub mod target_adapter;
 
 pub use asset_repository::AssetRepository;
 pub use config_repository::ConfigRepository;
 pub use file_system::{FileSystem, FsError, FsResult};
 pub use lockfile_repository::{LockfileError, LockfileRepository};
+pub use sync_destination::{SyncDestination, SyncDestinationError, SyncOptions, SyncResult};
 pub use target_adapter::{AdapterDiagnostic, AdapterError, DiagnosticSeverity, TargetAdapter};
