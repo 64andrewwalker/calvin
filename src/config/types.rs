@@ -10,18 +10,8 @@ use crate::models::Target;
 
 use super::loader::{self, ConfigWarning};
 
-/// Security mode for Calvin operations
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "lowercase")]
-pub enum SecurityMode {
-    /// No enforcement, INFO logs only
-    Yolo,
-    /// Generate protections, WARN on issues (default)
-    #[default]
-    Balanced,
-    /// Block on security violations
-    Strict,
-}
+// Re-export SecurityMode from domain layer
+pub use crate::domain::value_objects::SecurityMode;
 
 /// Format version configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]

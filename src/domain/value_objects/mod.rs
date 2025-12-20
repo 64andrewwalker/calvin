@@ -7,10 +7,12 @@ mod hash;
 mod lockfile_namespace;
 mod path;
 mod scope;
+mod security_mode;
 mod target;
 
 pub use hash::ContentHash;
 pub use lockfile_namespace::{lockfile_key, parse_lockfile_key, LockfileNamespace};
 pub use path::{PathError, SafePath};
 pub use scope::Scope;
+pub use security_mode::SecurityMode;
 pub use target::Target;

@@ -3,7 +3,7 @@
 //! Domain policy for security-related decisions.
 //! This policy encapsulates security rules without I/O operations.
 
-use crate::config::SecurityMode;
+use crate::domain::value_objects::SecurityMode;
 
 /// Security policy for evaluating security rules
 ///
