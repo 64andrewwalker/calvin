@@ -2,30 +2,31 @@
 
 > **Created**: 2025-12-19  
 > **Updated**: 2025-12-20  
-> **Status**: ✅ 完成 (97%)
+> **Status**: ✅ 完成 (100%)
 
 ---
 
 ## ⚠️ 诚实评估
 
-**实际完成度**: ~97%
+**实际完成度**: 100%
 
 | 组件 | 完成度 | 说明 |
 |------|--------|------|
 | Domain Entities | 100% | Asset, OutputFile, Lockfile |
 | Domain Value Objects | 100% | Scope, Target, Hash, SafePath ✅ |
 | Domain Services | 100% | Compiler, Planner, Orphan, Differ ✅ |
-| Domain Policies | 100% | ScopePolicy, SecurityPolicy ✅ |
+| Domain Policies | 100% | ScopePolicy, SecurityPolicy, ScopePolicyExt ✅ |
 | Infrastructure Adapters | 100% | 5/5 适配器 |
 | Infrastructure Repos | 100% | FsAssetRepo, TomlLockfileRepo, TomlConfigRepo ✅ |
 | Application UseCases | 100% | DeployUseCase ✅, CheckUseCase ✅, WatchUseCase ✅, DiffUseCase ✅ |
-| Command Integration | 100% | Deploy ✅, Check ✅, Diff ✅ (新引擎默认启用) |
-| Presentation | 60% | factory + output, 新引擎已集成 ✅ |
+| Command Integration | 100% | Deploy ✅, Check ✅, Diff ✅ (新引擎唯一引擎) |
+| Legacy sync/ | 100% | **已删除** - 所有功能迁移到新架构 ✅ |
+| Presentation | 70% | factory + output, UI 使用 DeployResult ✅ |
 
-**状态**: 所有 UseCase 已集成到命令，新引擎默认启用
-- Deploy: `CALVIN_LEGACY_ENGINE=1` 回退旧引擎
-- Check: `CALVIN_LEGACY_CHECK=1` 回退旧引擎
-- Diff: `CALVIN_LEGACY_DIFF=1` 回退旧引擎
+**状态**: 架构迁移完成！
+- sync/ 模块已完全删除
+- 所有功能使用新架构
+- Legacy 环境变量不再支持
 
 ---
 
@@ -268,7 +269,7 @@
 - [x] 实现 `DiffUseCase` (9 tests) ✅
 - [x] 集成 `CheckUseCase` 到 `cmd_check` ✅
 - [x] 集成 `DiffUseCase` 到 `cmd_diff` ✅
-- [ ] 删除 legacy 引擎 (保留共存，可通过 CALVIN_LEGACY_* 环境变量使用旧引擎)
+- [x] 删除 legacy 引擎 ✅ (sync/ 模块已删除，CALVIN_LEGACY_* 不再支持)
 - [x] 依赖注入：通过 presentation/factory 和 bridge 模块 ✅
 
 **必读文档**:
@@ -417,6 +418,9 @@
 
 | 日期 | 更新内容 |
 |------|----------|
+| 2025-12-20 | **sync/ 模块完全删除** - 删除 9 个文件 ~1415 行代码 |
+| 2025-12-20 | UI 层迁移到使用 DeployResult 而非 SyncResult |
+| 2025-12-20 | 删除 cmd_diff_legacy 函数，移除 CALVIN_LEGACY_DIFF 支持 |
 | 2025-12-20 | sync 模块清理完成，compile_assets 迁移到 application |
 | 2025-12-19 | 添加跨平台兼容性检查清单 |
 | 2025-12-19 | 更新阶段 1/2 状态，添加 domain 测试统计 |
