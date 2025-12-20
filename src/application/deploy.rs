@@ -87,6 +87,45 @@ impl DeployOptions {
     }
 }
 
+/// Options for deploying pre-compiled outputs (used by watcher)
+#[derive(Debug, Clone)]
+pub struct DeployOutputOptions {
+    /// Path to the lockfile
+    pub lockfile_path: PathBuf,
+    /// Deploy scope (project or user)
+    pub scope: Scope,
+    /// Dry run (don't write files)
+    pub dry_run: bool,
+    /// Clean orphan files
+    pub clean_orphans: bool,
+}
+
+impl DeployOutputOptions {
+    pub fn new(lockfile_path: impl Into<PathBuf>) -> Self {
+        Self {
+            lockfile_path: lockfile_path.into(),
+            scope: Scope::default(),
+            dry_run: false,
+            clean_orphans: false,
+        }
+    }
+
+    pub fn with_scope(mut self, scope: Scope) -> Self {
+        self.scope = scope;
+        self
+    }
+
+    pub fn with_dry_run(mut self, dry_run: bool) -> Self {
+        self.dry_run = dry_run;
+        self
+    }
+
+    pub fn with_clean_orphans(mut self, clean: bool) -> Self {
+        self.clean_orphans = clean;
+        self
+    }
+}
+
 /// Result of a deploy operation
 #[derive(Debug, Clone)]
 pub struct DeployResult {
@@ -206,6 +245,120 @@ where
         resolver: Arc<dyn ConflictResolver>,
     ) -> DeployResult {
         self.execute_full(options, Arc::new(NoopEventSink), resolver)
+    }
+
+    /// Deploy pre-compiled outputs directly
+    ///
+    /// This method is used by the watcher command for incremental sync.
+    /// It skips asset loading and compilation, starting directly from OutputFile[].
+    pub fn deploy_outputs(
+        &self,
+        outputs: Vec<OutputFile>,
+        options: &DeployOutputOptions,
+    ) -> DeployResult {
+        self.deploy_outputs_full(
+            outputs,
+            options,
+            Arc::new(NoopEventSink),
+            Arc::new(SafeResolver),
+        )
+    }
+
+    /// Deploy pre-compiled outputs with custom resolver
+    pub fn deploy_outputs_with_resolver(
+        &self,
+        outputs: Vec<OutputFile>,
+        options: &DeployOutputOptions,
+        resolver: Arc<dyn ConflictResolver>,
+    ) -> DeployResult {
+        self.deploy_outputs_full(outputs, options, Arc::new(NoopEventSink), resolver)
+    }
+
+    /// Full deploy outputs with all customization options
+    fn deploy_outputs_full(
+        &self,
+        outputs: Vec<OutputFile>,
+        options: &DeployOutputOptions,
+        event_sink: Arc<dyn DeployEventSink>,
+        resolver: Arc<dyn ConflictResolver>,
+    ) -> DeployResult {
+        let mut result = DeployResult::new();
+        result.output_count = outputs.len();
+
+        // Emit started event
+        event_sink.on_event(DeployEvent::Started {
+            source: options.lockfile_path.clone(),
+            destination: format!("{:?}", options.scope),
+            asset_count: outputs.len(),
+        });
+
+        // Emit compiled event (already compiled)
+        event_sink.on_event(DeployEvent::Compiled {
+            output_count: outputs.len(),
+        });
+
+        // Step 1: Load lockfile
+        let lockfile = self.lockfile_repo.load_or_new(&options.lockfile_path);
+
+        // Step 2: Plan sync
+        let plan = self.plan_sync(
+            &outputs,
+            &lockfile,
+            &DeployOptions {
+                source: options.lockfile_path.clone(),
+                scope: options.scope,
+                targets: vec![],
+                force: false,
+                interactive: false,
+                dry_run: options.dry_run,
+                clean_orphans: options.clean_orphans,
+            },
+        );
+
+        // Step 3: Resolve conflicts
+        let resolved_plan = match self.resolve_conflicts(plan, &resolver, options.scope) {
+            Ok(plan) => plan,
+            Err(_) => {
+                result.errors.push("Operation aborted by user".to_string());
+                return result;
+            }
+        };
+
+        // Step 4: Detect orphans
+        let orphans = if options.clean_orphans {
+            self.detect_orphans(&lockfile, &outputs, options.scope)
+        } else {
+            OrphanDetectionResult::default()
+        };
+
+        // Step 5: Execute (if not dry run)
+        if !options.dry_run {
+            self.execute_plan_with_events(&resolved_plan, &mut result, &event_sink);
+            self.delete_orphans_with_events(&orphans, &mut result, &event_sink);
+            self.update_lockfile(
+                &options.lockfile_path,
+                &resolved_plan,
+                &result,
+                options.scope,
+            );
+        } else {
+            for file in resolved_plan.to_write() {
+                result.written.push(file.path.clone());
+            }
+            for orphan in &orphans.orphans {
+                result.deleted.push(PathBuf::from(&orphan.path));
+            }
+        }
+
+        // Emit completed event
+        event_sink.on_event(DeployEvent::Completed {
+            written_count: result.written.len(),
+            skipped_count: result.skipped.len(),
+            error_count: result.errors.len(),
+            deleted_count: result.deleted.len(),
+        });
+
+        result
     }
 
     /// Full execute with all customization options

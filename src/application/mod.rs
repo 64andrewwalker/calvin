@@ -18,6 +18,6 @@ pub mod diff;
 pub mod watch;
 
 pub use check::{CheckItem, CheckOptions, CheckResult, CheckStatus, CheckUseCase};
-pub use deploy::{DeployOptions, DeployResult, DeployUseCase};
+pub use deploy::{DeployOptions, DeployOutputOptions, DeployResult, DeployUseCase};
 pub use diff::{ChangeType, DiffEntry, DiffOptions, DiffResult, DiffUseCase};
 pub use watch::{WatchEvent, WatchOptions, WatchUseCase};
