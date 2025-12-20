@@ -2,7 +2,7 @@
 //!
 //! Loads assets from the file system by parsing PromptPack files.
 
-use crate::domain::entities::Asset;
+use crate::domain::entities::{Asset, AssetKind};
 use crate::domain::ports::AssetRepository;
 use crate::domain::value_objects::{Scope, Target};
 use anyhow::Result;
@@ -30,6 +30,12 @@ impl Default for FsAssetRepository {
 impl FsAssetRepository {
     /// Convert a legacy PromptAsset to domain Asset
     fn convert_prompt_asset(pa: crate::models::PromptAsset) -> Asset {
+        let kind = match pa.frontmatter.kind {
+            crate::models::AssetKind::Policy => AssetKind::Policy,
+            crate::models::AssetKind::Action => AssetKind::Action,
+            crate::models::AssetKind::Agent => AssetKind::Agent,
+        };
+
         let scope = match pa.frontmatter.scope {
             crate::models::Scope::Project => Scope::Project,
             crate::models::Scope::User => Scope::User,
@@ -49,14 +55,22 @@ impl FsAssetRepository {
             })
             .collect();
 
-        Asset::new(
+        let mut asset = Asset::new(
             &pa.id,
             &pa.source_path,
             &pa.frontmatter.description,
             &pa.content,
         )
+        .with_kind(kind)
         .with_scope(scope)
-        .with_targets(targets)
+        .with_targets(targets);
+
+        // Set apply pattern if present
+        if let Some(apply) = &pa.frontmatter.apply {
+            asset = asset.with_apply(apply.clone());
+        }
+
+        asset
     }
 }
 

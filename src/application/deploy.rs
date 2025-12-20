@@ -261,7 +261,15 @@ where
 
         // Compile each asset with each adapter
         for asset in assets {
+            // Get the effective targets for this asset (respects asset-level targets field)
+            let asset_targets = asset.effective_targets();
+
             for adapter in &active_adapters {
+                // Skip if this adapter's target is not enabled for this asset
+                if !asset_targets.contains(&adapter.target()) {
+                    continue;
+                }
+
                 match adapter.compile(asset) {
                     Ok(adapter_outputs) => outputs.extend(adapter_outputs),
                     Err(e) => {
