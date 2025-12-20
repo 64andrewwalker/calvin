@@ -135,9 +135,13 @@ pub fn cmd_deploy_with_explicit_target(
     // Create UI context
     let ui = UiContext::new(json, verbose, color, no_animation, &config);
 
-    // Create runner (clone target and options for potential new engine use)
+    // Clone for new engine use
     let target_for_bridge = target.clone();
     let options_for_bridge = options.clone();
+
+    // LEGACY: Create runner for fallback path (only used when CALVIN_LEGACY_ENGINE=1)
+    // TODO: Remove in v0.4.0 after confirming new engine stability
+    #[allow(deprecated)]
     let runner = DeployRunner::new(source.to_path_buf(), target, scope_policy, options, ui);
 
     // Render header
@@ -154,11 +158,10 @@ pub fn cmd_deploy_with_explicit_target(
         } else {
             vec!["Auto".to_string()] // --yes mode: skip conflicts silently
         };
-        let (target_display, remote_display) = match runner.target() {
+        let (target_display, remote_display) = match &target_for_bridge {
             DeployTarget::Remote(r) => (None, Some(r.as_str())),
             _ => (
-                runner
-                    .target()
+                target_for_bridge
                     .destination_display()
                     .as_deref()
                     .map(|s| s.to_string()),
@@ -169,12 +172,12 @@ pub fn cmd_deploy_with_explicit_target(
             "{}",
             render_deploy_header(
                 action,
-                runner.source(),
+                source,
                 target_display.as_deref(),
                 remote_display,
                 &modes,
-                runner.ui().color,
-                runner.ui().unicode,
+                ui.color,
+                ui.unicode,
             )
         );
     }
@@ -237,7 +240,8 @@ pub fn cmd_deploy_with_explicit_target(
     };
 
     // Track if we used the new engine (for skipping legacy orphan detection)
-    let used_new_engine = !json && super::bridge::should_use_new_engine();
+    // JSON mode always uses new engine now, non-JSON checks the flag
+    let used_new_engine = json || super::bridge::should_use_new_engine();
 
     // Render summary
     if json {
@@ -267,7 +271,7 @@ pub fn cmd_deploy_with_explicit_target(
     // Skip for remote targets - deletion over SSH is complex
     // Note: dry_run mode will show what would be deleted but won't delete
     // Skip for new engine - it handles orphan cleanup internally
-    if result.is_success() && runner.target().is_local() && !used_new_engine {
+    if result.is_success() && target_for_bridge.is_local() && !used_new_engine {
         let fs = LocalFileSystem;
         let lockfile_path = runner.get_lockfile_path();
         let lockfile = Lockfile::load_or_new(&lockfile_path, &fs);
@@ -432,7 +436,7 @@ pub fn cmd_deploy_with_explicit_target(
     }
 
     // Save deploy target to config for watch command (only on success, not dry-run, local only)
-    if !dry_run && result.is_success() && runner.target().is_local() {
+    if !dry_run && result.is_success() && target_for_bridge.is_local() {
         let config_path = source.join("config.toml");
         let target_config = if use_home {
             calvin::config::DeployTargetConfig::Home
