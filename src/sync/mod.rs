@@ -175,16 +175,25 @@ impl Default for SyncResult {
 // ============================================================================
 // MIGRATION STATUS
 //
-// This module is being migrated to the new layered architecture:
-// - AssetPipeline -> application::pipeline (done, re-exported here)
-// - ScopePolicy -> domain::policies (done, re-exported here)
-// - Lockfile -> domain::entities::Lockfile (in progress)
-// - OrphanDetector -> domain::services::orphan_detector (in progress)
+// This module has been migrated to the new layered architecture.
+// It now serves as a backward-compatibility layer for legacy code.
 //
-// For new code, prefer using:
+// Completed migrations:
+// - AssetPipeline -> application::pipeline (re-exported here)
+// - ScopePolicy -> domain::policies (re-exported here)
+// - OrphanFile, OrphanDetectionResult -> domain::services (re-exported here)
+// - LockfileNamespace, lockfile_key -> domain::value_objects (re-exported here)
+//
+// Still in sync module (backward compatibility):
+// - sync::lockfile::Lockfile (with I/O methods for legacy code)
+// - sync::orphan::detect_orphans (wrapper for sync::lockfile::Lockfile)
+// - sync::orphan::delete_orphans, check_orphan_status
+// - SyncOptions, SyncResult, SyncEvent
+//
+// For new code, prefer:
 // - application::DeployUseCase for deployment
 // - domain::services::OrphanDetector for orphan detection
-// - domain::entities::Lockfile for lockfile operations
+// - domain::entities::Lockfile + TomlLockfileRepository for lockfile ops
 // ============================================================================
 
 #[cfg(test)]

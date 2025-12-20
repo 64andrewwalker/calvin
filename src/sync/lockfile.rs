@@ -277,8 +277,15 @@ mod tests {
         assert!(toml.contains("hash = \"sha256:abc\""));
     }
 
+    // ========================================================================
+    // lockfile_key tests
+    // Note: Comprehensive tests are in domain::value_objects::lockfile_namespace
+    // These tests verify backward compatibility of the re-exported function
+    // ========================================================================
+
     #[test]
-    fn lockfile_key_prefixes_project_paths() {
+    fn lockfile_key_reexport_works() {
+        // Verify that re-exported lockfile_key behaves correctly
         assert_eq!(
             lockfile_key(
                 LockfileNamespace::Project,
@@ -286,62 +293,16 @@ mod tests {
             ),
             "project:.claude/settings.json"
         );
-    }
-
-    #[test]
-    fn lockfile_key_prefixes_home_relative_paths_with_tilde() {
         assert_eq!(
             lockfile_key(LockfileNamespace::Home, Path::new(".claude/settings.json")),
             "home:~/.claude/settings.json"
         );
     }
 
-    #[test]
-    fn lockfile_key_keeps_explicit_home_paths() {
-        assert_eq!(
-            lockfile_key(
-                LockfileNamespace::Project,
-                Path::new("~/.codex/prompts/test.md")
-            ),
-            "home:~/.codex/prompts/test.md"
-        );
-    }
-
-    // --- Variants ---
-
-    #[test]
-    fn key__absolute_path__uses_namespace() {
-        assert_eq!(
-            lockfile_key(LockfileNamespace::Project, Path::new("/tmp/foo")),
-            "project:/tmp/foo"
-        );
-        // Note: For Home namespace, it prepends home:~/.
-        // This effectively treats the absolute path as "relative to home" in key generation terms,
-        // ensuring uniqueness even if it looks odd.
-        assert_eq!(
-            lockfile_key(LockfileNamespace::Home, Path::new("/tmp/foo")),
-            "home:~//tmp/foo"
-        );
-    }
-
-    #[test]
-    fn key__parent_traversal__is_preserved_in_key() {
-        assert_eq!(
-            lockfile_key(LockfileNamespace::Project, Path::new("../foo")),
-            "project:../foo"
-        );
-    }
-
-    #[test]
-    fn key__empty_path__handled() {
-        assert_eq!(
-            lockfile_key(LockfileNamespace::Project, Path::new("")),
-            "project:"
-        );
-    }
-
-    // --- SC-7 Scope Tracking Tests ---
+    // ========================================================================
+    // SC-7 Scope Tracking Tests
     // Note: Scope is now inferred from key prefix, not stored separately
+    // ========================================================================
 
     #[test]
     fn get_scope_infers_from_key_prefix() {
