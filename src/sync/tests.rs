@@ -128,6 +128,43 @@ fn safety__allows_tilde_slash() {
 
 // === TDD: Adapter output consistency ===
 
+/// Test compile_assets behavior with cursor-only target (no ClaudeCode)
+/// This is a special case where Cursor needs to generate commands
+#[test]
+fn compile_assets_cursor_only_generates_commands() {
+    use crate::config::Config;
+    use crate::models::{AssetKind, Frontmatter};
+    use crate::sync::compile::compile_assets;
+
+    // Create an ACTION asset - actions generate commands
+    let mut fm = Frontmatter::new("Test action");
+    fm.kind = AssetKind::Action;
+    let asset = PromptAsset::new(
+        "test-action",
+        "actions/test-action.md",
+        fm,
+        "# Action content",
+    );
+
+    let config = Config::default();
+
+    // Compile for Cursor only (without ClaudeCode)
+    let outputs = compile_assets(&[asset], &[Target::Cursor], &config).unwrap();
+
+    // Should have command output for Cursor
+    let has_cursor_command = outputs.iter().any(|o| {
+        o.path
+            .to_string_lossy()
+            .contains(".cursor/commands/test-action.md")
+    });
+
+    assert!(
+        has_cursor_command,
+        "Cursor-only compile should generate commands. Got paths: {:?}",
+        outputs.iter().map(|o| &o.path).collect::<Vec<_>>()
+    );
+}
+
 /// Test that new adapters produce compatible output paths
 #[test]
 fn new_adapter_output_paths_match_legacy() {
