@@ -5,10 +5,10 @@
 
 use std::path::Path;
 
+use calvin::application::compile_assets;
 use calvin::config::Config;
 use calvin::models::Target;
 use calvin::parser::parse_directory;
-use calvin::sync::compile_assets;
 
 /// Test fixture: a simple policy file
 const SIMPLE_POLICY: &str = r#"---
