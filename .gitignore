@@ -41,7 +41,7 @@ secrets/
 .agent/
 .github/copilot-instructions.md
 .github/instructions/
-AGENTS.md
+# Note: AGENTS.md is NOT ignored for this project (it's our dev guide)
 
 # Keep .promptpack/ (source of truth for prompts)
 # !.promptpack/
