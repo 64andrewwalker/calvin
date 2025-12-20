@@ -289,6 +289,14 @@ where
             }
         }
 
+        // Post-compile for each adapter (e.g., generate AGENTS.md)
+        for adapter in &active_adapters {
+            match adapter.post_compile(assets) {
+                Ok(post_outputs) => outputs.extend(post_outputs),
+                Err(e) => return Err(e.to_string()),
+            }
+        }
+
         Ok(outputs)
     }
 
