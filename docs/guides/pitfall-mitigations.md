@@ -1,6 +1,8 @@
 # Pitfall Mitigations
 
 > **Critical architectural decisions to prevent long-term maintenance death**
+> 
+> **Updated**: 2025-12-21
 
 This document addresses the 7 fatal pitfalls identified during architecture review.
 
@@ -387,8 +389,8 @@ opt-level = "z"
 clap = { version = "4", default-features = false, features = ["std", "derive", "help"] }
 serde = { version = "1", default-features = false, features = ["derive"] }
 serde_json = { version = "1", default-features = false, features = ["std"] }
-serde_yaml = "0.9"
-notify = { version = "6", default-features = false, features = ["macos_kqueue"] }
+serde_yml = "0.0.12"  # Migrated from deprecated serde_yaml
+notify = { version = "8", default-features = false, features = ["macos_kqueue"] }
 
 # Avoid tokio if possible - use blocking sync for simplicity
 # notify can work without async runtime

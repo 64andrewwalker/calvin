@@ -2,13 +2,15 @@
 
 > Understand how Calvin manages deployment destinations and asset scopes
 
+> **Updated**: 2025-12-21
+
 ---
 
 ## Overview
 
 Calvin uses a two-level system to control where files are deployed:
 
-1. **Asset Scope** — Per-asset setting in frontmatter (`scope: project` or `scope: user`)
+1. **Asset Scope** — Per-asset setting in frontmatter (`target: project` or `target: user`)
 2. **Deploy Target** — Global deployment destination (project directory or user home)
 
 ---
@@ -19,15 +21,15 @@ Each asset can specify its intended scope in the frontmatter:
 
 ```yaml
 ---
-kind: instruction
-scope: project    # Deploy to project directory (default)
+description: My policy
+target: project    # Deploy to project directory (default)
 ---
 ```
 
 ```yaml
 ---
-kind: instruction
-scope: user       # Deploy to user home directory (~/)
+description: My global workflow
+target: user       # Deploy to user home directory (~/)
 ---
 ```
 
@@ -83,16 +85,16 @@ When deploying, Calvin applies a **scope policy** that determines how asset scop
 ### Examples
 
 Given assets:
-- `security.md` with `scope: project`
-- `cleanup.md` with `scope: user`
+- `security.md` with `target: project`
+- `cleanup.md` with `target: user`
 
-**Deploy to Project (`target = "project"`):**
+**Deploy to Project (`calvin deploy`):**
 ```
-.claude/rules/security.md         (from scope: project)
-~/.claude/commands/cleanup.md     (from scope: user)
+.claude/rules/security.md         (from target: project)
+~/.claude/commands/cleanup.md     (from target: user)
 ```
 
-**Deploy to Home (`target = "home"` or `--home`):**
+**Deploy to Home (`calvin deploy --home`):**
 ```
 ~/.claude/rules/security.md       (forced to home)
 ~/.claude/commands/cleanup.md     (stays in home)
@@ -175,5 +177,6 @@ The lockfile enables:
 
 ## See Also
 
-- [Command Reference](command-reference.md) — All CLI commands and options
-- [Configuration](configuration.md) — Full configuration reference
+- [Command Reference](../command-reference.md) — All CLI commands and options
+- [Configuration](../configuration.md) — Full configuration reference
+- [Frontmatter Spec](../api/frontmatter.md) — Complete frontmatter reference

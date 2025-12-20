@@ -2,7 +2,7 @@
 
 > **Created**: 2025-12-19  
 > **Status**: Complete ✅  
-> **Updated**: 2025-12-19
+> **Updated**: 2025-12-21
 
 This document analyzes the consistency between `diff` and `deploy` commands regarding scope policy handling, and proposes fixes.
 
@@ -171,11 +171,11 @@ let scope_policy = if home {
 |------|----------------|
 | `src/commands/debug.rs` | `cmd_diff` implementation |
 | `src/commands/deploy/cmd.rs` | `cmd_deploy` entry point |
-| `src/commands/deploy/runner.rs` | Core deploy logic |
-| `src/commands/interactive.rs` | Interactive menu |
-| `src/sync/scope.rs` | ScopePolicy enum and apply logic |
-| `src/sync/lockfile.rs` | Tracks deployed files |
-| `src/config.rs` | Configuration definitions |
+| `src/application/deploy/use_case.rs` | Core deploy logic |
+| `src/commands/interactive/` | Interactive menu |
+| `src/domain/policies/scope_policy.rs` | ScopePolicy enum and apply logic |
+| `src/domain/entities/lockfile.rs` | Tracks deployed files |
+| `src/config/` | Configuration definitions |
 
 ---
 
@@ -191,5 +191,6 @@ let scope_policy = if home {
 
 ## References
 
-- [Command Reference](./command-reference.md)
-- [Configuration Guide](./configuration.md)
+- [Command Reference](../command-reference.md)
+- [Configuration Guide](../configuration.md)
+- [Scope Guide](./scope-guide.md)

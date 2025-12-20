@@ -1,6 +1,10 @@
 # Test Variants Rationale
 
-本文档说明为 `SyncEngine` 添加的变体测试及其覆盖的边界情况。
+> **Updated**: 2025-12-21
+
+本文档说明测试变体及其覆盖的边界情况。
+
+> **Note**: 原 `SyncEngine` 已被 `DeployUseCase` 替代，但测试覆盖原则仍然适用。
 
 ## 变体测试统计
 
