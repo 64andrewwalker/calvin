@@ -61,13 +61,7 @@ impl FileSystem for LocalFs {
     }
 
     fn expand_home(&self, path: &Path) -> PathBuf {
-        let path_str = path.to_string_lossy();
-        if path_str.starts_with("~/") || path_str == "~" {
-            if let Some(home) = dirs::home_dir() {
-                return home.join(path_str.strip_prefix("~/").unwrap_or(""));
-            }
-        }
-        path.to_path_buf()
+        expand_home_internal(path)
     }
 }
 
@@ -124,6 +118,55 @@ impl LocalFs {
 
         Ok(())
     }
+}
+
+// === Legacy FileSystem trait implementation ===
+// This allows LocalFs to be used with sync module which uses the old trait
+
+impl crate::fs::FileSystem for LocalFs {
+    fn read_to_string(&self, path: &Path) -> crate::error::CalvinResult<String> {
+        let expanded = expand_home_internal(path);
+        Ok(std::fs::read_to_string(&expanded)?)
+    }
+
+    fn write_atomic(&self, path: &Path, content: &str) -> crate::error::CalvinResult<()> {
+        Self::atomic_write_internal(path, content.as_bytes())
+    }
+
+    fn exists(&self, path: &Path) -> bool {
+        let expanded = expand_home_internal(path);
+        expanded.exists()
+    }
+
+    fn hash_file(&self, path: &Path) -> crate::error::CalvinResult<String> {
+        let content = std::fs::read(path)?;
+        Ok(format!("sha256:{:x}", Sha256::digest(&content)))
+    }
+
+    fn create_dir_all(&self, path: &Path) -> crate::error::CalvinResult<()> {
+        let expanded = expand_home_internal(path);
+        Ok(std::fs::create_dir_all(&expanded)?)
+    }
+
+    fn expand_home(&self, path: &Path) -> PathBuf {
+        expand_home_internal(path)
+    }
+
+    fn remove_file(&self, path: &Path) -> crate::error::CalvinResult<()> {
+        let expanded = expand_home_internal(path);
+        Ok(std::fs::remove_file(&expanded)?)
+    }
+}
+
+/// Internal expand_home implementation to avoid method ambiguity
+fn expand_home_internal(path: &Path) -> PathBuf {
+    let path_str = path.to_string_lossy();
+    if path_str.starts_with("~/") || path_str == "~" {
+        if let Some(home) = dirs::home_dir() {
+            return home.join(path_str.strip_prefix("~/").unwrap_or(""));
+        }
+    }
+    path.to_path_buf()
 }
 
 #[cfg(test)]
