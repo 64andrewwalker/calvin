@@ -1,26 +1,57 @@
-//! Codex Infrastructure Adapter
+//! OpenAI Codex CLI Adapter
 //!
-//! Implements the `TargetAdapter` port for OpenAI Codex CLI.
-//! This adapter wraps the legacy `crate::adapters::codex::CodexAdapter`
-//! and translates between domain entities and legacy types.
+//! Generates output for Codex CLI prompts:
+//! - `.codex/prompts/<id>.md` - Project-level prompts
+//! - `~/.codex/prompts/<id>.md` - User-level prompts
+//!
+//! Path matrix (from platform.md):
+//! - Project scope: `.codex/prompts/`
+//! - User scope: `~/.codex/prompts/`
+//!
+//! Improvement over legacy adapter:
+//! - Only Action/Agent include $ARGUMENTS placeholder (Policy does not)
 
-use crate::adapters::TargetAdapter as LegacyTargetAdapter;
-use crate::domain::entities::{Asset, OutputFile};
+use std::path::PathBuf;
+
+use crate::domain::entities::{Asset, AssetKind, OutputFile};
 use crate::domain::ports::target_adapter::{
     AdapterDiagnostic, AdapterError, DiagnosticSeverity, TargetAdapter,
 };
 use crate::domain::value_objects::{Scope, Target};
 
 /// Codex adapter
-pub struct CodexAdapter {
-    legacy_adapter: crate::adapters::codex::CodexAdapter,
-}
+pub struct CodexAdapter;
 
 impl CodexAdapter {
     pub fn new() -> Self {
-        Self {
-            legacy_adapter: crate::adapters::codex::CodexAdapter::new(),
+        Self
+    }
+
+    /// Get the prompts directory based on scope
+    fn prompts_dir(&self, scope: Scope) -> PathBuf {
+        match scope {
+            Scope::User => PathBuf::from("~/.codex/prompts"),
+            Scope::Project => PathBuf::from(".codex/prompts"),
         }
+    }
+
+    /// Generate YAML frontmatter for Codex prompts
+    fn generate_frontmatter(&self, asset: &Asset) -> String {
+        let mut fm = String::from("---\n");
+        fm.push_str(&format!("description: {}\n", asset.description()));
+
+        // Only include argument-hint for Action/Agent (not Policy)
+        match asset.kind() {
+            AssetKind::Action | AssetKind::Agent => {
+                fm.push_str("argument-hint: <arguments>\n");
+            }
+            AssetKind::Policy => {
+                // Policy prompts don't need arguments
+            }
+        }
+
+        fm.push_str("---\n");
+        fm
     }
 }
 
@@ -36,126 +67,230 @@ impl TargetAdapter for CodexAdapter {
     }
 
     fn compile(&self, asset: &Asset) -> Result<Vec<OutputFile>, AdapterError> {
-        let legacy_asset = asset_to_legacy(asset);
-        let legacy_outputs = self.legacy_adapter.compile(&legacy_asset).map_err(|e| {
-            AdapterError::CompilationFailed {
-                message: e.to_string(),
-            }
-        })?;
+        let mut outputs = Vec::new();
 
-        let outputs = legacy_outputs
-            .into_iter()
-            .map(|o| OutputFile::new(o.path, o.content, self.target()))
-            .collect();
+        let prompts_dir = self.prompts_dir(asset.scope());
+        let path = prompts_dir.join(format!("{}.md", asset.id()));
+
+        let frontmatter = self.generate_frontmatter(asset);
+        let footer = self.footer(&asset.source_path().display().to_string());
+
+        // Only Action/Agent include $ARGUMENTS after frontmatter
+        let content = match asset.kind() {
+            AssetKind::Action | AssetKind::Agent => {
+                format!(
+                    "{}\n$ARGUMENTS\n\n{}\n\n{}",
+                    frontmatter,
+                    asset.content().trim(),
+                    footer
+                )
+            }
+            AssetKind::Policy => {
+                format!("{}\n{}\n\n{}", frontmatter, asset.content().trim(), footer)
+            }
+        };
+
+        outputs.push(OutputFile::new(path, content, self.target()));
 
         Ok(outputs)
     }
 
     fn validate(&self, output: &OutputFile) -> Vec<AdapterDiagnostic> {
-        let legacy_output =
-            crate::adapters::OutputFile::new(output.path().clone(), output.content().to_string());
+        let mut diagnostics = Vec::new();
 
-        self.legacy_adapter
-            .validate(&legacy_output)
-            .into_iter()
-            .map(diagnostic_to_domain)
-            .collect()
+        // Check for named placeholders without documentation
+        let content = output.content();
+        let chars: Vec<char> = content.chars().collect();
+        let mut i = 0;
+
+        while i < chars.len() {
+            if chars[i] == '$' && i + 1 < chars.len() {
+                let start = i + 1;
+                let mut end = start;
+                while end < chars.len() && (chars[end].is_alphanumeric() || chars[end] == '_') {
+                    end += 1;
+                }
+                if end > start {
+                    let key: String = chars[start..end].iter().collect();
+                    // Skip common placeholders
+                    if !["ARGUMENTS", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
+                        .contains(&key.as_str())
+                    {
+                        // This is a named placeholder - should be documented
+                        if !content.contains(&format!("`{}`", key)) {
+                            diagnostics.push(AdapterDiagnostic {
+                                severity: DiagnosticSeverity::Warning,
+                                message: format!(
+                                    "Named placeholder ${} should be documented in usage section",
+                                    key
+                                ),
+                            });
+                        }
+                    }
+                }
+                i = end;
+            } else {
+                i += 1;
+            }
+        }
+
+        diagnostics
     }
 
     fn security_baseline(
         &self,
-        config: &crate::config::Config,
+        _config: &crate::config::Config,
     ) -> Result<Vec<OutputFile>, AdapterError> {
-        let legacy_outputs = self.legacy_adapter.security_baseline(config);
-
-        let outputs = legacy_outputs
-            .into_iter()
-            .map(|o| OutputFile::new(o.path, o.content, self.target()))
-            .collect();
-
-        Ok(outputs)
-    }
-
-    fn header(&self, source_path: &str) -> String {
-        self.legacy_adapter.header(source_path)
-    }
-
-    fn footer(&self, source_path: &str) -> String {
-        self.legacy_adapter.footer(source_path)
-    }
-
-    fn post_compile(&self, assets: &[Asset]) -> Result<Vec<OutputFile>, AdapterError> {
-        let legacy_assets: Vec<crate::models::PromptAsset> =
-            assets.iter().map(asset_to_legacy).collect();
-
-        let legacy_outputs = self
-            .legacy_adapter
-            .post_compile(&legacy_assets)
-            .map_err(|e| AdapterError::CompilationFailed {
-                message: e.to_string(),
-            })?;
-
-        let outputs = legacy_outputs
-            .into_iter()
-            .map(|o| OutputFile::new(o.path, o.content, self.target()))
-            .collect();
-
-        Ok(outputs)
-    }
-}
-
-/// Convert domain Asset to legacy PromptAsset
-fn asset_to_legacy(asset: &Asset) -> crate::models::PromptAsset {
-    crate::models::PromptAsset::new(
-        asset.id(),
-        asset.source_path().clone(),
-        crate::models::Frontmatter {
-            description: asset.description().to_string(),
-            kind: match asset.kind() {
-                crate::domain::entities::AssetKind::Policy => crate::models::AssetKind::Policy,
-                crate::domain::entities::AssetKind::Action => crate::models::AssetKind::Action,
-                crate::domain::entities::AssetKind::Agent => crate::models::AssetKind::Agent,
-            },
-            scope: match asset.scope() {
-                Scope::Project => crate::models::Scope::Project,
-                Scope::User => crate::models::Scope::User,
-            },
-            targets: asset
-                .targets()
-                .iter()
-                .map(|t| match t {
-                    Target::ClaudeCode => crate::models::Target::ClaudeCode,
-                    Target::Cursor => crate::models::Target::Cursor,
-                    Target::VSCode => crate::models::Target::VSCode,
-                    Target::Antigravity => crate::models::Target::Antigravity,
-                    Target::Codex => crate::models::Target::Codex,
-                    Target::All => crate::models::Target::All,
-                })
-                .collect(),
-            apply: asset.apply().map(|s| s.to_string()),
-        },
-        asset.content().to_string(),
-    )
-}
-
-/// Convert legacy Diagnostic to domain AdapterDiagnostic
-fn diagnostic_to_domain(d: crate::adapters::Diagnostic) -> AdapterDiagnostic {
-    AdapterDiagnostic {
-        severity: match d.severity {
-            crate::adapters::DiagnosticSeverity::Error => DiagnosticSeverity::Error,
-            crate::adapters::DiagnosticSeverity::Warning => DiagnosticSeverity::Warning,
-            crate::adapters::DiagnosticSeverity::Info => DiagnosticSeverity::Info,
-        },
-        message: d.message,
+        // Codex doesn't have project-level security config
+        Ok(Vec::new())
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::entities::AssetKind;
-    use crate::domain::value_objects::Scope;
-    use std::path::PathBuf;
+
+    fn create_action_asset(id: &str, description: &str, content: &str) -> Asset {
+        Asset::new(id, format!("actions/{}.md", id), description, content)
+            .with_kind(AssetKind::Action)
+    }
+
+    fn create_policy_asset(id: &str, description: &str, content: &str) -> Asset {
+        Asset::new(id, format!("policies/{}.md", id), description, content)
+            .with_kind(AssetKind::Policy)
+    }
+
+    // === TDD: Compile Tests ===
+
+    #[test]
+    fn compile_action_includes_arguments() {
+        let adapter = CodexAdapter::new();
+        let asset = create_action_asset("gen-tests", "Generate tests", "# Generate");
+
+        let outputs = adapter.compile(&asset).unwrap();
+
+        assert!(outputs[0].content().contains("$ARGUMENTS"));
+        assert!(outputs[0].content().contains("argument-hint: <arguments>"));
+    }
+
+    #[test]
+    fn compile_policy_no_arguments() {
+        let adapter = CodexAdapter::new();
+        let asset = create_policy_asset("code-style", "Code style", "# Style");
+
+        let outputs = adapter.compile(&asset).unwrap();
+
+        assert!(!outputs[0].content().contains("$ARGUMENTS"));
+        assert!(!outputs[0].content().contains("argument-hint"));
+    }
+
+    #[test]
+    fn compile_user_scope_uses_home() {
+        let adapter = CodexAdapter::new();
+        let asset = create_action_asset("test", "desc", "content").with_scope(Scope::User);
+
+        let outputs = adapter.compile(&asset).unwrap();
+
+        assert_eq!(
+            outputs[0].path(),
+            &PathBuf::from("~/.codex/prompts/test.md")
+        );
+    }
+
+    #[test]
+    fn compile_project_scope_local_path() {
+        let adapter = CodexAdapter::new();
+        let asset = create_action_asset("test", "desc", "content").with_scope(Scope::Project);
+
+        let outputs = adapter.compile(&asset).unwrap();
+
+        assert_eq!(outputs[0].path(), &PathBuf::from(".codex/prompts/test.md"));
+        assert!(!outputs[0].path().to_string_lossy().starts_with("~"));
+    }
+
+    #[test]
+    fn compile_includes_frontmatter() {
+        let adapter = CodexAdapter::new();
+        let asset = create_action_asset("test", "Test description", "content");
+
+        let outputs = adapter.compile(&asset).unwrap();
+
+        assert!(outputs[0].content().starts_with("---\n"));
+        assert!(outputs[0]
+            .content()
+            .contains("description: Test description"));
+    }
+
+    #[test]
+    fn compile_includes_footer() {
+        let adapter = CodexAdapter::new();
+        let asset = create_action_asset("test", "desc", "content");
+
+        let outputs = adapter.compile(&asset).unwrap();
+
+        assert!(outputs[0].content().contains("Generated by Calvin"));
+        assert!(outputs[0].content().contains("DO NOT EDIT"));
+    }
+
+    // === TDD: Validate Tests ===
+
+    #[test]
+    fn validate_undocumented_placeholder_warns() {
+        let adapter = CodexAdapter::new();
+        let output = OutputFile::new(
+            ".codex/prompts/test.md",
+            "Use $PROJECT_NAME for the project",
+            Target::Codex,
+        );
+
+        let diags = adapter.validate(&output);
+
+        assert!(!diags.is_empty());
+        assert!(diags[0].message.contains("PROJECT_NAME"));
+    }
+
+    #[test]
+    fn validate_documented_placeholder_ok() {
+        let adapter = CodexAdapter::new();
+        let output = OutputFile::new(
+            ".codex/prompts/test.md",
+            "Use $PROJECT_NAME for the project.\n\n`PROJECT_NAME` - The name of the project",
+            Target::Codex,
+        );
+
+        let diags = adapter.validate(&output);
+
+        // Should not warn about documented placeholder
+        assert!(diags.iter().all(|d| !d.message.contains("PROJECT_NAME")));
+    }
+
+    #[test]
+    fn validate_standard_placeholders_ok() {
+        let adapter = CodexAdapter::new();
+        let output = OutputFile::new(
+            ".codex/prompts/test.md",
+            "Use $ARGUMENTS and $1 and $2",
+            Target::Codex,
+        );
+
+        let diags = adapter.validate(&output);
+
+        assert!(diags.is_empty());
+    }
+
+    // === TDD: Security Baseline ===
+
+    #[test]
+    fn security_baseline_returns_empty() {
+        let adapter = CodexAdapter::new();
+        let config = crate::config::Config::default();
+
+        let baseline = adapter.security_baseline(&config).unwrap();
+
+        assert!(baseline.is_empty());
+    }
+
+    // === TDD: Trait Implementation ===
 
     #[test]
     fn adapter_target_is_codex() {
@@ -164,37 +299,8 @@ mod tests {
     }
 
     #[test]
-    fn compile_action_generates_prompt() {
+    fn adapter_version_is_one() {
         let adapter = CodexAdapter::new();
-        let asset = Asset::new(
-            "generate-tests",
-            PathBuf::from("actions/generate-tests.md"),
-            "Generate unit tests",
-            "# Generate\n\nGenerate tests.",
-        )
-        .with_kind(AssetKind::Action)
-        .with_scope(Scope::User);
-
-        let outputs = adapter.compile(&asset).unwrap();
-
-        assert_eq!(outputs.len(), 1);
-        assert!(outputs[0].path().to_string_lossy().contains("~/.codex"));
-    }
-
-    #[test]
-    fn compile_project_scope_uses_local_path() {
-        let adapter = CodexAdapter::new();
-        let asset = Asset::new(
-            "local-prompt",
-            PathBuf::from("actions/local-prompt.md"),
-            "Local prompt",
-            "# Local",
-        )
-        .with_kind(AssetKind::Action)
-        .with_scope(Scope::Project);
-
-        let outputs = adapter.compile(&asset).unwrap();
-        assert!(outputs[0].path().to_string_lossy().contains(".codex"));
-        assert!(!outputs[0].path().to_string_lossy().starts_with("~"));
+        assert_eq!(adapter.version(), 1);
     }
 }
