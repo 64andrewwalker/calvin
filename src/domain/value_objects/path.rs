@@ -213,7 +213,13 @@ mod tests {
 
     #[test]
     fn rejects_absolute() {
-        let result = SafePath::new("/etc/passwd");
+        // Use platform-appropriate absolute paths
+        #[cfg(windows)]
+        let absolute_path = "C:\\Windows\\System32";
+        #[cfg(not(windows))]
+        let absolute_path = "/etc/passwd";
+
+        let result = SafePath::new(absolute_path);
         assert!(matches!(result, Err(PathError::AbsoluteNotAllowed)));
     }
 

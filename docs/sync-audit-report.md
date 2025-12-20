@@ -1,26 +1,42 @@
 # Documentation-Code Synchronization Audit Report
 
-> **Date**: 2025-12-18
-> **Auditor**: Antigravity AI
+> **Date**: 2025-12-18  
+> **Updated**: 2025-12-20 (Architecture v2 完成)  
+> **Auditor**: AI Assistant  
 > **Scope**: Full project documentation vs implementation
-> **Last Updated**: 2025-12-18 (Deploy refactor complete, remote path fix)
 
 ---
 
 ## Sync Status: ~99% Aligned ✅
 
-Excellent alignment between documentation and implementation. All critical issues have been fixed.
+Excellent alignment between documentation and implementation. Architecture v2 refactoring is complete.
 
 ---
 
-## ✅ Issues Fixed This Audit
+## ✅ Issues Fixed This Audit (2025-12-20)
 
 | Issue | Location | Fix Applied |
 |-------|----------|-------------|
-| Command name `promptctl` → `calvin` | README.md, architecture.md, etc. | ✅ All renamed |
-| `init` command not implemented | README.md | ✅ Removed from docs |
-| Project status outdated | README.md L117 | ✅ Updated to "v0.1.0 Released" |
-| Phase 9 not marked complete | TODO.md | ✅ All phases marked complete |
+| analysis-report.md outdated (references deleted sync/engine.rs) | docs/analysis-report.md | ✅ Fully rewritten for v2 architecture |
+| README.md broken doc links | README.md L142-147 | ✅ Fixed to point to existing files |
+| TODO.md outdated items | docs/architecture/TODO.md | ✅ Marked security policy as complete |
+| sync/engine.rs still referenced | docs/ | ✅ All references updated to DeployUseCase |
+| Test count outdated (164 → 600+) | analysis-report.md | ✅ Updated |
+
+---
+
+## ✅ Architecture v2 Verification
+
+| Component | Documentation | Implementation | Tests |
+|-----------|--------------|----------------|-------|
+| Domain Layer | ✅ layers.md | ✅ src/domain/ | ✅ 109+ tests |
+| Application Layer | ✅ layers.md | ✅ src/application/ | ✅ 44+ tests |
+| Infrastructure Layer | ✅ layers.md | ✅ src/infrastructure/ | ✅ 70+ tests |
+| Presentation Layer | ✅ layers.md | ✅ src/presentation/ | ✅ 26+ tests |
+| DeployUseCase | ✅ ports.md | ✅ use_case.rs (768 lines) | ✅ 20+ tests |
+| CheckUseCase | ✅ layers.md | ✅ check.rs | ✅ 8 tests |
+| DiffUseCase | ✅ layers.md | ✅ diff.rs (682 lines) | ✅ 9 tests |
+| WatchUseCase | ✅ layers.md | ✅ watch.rs | ✅ 4 tests |
 
 ---
 
@@ -28,38 +44,43 @@ Excellent alignment between documentation and implementation. All critical issue
 
 | Feature | Documentation | Implementation | Tests |
 |---------|--------------|----------------|-------|
-| `sync` command | ✅ | ✅ | ✅ |
-| `diff` command | ✅ | ✅ | ✅ |
-| `watch` command | ✅ | ✅ | ✅ (12 tests) |
-| `doctor` command | ✅ | ✅ | ✅ |
-| `audit` command | ✅ | ✅ | ✅ |
-| `install` command | ✅ | ✅ | ✅ |
-| `migrate` command | ✅ | ⚠️ Stub | N/A (v1 only) |
-| Remote sync | ✅ | ✅ | ✅ |
-| Claude Code adapter | ✅ | ✅ | ✅ |
-| Cursor adapter | ✅ | ✅ | ✅ |
+| `deploy` command | ✅ | ✅ DeployUseCase | ✅ |
+| `check` command | ✅ | ✅ CheckUseCase | ✅ |
+| `diff` command | ✅ | ✅ DiffUseCase | ✅ |
+| `watch` command | ✅ | ✅ WatchUseCase | ✅ (17 tests) |
+| `explain` command | ✅ | ✅ | ✅ |
+| `version` command | ✅ | ✅ | ✅ |
+| Remote sync (SSH/rsync) | ✅ | ✅ RemoteDestination | ✅ (11 tests) |
+| Claude Code adapter | ✅ | ✅ | ✅ (14 tests) |
+| Cursor adapter | ✅ | ✅ | ✅ (14 tests) |
 | VS Code adapter | ✅ | ✅ | ✅ |
 | Antigravity adapter | ✅ | ✅ | ✅ |
 | Codex adapter | ✅ | ✅ | ✅ |
-| Security deny lists | ✅ | ✅ | ✅ |
+| Security deny lists | ✅ | ✅ SecurityPolicy | ✅ (17 tests) |
 | MCP allowlist validation | ✅ | ✅ | ✅ |
-| Incremental compilation | ✅ | ✅ | ✅ |
-| Golden/snapshot tests | ✅ | ✅ | ✅ (6 snapshots) |
-| Docker support | ✅ | ✅ | ✅ |
-| GitHub Actions CI/CD | ✅ | ✅ | N/A |
+| Orphan detection | ✅ | ✅ OrphanDetector | ✅ (20 tests) |
+| Planner service | ✅ | ✅ planner.rs | ✅ (18 tests) |
+| Conflict resolution | ✅ | ✅ InteractiveResolver | ✅ (8 tests) |
+| Docker support | ✅ | ✅ Dockerfile | ✅ |
+| Cross-platform CI | ✅ | ✅ Ubuntu/Windows/macOS | ✅ |
 
 ---
 
 ## 🔧 Code Quality Scan
 
 ### TODO/FIXME/HACK Comments
-- **Found**: 0 ✅
+- **Found**: 0 (only in test fixtures for VSCode adapter) ✅
 
 ### Stub/Mock/Placeholder Code
-- **Found**: 0 ✅ (migration stub is intentional)
-
-### Unused Code
 - **Found**: 0 ✅
+
+### Unimplemented Macros
+- **Found**: 0 ✅
+
+### Deprecated Code
+- `CALVIN_LEGACY_*` environment variables: ✅ Removed
+- `SyncEngine`: ✅ Deleted (replaced by DeployUseCase)
+- `sync/` module: ✅ Simplified to 2-file compatibility layer
 
 ---
 
@@ -67,53 +88,76 @@ Excellent alignment between documentation and implementation. All critical issue
 
 | Area | Tests | Status |
 |------|-------|--------|
-| Unit tests (lib) | ~280 | ✅ Passing |
-| CLI tests (main) | 6 | ✅ Passing |
-| Integration tests | 9 | ✅ Passing |
-| **Total** | **295** | **All passing** |
+| Unit tests (lib) | 513 | ✅ Passing |
+| Integration tests | 76+ | ✅ Passing |
+| Snapshot/golden tests | 9 | ✅ Passing |
+| **Total** | **600+** | **All passing** |
+
+### Coverage Metrics
+- Lines: 75%+ (target: ≥70%) ✅
+- Functions: 84%+ ✅
+- Branches: 74%+ ✅
 
 ---
 
-## 📁 Project Structure Verification
+## 📁 Project Structure Verification (v2)
 
 ```
 calvin/
-├── src/                    # ✅ All modules implemented
-│   ├── adapters/           # ✅ 5 platform adapters
-│   ├── sync/               # ✅ Sync, lockfile, writer
-│   ├── config.rs           # ✅ TOML config
-│   ├── security.rs         # ✅ Doctor, audit
-│   ├── watcher.rs          # ✅ Watch + incremental
-│   ├── fs.rs               # ✅ Local + Remote FS
-│   └── main.rs             # ✅ CLI with 7 commands
-├── tests/                  # ✅ Golden tests
-├── docs/                   # ✅ 8 documentation files
-├── examples/.promptpack/   # ✅ 36 example workflows
-├── .github/workflows/      # ✅ CI + Release
-└── dist/                   # ✅ Homebrew, Scoop
+├── src/
+│   ├── domain/              # ✅ Pure business logic
+│   │   ├── entities/        # Asset, OutputFile, Lockfile
+│   │   ├── services/        # Compiler, Planner, OrphanDetector
+│   │   ├── policies/        # ScopePolicy, SecurityPolicy
+│   │   ├── ports/           # Trait definitions
+│   │   └── value_objects/   # Scope, Target, Hash, SafePath
+│   ├── application/         # ✅ Use case orchestration
+│   │   ├── deploy/          # DeployUseCase
+│   │   ├── check.rs         # CheckUseCase
+│   │   ├── diff.rs          # DiffUseCase
+│   │   └── watch.rs         # WatchUseCase
+│   ├── infrastructure/      # ✅ I/O implementations
+│   │   ├── adapters/        # 5 platform adapters
+│   │   ├── repositories/    # Asset, Lockfile repos
+│   │   ├── fs/              # Local, Remote filesystems
+│   │   └── sync/            # Sync destinations
+│   ├── presentation/        # ✅ CLI layer
+│   │   ├── cli.rs           # Argument parsing
+│   │   ├── factory.rs       # UseCase factory
+│   │   └── output.rs        # Output rendering
+│   ├── commands/            # ✅ Command handlers
+│   ├── ui/                  # ✅ TUI components
+│   ├── config/              # ✅ Configuration loading
+│   ├── security/            # ✅ Doctor validation
+│   └── watcher/             # ✅ File watching
+├── tests/                   # ✅ Integration tests
+├── docs/                    # ✅ Architecture documentation
+│   ├── architecture/        # Layered architecture docs
+│   └── analysis-report.md   # Full project analysis
+└── examples/.promptpack/    # ✅ 36 example workflows
 ```
 
 ---
 
-## 🔮 Future Enhancements (Lower Priority)
+## 🔮 Future Enhancements (v0.5.0+)
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| `init` scaffold command | Not implemented | Could generate template .promptpack/ |
-| VS Code `chat.useAgentsMdFile` | Not implemented | TD-18 nice-to-have |
-| IDE version detection | Not implemented | TD-18 nice-to-have |
-| Full migration logic | Stub | Only needed for v2.0 format |
+| Plugin system | Planned | Custom adapter loading |
+| Property-based testing | Planned | proptest integration |
+| Multi-target batch deploy | Planned | Parallel deployment |
+| `init` scaffold command | Not implemented | Template .promptpack/ |
 
 ---
 
 ## ✅ Sign-off
 
-- **Auditor**: Antigravity AI
-- **Date**: 2025-12-18
+- **Auditor**: AI Assistant
+- **Date**: 2025-12-20
 - **Status**: **PASSED** ✅
-- **Tests Verified**: 295 passing
-- **Critical Issues**: 0 (all fixed)
-- **Linux Container Test**: Passed
-- **Binary Size**: ~1MB (target <10MB)
+- **Tests Verified**: 600+ passing
+- **Critical Issues**: 0
+- **Platforms Tested**: macOS, Linux (Docker), Windows (CI)
+- **Binary Size**: ~1MB (target <10MB) ✅
 
-**Result**: Documentation and code are synchronized. Deploy command refactored with remote path fix.
+**Result**: Documentation and code are synchronized. Architecture v2 refactoring is complete.

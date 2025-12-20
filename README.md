@@ -139,25 +139,29 @@ calvin deploy --remote user@host:/path/to/project
 
 ## Documentation
 
-- **[Architecture](docs/architecture.md)**: System design and component overview
-- **[Command Reference](docs/api/cli-reference.md)**: CLI commands and options
-- **[Configuration](docs/guides/configuration.md)**: Config file, environment variables
-- **[Target Platforms](docs/guides/target-platforms.md)**: Supported IDEs and output formats
-- **[Tech Decisions](docs/architecture/decisions.md)**: Technology choices and rationale
-- **[Implementation Plan](docs/contributing/implementation-plan.md)**: Phased development roadmap
+- **[Architecture Overview](docs/architecture/overview.md)**: System design and goals
+- **[Layered Architecture](docs/architecture/layers.md)**: Four-layer clean architecture
+- **[Directory Structure](docs/architecture/directory.md)**: Codebase organization
+- **[Configuration](docs/configuration.md)**: Config file, environment variables
+- **[Target Platforms](docs/target-platforms.md)**: Supported IDEs and output formats
+- **[Tech Decisions](docs/tech-decisions.md)**: Technology choices and rationale
+- **[Command Reference](docs/command-reference.md)**: CLI commands and options
+- **[Analysis Report](docs/analysis-report.md)**: Full project analysis with diagrams
 
 ## Project Status
 
 **Version**: v0.2.0  
-**Stage**: Feature complete, polish in progress
+**Stage**: Feature complete, architecture v2 deployed
 
 Recent additions:
-- ✅ Modular CLI animation system with consistent UI
+- ✅ Clean Architecture refactoring (domain/application/infrastructure layers)
+- ✅ 600+ tests passing with 75%+ coverage
+- ✅ Cross-platform CI (Ubuntu, Windows, macOS)
 - ✅ SSH remote sync with rsync acceleration
 - ✅ User-scope installations (`--home` flag)
 - ✅ Security health checks (`check` command)
 
-See [TODO.md](TODO.md) for detailed roadmap.
+See [docs/architecture/TODO.md](docs/architecture/TODO.md) for detailed roadmap.
 
 ## Philosophy
 

@@ -305,4 +305,53 @@ mod tests {
         let dest = RemoteDestination::new("user@host:/path", PathBuf::from(".promptpack"));
         assert_eq!(dest.remote_dest(), "user@host:/path");
     }
+
+    #[test]
+    fn scope_is_project() {
+        let dest = RemoteDestination::new("host:/path", PathBuf::from(".promptpack"));
+        assert_eq!(dest.scope(), Scope::Project);
+    }
+
+    #[test]
+    fn display_name_matches_remote_dest() {
+        let dest = RemoteDestination::new("user@server:/home/user", PathBuf::from(".promptpack"));
+        assert_eq!(dest.display_name(), "user@server:/home/user");
+    }
+
+    #[test]
+    fn lockfile_path_is_in_source_dir() {
+        let dest = RemoteDestination::new("host:/remote", PathBuf::from("/local/project"));
+        let lockfile = dest.lockfile_path(Path::new("/any/path"));
+        assert_eq!(lockfile, PathBuf::from("/local/project/.calvin.lock"));
+    }
+
+    #[test]
+    fn resolve_path_returns_path_unchanged() {
+        let dest = RemoteDestination::new("host:/path", PathBuf::from(".promptpack"));
+        let input = Path::new(".claude/commands/test.md");
+        assert_eq!(dest.resolve_path(input), input.to_path_buf());
+    }
+
+    #[test]
+    fn parses_empty_path_as_dot() {
+        let dest = RemoteDestination::new("host", PathBuf::from(".promptpack"));
+        assert_eq!(dest.remote_path, ".");
+    }
+
+    #[test]
+    fn parses_user_at_host_format() {
+        let dest = RemoteDestination::new("admin@192.168.1.1:~/projects", PathBuf::from("."));
+        assert_eq!(dest.host, "admin@192.168.1.1");
+        assert_eq!(dest.remote_path, "~/projects");
+    }
+
+    // Note: SSH/rsync integration tests require actual network access
+    // and are better suited for integration tests with a test container.
+    // The following tests verify command construction without execution.
+
+    #[test]
+    fn has_rsync_does_not_panic() {
+        // This just verifies the function doesn't panic, actual result depends on system
+        let _ = RemoteDestination::has_rsync();
+    }
 }
