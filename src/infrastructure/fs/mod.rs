@@ -7,5 +7,5 @@ mod local;
 mod remote;
 
 pub use destination::DestinationFs;
-pub use local::LocalFs;
+pub use local::{expand_home, LocalFs};
 pub use remote::RemoteFs;

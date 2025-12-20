@@ -40,25 +40,11 @@ pub use crate::domain::entities::OutputFile;
 pub use conflict::{ConflictChoice, ConflictReason, ConflictResolver, InteractiveResolver};
 
 /// Expand ~/ prefix to user home directory
-pub fn expand_home_dir(path: &Path) -> PathBuf {
-    let path_str = path.to_string_lossy();
-    if path_str.starts_with("~/") || path_str == "~" {
-        if let Some(home) = dirs_home() {
-            return home.join(path_str.strip_prefix("~/").unwrap_or(""));
-        }
-    }
-    path.to_path_buf()
-}
-
-/// Get home directory (platform-independent)
 ///
-/// Uses `dirs` crate for robust cross-platform support:
-/// - macOS: /Users/<username>
-/// - Linux: /home/<username>
-/// - Windows: C:\Users\<username>
-fn dirs_home() -> Option<PathBuf> {
-    // Use dirs crate for proper cross-platform support
-    dirs::home_dir()
+/// **Migration Note**: This function now delegates to `infrastructure::fs::expand_home`.
+/// For new code, prefer using that directly.
+pub fn expand_home_dir(path: &Path) -> PathBuf {
+    crate::infrastructure::fs::expand_home(path)
 }
 
 /// Check if a path is safe (doesn't escape project root)
