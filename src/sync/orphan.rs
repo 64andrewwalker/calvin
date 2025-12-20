@@ -282,7 +282,7 @@ mod tests {
     // TDD: SC-6 delete_orphans tests
     #[test]
     fn delete_orphans_deletes_safe_files_only() {
-        use crate::fs::LocalFileSystem;
+        use crate::infrastructure::fs::LocalFs;
         use tempfile::tempdir;
 
         let dir = tempdir().unwrap();
@@ -306,7 +306,7 @@ mod tests {
             },
         ];
 
-        let fs = LocalFileSystem;
+        let fs = LocalFs::new();
         let result = delete_orphans(&orphans, false, &fs).unwrap();
 
         assert_eq!(result.deleted.len(), 1);
@@ -317,7 +317,7 @@ mod tests {
 
     #[test]
     fn delete_orphans_force_deletes_all() {
-        use crate::fs::LocalFileSystem;
+        use crate::infrastructure::fs::LocalFs;
         use tempfile::tempdir;
 
         let dir = tempdir().unwrap();
@@ -340,7 +340,7 @@ mod tests {
             },
         ];
 
-        let fs = LocalFileSystem;
+        let fs = LocalFs::new();
         let result = delete_orphans(&orphans, true, &fs).unwrap();
 
         assert_eq!(result.deleted.len(), 2);
@@ -351,7 +351,7 @@ mod tests {
 
     #[test]
     fn delete_orphans_skips_nonexistent() {
-        use crate::fs::LocalFileSystem;
+        use crate::infrastructure::fs::LocalFs;
 
         let orphans = vec![OrphanFile {
             key: "project:/nonexistent/path.md".to_string(),
@@ -359,7 +359,7 @@ mod tests {
             exists: false,
         }];
 
-        let fs = LocalFileSystem;
+        let fs = LocalFs::new();
         let result = delete_orphans(&orphans, false, &fs).unwrap();
 
         // Should skip because exists=false

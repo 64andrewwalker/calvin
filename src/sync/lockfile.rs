@@ -238,7 +238,7 @@ mod tests {
     fn test_lockfile_save_load() {
         let dir = tempdir().unwrap();
         let path = dir.path().join(".calvin.lock");
-        let fs = crate::fs::LocalFileSystem;
+        let fs = crate::infrastructure::fs::LocalFs::new();
 
         let mut lf = Lockfile::new();
         lf.set_hash(".claude/settings.json", "sha256:abc123");
@@ -263,7 +263,7 @@ mod tests {
     fn test_lockfile_load_or_new_missing() {
         let dir = tempdir().unwrap();
         let path = dir.path().join("missing.lock");
-        let fs = crate::fs::LocalFileSystem;
+        let fs = crate::infrastructure::fs::LocalFs::new();
 
         let lf = Lockfile::load_or_new(&path, &fs);
         assert!(lf.files.is_empty());

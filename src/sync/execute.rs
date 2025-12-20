@@ -122,7 +122,7 @@ fn write_files_sequential<F>(
 where
     F: FnMut(SyncEvent),
 {
-    let fs = crate::fs::LocalFileSystem;
+    let fs = crate::infrastructure::fs::LocalFs::new();
     write_files_with_fs(root, outputs, skipped, &fs, callback.as_mut())
 }
 
