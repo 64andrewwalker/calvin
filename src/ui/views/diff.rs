@@ -15,25 +15,6 @@ pub fn render_file_diff(path: &str, old: &str, new: &str, supports_color: bool) 
     render_unified_diff_with_line_numbers(path, old, new, supports_color)
 }
 
-/// Render diff summary (backward compatible wrapper)
-#[allow(dead_code)]
-pub fn render_diff_summary(
-    new_files: usize,
-    modified_files: usize,
-    unchanged_files: usize,
-    supports_color: bool,
-    supports_unicode: bool,
-) -> String {
-    render_diff_summary_with_orphans(
-        new_files,
-        modified_files,
-        unchanged_files,
-        0, // No orphans in legacy call
-        supports_color,
-        supports_unicode,
-    )
-}
-
 /// Render diff summary with orphan file count
 pub fn render_diff_summary_with_orphans(
     new_files: usize,

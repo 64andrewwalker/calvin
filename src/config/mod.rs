@@ -22,8 +22,3 @@ pub use types::{
     McpServerConfig, OutputConfig, SecurityConfig, SecurityMcpConfig, SecurityMode, SyncConfig,
     TargetsConfig, Verbosity,
 };
-
-/// Legacy alias for backward compatibility
-#[deprecated(since = "0.3.0", note = "Use DeployTarget instead")]
-#[allow(dead_code)]
-pub type DeployTargetConfig = DeployTarget;

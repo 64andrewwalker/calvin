@@ -1,6 +1,5 @@
 use std::path::Path;
 
-use crate::ui::blocks::warning::WarningBlock;
 use crate::ui::context::UiContext;
 use crate::ui::primitives::icon::Icon;
 
@@ -20,44 +19,9 @@ pub fn print_deprecation_warning(old_cmd: &str, new_cmd: &str, json: bool) {
     eprintln!("[WARN] `{}` is deprecated; use `{}`.", old_cmd, new_cmd);
 }
 
-/// Warn if security.allow_naked is set to true
-/// Currently not wired up - reserved for future use
-#[allow(dead_code)]
-pub fn maybe_warn_allow_naked(config: &calvin::config::Config, ui: &UiContext) {
-    if !config.security.allow_naked {
-        return;
-    }
-
-    if ui.json {
-        let _ = crate::ui::json::emit(serde_json::json!({
-            "event": "warning",
-            "kind": "allow_naked",
-            "message": "Security protections disabled!",
-            "config_key": "security.allow_naked",
-            "value": true
-        }));
-        return;
-    }
-
-    if ui.caps.is_ci && std::env::var("GITHUB_ACTIONS").is_ok() {
-        println!(
-            "{}",
-            crate::ui::ci::github_actions_annotation(
-                crate::ui::ci::AnnotationLevel::Warning,
-                "security.allow_naked = true (security protections disabled)",
-                None,
-                None,
-                Some("Calvin"),
-            )
-        );
-    }
-
-    let rendered = format_allow_naked_warning(ui.color, ui.unicode);
-    eprint!("{rendered}");
-}
-
-#[allow(dead_code)]
+#[cfg(test)]
 fn format_allow_naked_warning(supports_color: bool, supports_unicode: bool) -> String {
+    use crate::ui::blocks::warning::WarningBlock;
     let mut block = WarningBlock::new("Security protections disabled!");
     block.add_line("You have set security.allow_naked = true.");
     block.add_line(".env, private keys, and .git may be visible to AI assistants.");

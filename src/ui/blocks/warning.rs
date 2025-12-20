@@ -1,13 +1,20 @@
+//! Warning block component
+//!
+//! Currently used only in tests for formatting warning messages.
+
+#[cfg(test)]
 use crate::ui::primitives::icon::Icon;
+#[cfg(test)]
 use crate::ui::widgets::r#box::{Box, BoxStyle};
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
+#[cfg(test)]
 pub struct WarningBlock {
     title: String,
     lines: Vec<String>,
 }
 
+#[cfg(test)]
 impl WarningBlock {
     pub fn new(title: impl Into<String>) -> Self {
         Self {
