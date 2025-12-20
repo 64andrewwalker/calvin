@@ -18,8 +18,8 @@ use std::path::{Path, PathBuf};
 
 use super::OutputFile;
 use crate::error::CalvinResult;
-use crate::fs::{FileSystem, RemoteFileSystem};
-use crate::infrastructure::fs::LocalFs;
+use crate::fs::FileSystem;
+use crate::infrastructure::fs::{LocalFs, RemoteFs};
 use crate::sync::execute::{execute_sync_with_callback, SyncStrategy};
 use crate::sync::lockfile::{lockfile_key, Lockfile, LockfileNamespace};
 use crate::sync::plan::{
@@ -160,7 +160,7 @@ impl<'a, FS: FileSystem> SyncEngine<'a, FS> {
                 self.lockfile_namespace,
             ),
             SyncDestination::Remote { host, .. } => {
-                let remote_fs = RemoteFileSystem::new(host);
+                let remote_fs = RemoteFs::new(host);
                 plan_sync_remote_with_namespace(
                     self.outputs,
                     &self.destination,

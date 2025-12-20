@@ -188,7 +188,7 @@ pub fn plan_sync_remote(
     outputs: &[OutputFile],
     dest: &SyncDestination,
     lockfile: &Lockfile,
-    fs: &crate::fs::RemoteFileSystem,
+    fs: &crate::infrastructure::fs::RemoteFs,
 ) -> CalvinResult<SyncPlan> {
     plan_sync_remote_with_namespace(outputs, dest, lockfile, fs, LockfileNamespace::Project)
 }
@@ -197,7 +197,7 @@ pub(crate) fn plan_sync_remote_with_namespace(
     outputs: &[OutputFile],
     dest: &SyncDestination,
     lockfile: &Lockfile,
-    fs: &crate::fs::RemoteFileSystem,
+    fs: &crate::infrastructure::fs::RemoteFs,
     namespace: LockfileNamespace,
 ) -> CalvinResult<SyncPlan> {
     let mut plan = SyncPlan::new();
