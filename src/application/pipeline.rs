@@ -11,13 +11,13 @@
 
 use std::path::{Path, PathBuf};
 
+use crate::application::compile_assets;
 use crate::config::Config;
 use crate::domain::entities::OutputFile;
 use crate::domain::policies::ScopePolicy;
 use crate::error::CalvinResult;
 use crate::models::Target;
 use crate::parser::parse_directory;
-use crate::sync::compile_assets;
 
 // Re-export for backward compatibility
 pub use crate::domain::policies::ScopePolicy as ScopePolicyType;

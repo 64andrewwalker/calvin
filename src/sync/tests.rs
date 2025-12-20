@@ -19,8 +19,14 @@ fn test_sync_result_new() {
     assert!(result.is_success());
 }
 
+// ========================================================================
+// compile_assets tests have been migrated to application::compiler
+// These tests verify backward compatibility of re-exported function
+// ========================================================================
+
 #[test]
-fn test_compile_assets_single() {
+fn compile_assets_reexport_works() {
+    // Verify that re-exported compile_assets works
     let fm = Frontmatter::new("Test asset");
     let asset = PromptAsset::new("test", "test.md", fm, "Content");
     let config = crate::config::Config::default();
@@ -29,18 +35,6 @@ fn test_compile_assets_single() {
 
     // Should generate output for all 5 adapters
     assert!(!outputs.is_empty());
-}
-
-#[test]
-fn test_compile_assets_target_filter() {
-    let fm = Frontmatter::new("Test asset");
-    let asset = PromptAsset::new("test", "test.md", fm, "Content");
-    let config = crate::config::Config::default();
-
-    let outputs = compile_assets(&[asset], &[Target::ClaudeCode], &config).unwrap();
-
-    // Should only generate Claude Code output
-    assert!(outputs.iter().all(|o| o.path().starts_with(".claude")));
 }
 
 #[test]
@@ -109,43 +103,8 @@ fn safety__allows_tilde_slash() {
 }
 
 // === TDD: Adapter output consistency ===
-
-/// Test compile_assets behavior with cursor-only target (no ClaudeCode)
-/// This is a special case where Cursor needs to generate commands
-#[test]
-fn compile_assets_cursor_only_generates_commands() {
-    use crate::config::Config;
-    use crate::models::{AssetKind, Frontmatter};
-    use crate::sync::compile::compile_assets;
-
-    // Create an ACTION asset - actions generate commands
-    let mut fm = Frontmatter::new("Test action");
-    fm.kind = AssetKind::Action;
-    let asset = PromptAsset::new(
-        "test-action",
-        "actions/test-action.md",
-        fm,
-        "# Action content",
-    );
-
-    let config = Config::default();
-
-    // Compile for Cursor only (without ClaudeCode)
-    let outputs = compile_assets(&[asset], &[Target::Cursor], &config).unwrap();
-
-    // Should have command output for Cursor
-    let has_cursor_command = outputs.iter().any(|o| {
-        o.path()
-            .to_string_lossy()
-            .contains(".cursor/commands/test-action.md")
-    });
-
-    assert!(
-        has_cursor_command,
-        "Cursor-only compile should generate commands. Got paths: {:?}",
-        outputs.iter().map(|o| o.path()).collect::<Vec<_>>()
-    );
-}
+// Note: compile_assets_cursor_only_generates_commands test has been migrated
+// to application::compiler::tests
 
 // Note: new_adapter_output_paths_match_legacy test was removed as part of
 // the migration from src/adapters/ to src/infrastructure/adapters/.
