@@ -9,7 +9,7 @@
 
 use std::path::PathBuf;
 
-use crate::domain::entities::{Asset, AssetKind, OutputFile};
+use crate::domain::entities::{Asset, OutputFile};
 use crate::domain::ports::target_adapter::{
     AdapterDiagnostic, AdapterError, DiagnosticSeverity, TargetAdapter,
 };
@@ -46,19 +46,9 @@ impl TargetAdapter for ClaudeCodeAdapter {
     fn compile(&self, asset: &Asset) -> Result<Vec<OutputFile>, AdapterError> {
         let mut outputs = Vec::new();
 
-        // Generate command file for actions and agents
-        // Policies don't generate commands for Claude Code
-        match asset.kind() {
-            AssetKind::Policy => {
-                // Claude Code doesn't have a direct policy mechanism
-                // Policies are handled via CLAUDE.md or similar
-                return Ok(outputs);
-            }
-            AssetKind::Action | AssetKind::Agent => {
-                // Generate command file
-            }
-        }
-
+        // Generate command file for all asset types
+        // Claude Code uses .claude/commands/ for commands
+        // Note: Even policies are generated as commands to maintain backward compatibility
         let commands_dir = self.commands_dir(asset.scope());
         let command_path = commands_dir.join(format!("{}.md", asset.id()));
 
@@ -141,6 +131,7 @@ impl TargetAdapter for ClaudeCodeAdapter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::domain::entities::AssetKind;
 
     fn create_action_asset(id: &str, description: &str, content: &str) -> Asset {
         Asset::new(id, format!("actions/{}.md", id), description, content)
@@ -203,13 +194,18 @@ mod tests {
     }
 
     #[test]
-    fn compile_policy_generates_nothing() {
+    fn compile_policy_generates_command() {
+        // For backward compatibility, policies also generate commands
         let adapter = ClaudeCodeAdapter::new();
         let asset = create_policy_asset("security", "Security rules", "# Rules");
 
         let outputs = adapter.compile(&asset).unwrap();
 
-        assert!(outputs.is_empty());
+        assert_eq!(outputs.len(), 1);
+        assert_eq!(
+            outputs[0].path(),
+            &PathBuf::from(".claude/commands/security.md")
+        );
     }
 
     #[test]
