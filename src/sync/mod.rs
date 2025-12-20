@@ -158,6 +158,24 @@ impl Default for SyncResult {
     }
 }
 
+impl From<crate::application::DeployResult> for SyncResult {
+    fn from(result: crate::application::DeployResult) -> Self {
+        Self {
+            written: result
+                .written
+                .into_iter()
+                .map(|p| p.display().to_string())
+                .collect(),
+            skipped: result
+                .skipped
+                .into_iter()
+                .map(|p| p.display().to_string())
+                .collect(),
+            errors: result.errors,
+        }
+    }
+}
+
 // ============================================================================
 // MIGRATION STATUS
 //

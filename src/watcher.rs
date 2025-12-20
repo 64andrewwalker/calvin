@@ -15,10 +15,12 @@ use std::time::{Duration, Instant};
 
 use notify::{Config, Event, RecommendedWatcher, RecursiveMode, Watcher};
 
+use crate::application::AssetPipeline;
+use crate::domain::policies::ScopePolicy;
 use crate::error::CalvinResult;
 use crate::models::{PromptAsset, Target};
 use crate::parser::{parse_directory, parse_file};
-use crate::sync::{AssetPipeline, ScopePolicy, SyncResult};
+use crate::sync::SyncResult;
 
 /// Debounce duration in milliseconds
 const DEBOUNCE_MS: u64 = 100;
@@ -432,19 +434,7 @@ fn perform_sync_incremental(
     let result = deploy.deploy_outputs(outputs, &deploy_options);
 
     // Convert DeployResult to SyncResult for backward compatibility
-    Ok(SyncResult {
-        written: result
-            .written
-            .into_iter()
-            .map(|p| p.display().to_string())
-            .collect(),
-        skipped: result
-            .skipped
-            .into_iter()
-            .map(|p| p.display().to_string())
-            .collect(),
-        errors: result.errors,
-    })
+    Ok(result.into())
 }
 
 #[cfg(test)]
