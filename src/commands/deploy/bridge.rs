@@ -8,7 +8,10 @@
 
 use calvin::application::{DeployOptions as UseCaseOptions, DeployResult as UseCaseResult};
 use calvin::domain::value_objects::{Scope, Target as DomainTarget};
-use calvin::presentation::factory::{create_adapters_for_targets, ConcreteDeployUseCase};
+use calvin::presentation::factory::{
+    create_adapters_for_targets, create_deploy_use_case_for_remote_with_adapters,
+    ConcreteDeployUseCase,
+};
 use calvin::sync::SyncResult;
 
 use super::options::DeployOptions as RunnerOptions;
@@ -76,8 +79,32 @@ pub fn should_use_new_engine() -> bool {
     !std::env::var("CALVIN_LEGACY_ENGINE").is_ok_and(|v| v == "1" || v.to_lowercase() == "true")
 }
 
-/// Create a deploy use case for the given targets
+/// Create a deploy use case for the given targets (local destinations)
 pub fn create_use_case_for_targets(targets: &[calvin::Target]) -> ConcreteDeployUseCase {
+    let adapters = create_adapters_for_legacy_targets(targets);
+    calvin::presentation::factory::create_deploy_use_case_with_adapters(adapters)
+}
+
+/// Run remote deployment using new engine
+pub fn run_remote_deployment(
+    remote_spec: &str,
+    source: &std::path::Path,
+    options: &UseCaseOptions,
+    targets: &[calvin::Target],
+) -> UseCaseResult {
+    let adapters = create_adapters_for_legacy_targets(targets);
+    let use_case = create_deploy_use_case_for_remote_with_adapters(
+        remote_spec,
+        source.to_path_buf(),
+        adapters,
+    );
+    use_case.execute(options)
+}
+
+/// Convert legacy targets to domain targets and create adapters
+fn create_adapters_for_legacy_targets(
+    targets: &[calvin::Target],
+) -> Vec<Box<dyn calvin::domain::ports::TargetAdapter>> {
     let domain_targets: Vec<DomainTarget> = targets
         .iter()
         .map(|t| match t {
@@ -90,8 +117,7 @@ pub fn create_use_case_for_targets(targets: &[calvin::Target]) -> ConcreteDeploy
         })
         .collect();
 
-    let adapters = create_adapters_for_targets(&domain_targets);
-    calvin::presentation::factory::create_deploy_use_case_with_adapters(adapters)
+    create_adapters_for_targets(&domain_targets)
 }
 
 #[cfg(test)]
