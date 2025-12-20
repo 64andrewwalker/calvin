@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use crate::adapters::OutputFile;
+use super::OutputFile;
 use crate::config::Config;
 use crate::error::CalvinResult;
 use crate::models::Target;

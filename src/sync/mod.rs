@@ -37,6 +37,10 @@ pub use pipeline::AssetPipeline;
 pub use scope::{DeploymentTarget, ScopePolicy};
 pub use writer::atomic_write;
 
+// Re-export OutputFile from adapters for internal use
+// TODO: Migrate to domain::entities::OutputFile
+pub use crate::adapters::OutputFile;
+
 // Re-export new two-stage sync API
 pub use engine::{SyncEngine, SyncEngineOptions};
 pub use execute::{execute_sync, execute_sync_with_callback, SyncStrategy};

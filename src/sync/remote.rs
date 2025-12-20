@@ -7,7 +7,7 @@
 
 use std::process::{Command, Stdio};
 
-use crate::adapters::OutputFile;
+use super::OutputFile;
 use crate::error::{CalvinError, CalvinResult};
 use crate::sync::{SyncOptions, SyncResult};
 
