@@ -1,8 +1,49 @@
+//! Asset compilation module
+//!
+//! This module provides the `compile_assets` function that compiles assets
+//! using the new infrastructure adapters while maintaining backward compatibility.
+
 use std::path::PathBuf;
 
-use crate::adapters::{all_adapters, OutputFile};
+use crate::adapters::OutputFile;
+use crate::domain::entities::Asset;
+use crate::domain::value_objects::Target as DomainTarget;
 use crate::error::CalvinResult;
-use crate::models::{AssetKind, PromptAsset, Scope, Target};
+use crate::infrastructure::adapters::all_adapters;
+use crate::models::{PromptAsset, Target};
+
+/// Convert domain OutputFile to legacy OutputFile
+fn to_legacy_output(output: crate::domain::entities::OutputFile) -> OutputFile {
+    OutputFile::new(output.path().clone(), output.content().to_string())
+}
+
+/// Convert Target to domain Target
+fn to_domain_target(target: &Target) -> DomainTarget {
+    match target {
+        Target::ClaudeCode => DomainTarget::ClaudeCode,
+        Target::Cursor => DomainTarget::Cursor,
+        Target::VSCode => DomainTarget::VSCode,
+        Target::Antigravity => DomainTarget::Antigravity,
+        Target::Codex => DomainTarget::Codex,
+        Target::All => DomainTarget::All,
+    }
+}
+
+/// Generate Cursor command file content (same format as ClaudeCode)
+fn generate_cursor_command_content(asset: &Asset, footer: &str) -> String {
+    let has_description = !asset.description().trim().is_empty();
+
+    if has_description {
+        format!(
+            "{}\n\n{}\n\n{}",
+            asset.description(),
+            asset.content().trim(),
+            footer
+        )
+    } else {
+        format!("{}\n\n{}", asset.content().trim(), footer)
+    }
+}
 
 pub fn compile_assets(
     assets: &[PromptAsset],
@@ -10,6 +51,12 @@ pub fn compile_assets(
     config: &crate::config::Config,
 ) -> CalvinResult<Vec<OutputFile>> {
     let mut outputs = Vec::new();
+
+    // Convert legacy assets to domain assets
+    let domain_assets: Vec<Asset> = assets.iter().map(|a| Asset::from(a.clone())).collect();
+
+    // Convert targets to domain targets
+    let domain_targets: Vec<DomainTarget> = targets.iter().map(to_domain_target).collect();
 
     // Check if Claude Code is in the target list.
     // This affects Cursor's behavior - if Claude Code is not selected, Cursor needs to generate commands.
@@ -21,11 +68,12 @@ pub fn compile_assets(
     // 2. Claude Code is NOT selected
     let cursor_needs_commands = has_cursor && !has_claude_code;
 
+    // Get new infrastructure adapters
     let adapters = all_adapters();
 
-    for asset in assets {
+    for asset in &domain_assets {
         // Get effective targets for this asset
-        let effective_targets = asset.frontmatter.effective_targets();
+        let effective_targets = asset.effective_targets();
 
         for adapter in &adapters {
             let adapter_target = adapter.target();
@@ -36,57 +84,74 @@ pub fn compile_assets(
             }
 
             // Skip if not in requested targets list (if specified)
-            if !targets.is_empty() && !targets.contains(&adapter_target) {
+            if !domain_targets.is_empty() && !domain_targets.contains(&adapter_target) {
                 continue;
             }
 
             // Compile asset with this adapter
-            let files = adapter.compile(asset)?;
+            match adapter.compile(asset) {
+                Ok(files) => {
+                    // Convert domain outputs to legacy outputs
+                    outputs.extend(files.into_iter().map(to_legacy_output));
+                }
+                Err(e) => {
+                    return Err(crate::error::CalvinError::Compile {
+                        message: e.to_string(),
+                    });
+                }
+            }
 
             // Special handling for Cursor: add commands if Claude Code is not selected
-            let files = if adapter_target == Target::Cursor && cursor_needs_commands {
-                let mut all_files = files;
-                // Generate commands for Cursor (same format as Claude Code)
-                if matches!(asset.frontmatter.kind, AssetKind::Action | AssetKind::Agent) {
-                    let commands_base = match asset.frontmatter.scope {
+            if adapter_target == DomainTarget::Cursor && cursor_needs_commands {
+                use crate::domain::entities::AssetKind;
+                use crate::domain::value_objects::Scope;
+
+                if matches!(asset.kind(), AssetKind::Action | AssetKind::Agent) {
+                    let commands_base = match asset.scope() {
                         Scope::User => PathBuf::from("~/.cursor/commands"),
                         Scope::Project => PathBuf::from(".cursor/commands"),
                     };
-                    let command_path = commands_base.join(format!("{}.md", asset.id));
-                    let footer = adapter.footer(&asset.source_path.display().to_string());
-                    let content = format!(
-                        "{}\n\n{}\n\n{}",
-                        asset.frontmatter.description,
-                        asset.content.trim(),
-                        footer
-                    );
-                    all_files.push(OutputFile::new(command_path, content));
+                    let command_path = commands_base.join(format!("{}.md", asset.id()));
+                    let footer = adapter.footer(&asset.source_path().display().to_string());
+                    let content = generate_cursor_command_content(asset, &footer);
+                    outputs.push(OutputFile::new(command_path, content));
                 }
-                all_files
-            } else {
-                files
-            };
-
-            outputs.extend(files);
+            }
         }
     }
 
-    // Run post-compilation steps and security baselines
+    // Run post-compilation steps for each adapter
     for adapter in &adapters {
         let adapter_target = adapter.target();
 
         // Skip if not in requested targets list (if specified)
-        if !targets.is_empty() && !targets.contains(&adapter_target) {
+        if !domain_targets.is_empty() && !domain_targets.contains(&adapter_target) {
             continue;
         }
 
         // Post-compile (e.g. AGENTS.md)
-        let post_outputs = adapter.post_compile(assets)?;
-        outputs.extend(post_outputs);
+        match adapter.post_compile(&domain_assets) {
+            Ok(post_outputs) => {
+                outputs.extend(post_outputs.into_iter().map(to_legacy_output));
+            }
+            Err(e) => {
+                return Err(crate::error::CalvinError::Compile {
+                    message: e.to_string(),
+                });
+            }
+        }
 
-        // Security baseline (e.g. settings.json, mcp.json)
-        let baseline = adapter.security_baseline(config);
-        outputs.extend(baseline);
+        // Security baseline - convert config errors
+        match adapter.security_baseline(config) {
+            Ok(baseline) => {
+                outputs.extend(baseline.into_iter().map(to_legacy_output));
+            }
+            Err(e) => {
+                return Err(crate::error::CalvinError::Compile {
+                    message: e.to_string(),
+                });
+            }
+        }
     }
 
     // Sort for deterministic output
