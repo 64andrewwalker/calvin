@@ -217,4 +217,8 @@ src/sync/pipeline.rs           # (~200 行)
 | 2025-12-20 | JSON 事件流迁移完成 (JsonEventSink) |
 | 2025-12-20 | 添加 8 个新引擎集成测试 |
 | 2025-12-20 | dead_code 标记清理完成 |
+| 2025-12-20 | **sync/compile.rs 迁移到新 infrastructure 适配器** |
+| 2025-12-20 | 新 ClaudeCode 适配器对齐行为（所有资产类型生成命令） |
+| 2025-12-20 | 统一 OutputFile API (添加 path()/content() 方法) |
+| 2025-12-20 | sync 模块使用 super::OutputFile 导入 |
 
