@@ -106,6 +106,16 @@ impl Lockfile {
             .insert(key.into(), LockfileEntry::new(hash.into()));
     }
 
+    /// Set an entry by hash (alias for `set()` for sync module compatibility)
+    pub fn set_hash(&mut self, key: impl Into<String>, hash: impl Into<String>) {
+        self.set(key, hash);
+    }
+
+    /// Check if a key exists
+    pub fn contains(&self, key: &str) -> bool {
+        self.entries.contains_key(key)
+    }
+
     /// Remove an entry
     pub fn remove(&mut self, key: &str) -> Option<LockfileEntry> {
         self.entries.remove(key)
@@ -291,5 +301,27 @@ mod tests {
     fn lockfile_entry_new() {
         let entry = LockfileEntry::new("sha256:abc123");
         assert_eq!(entry.hash(), "sha256:abc123");
+    }
+
+    // === TDD: Step 1 - Additional methods for sync compatibility ===
+
+    #[test]
+    fn lockfile_contains_returns_true_for_existing_key() {
+        let mut lockfile = Lockfile::new();
+        lockfile.set("test:path", "hash");
+        assert!(lockfile.contains("test:path"));
+    }
+
+    #[test]
+    fn lockfile_contains_returns_false_for_missing_key() {
+        let lockfile = Lockfile::new();
+        assert!(!lockfile.contains("test:path"));
+    }
+
+    #[test]
+    fn lockfile_set_hash_is_alias_for_set() {
+        let mut lockfile = Lockfile::new();
+        lockfile.set_hash("test:path", "hash");
+        assert_eq!(lockfile.get_hash("test:path"), Some("hash"));
     }
 }

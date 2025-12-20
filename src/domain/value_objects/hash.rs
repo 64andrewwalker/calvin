@@ -25,10 +25,15 @@ impl ContentHash {
         }
     }
 
-    /// Create a ContentHash by computing SHA-256 of content
+    /// Create a ContentHash by computing SHA-256 of string content
     pub fn from_content(content: &str) -> Self {
+        Self::from_bytes(content.as_bytes())
+    }
+
+    /// Create a ContentHash by computing SHA-256 of raw bytes
+    pub fn from_bytes(content: &[u8]) -> Self {
         use sha2::{Digest, Sha256};
-        let hash = Sha256::digest(content.as_bytes());
+        let hash = Sha256::digest(content);
         Self(format!("{}:{:x}", Self::PREFIX.trim_end_matches(':'), hash))
     }
 
@@ -102,6 +107,20 @@ mod tests {
         let hash = ContentHash::from_content("hello");
         assert!(hash.as_str().starts_with("sha256:"));
         assert_eq!(hash.hex().len(), 64); // SHA-256 is 64 hex chars
+    }
+
+    #[test]
+    fn from_bytes_computes_sha256() {
+        let hash = ContentHash::from_bytes(b"hello");
+        assert!(hash.as_str().starts_with("sha256:"));
+        assert_eq!(hash.hex().len(), 64);
+    }
+
+    #[test]
+    fn from_content_and_from_bytes_are_equivalent() {
+        let h1 = ContentHash::from_content("test content");
+        let h2 = ContentHash::from_bytes(b"test content");
+        assert_eq!(h1, h2);
     }
 
     #[test]
