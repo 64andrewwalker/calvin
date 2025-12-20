@@ -2,9 +2,14 @@
 //!
 //! Implements the FileSystem port for local disk operations.
 
-use crate::domain::ports::file_system::{FileSystem, FsResult};
+use crate::domain::ports::file_system::{FileSystem, FsError, FsResult};
 use crate::error::CalvinResult;
+use sha2::{Digest, Sha256};
+use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::thread;
+use std::time::Duration;
+use tempfile::NamedTempFile;
 
 /// Local file system implementation
 ///
@@ -27,16 +32,8 @@ impl FileSystem for LocalFs {
 
     fn write(&self, path: &Path, content: &str) -> FsResult<()> {
         let expanded = self.expand_home(path);
-
-        // Ensure parent directories exist
-        if let Some(parent) = expanded.parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(Into::<crate::domain::ports::file_system::FsError>::into)?;
-        }
-
-        // Use atomic write for safety
-        crate::sync::writer::atomic_write(&expanded, content.as_bytes())
-            .map_err(|e| crate::domain::ports::file_system::FsError::Other(e.to_string()))
+        Self::atomic_write_internal(&expanded, content.as_bytes())
+            .map_err(|e| FsError::Other(e.to_string()))
     }
 
     fn exists(&self, path: &Path) -> bool {
@@ -74,16 +71,58 @@ impl FileSystem for LocalFs {
     }
 }
 
+/// Maximum retries for atomic write (Windows file locking)
+const MAX_RETRIES: u32 = 3;
+/// Retry delays in milliseconds
+const RETRY_DELAYS_MS: [u64; 3] = [100, 500, 1000];
+
 /// Additional convenience methods for LocalFs
 impl LocalFs {
     /// Atomic write with CalvinResult error type (for legacy compatibility)
     pub fn write_atomic(&self, path: &Path, content: &str) -> CalvinResult<()> {
-        crate::sync::writer::atomic_write(path, content.as_bytes())
+        Self::atomic_write_internal(path, content.as_bytes())
     }
 
     /// Hash file with CalvinResult error type (for legacy compatibility)
     pub fn hash_file(&self, path: &Path) -> CalvinResult<String> {
-        crate::sync::writer::hash_file(path)
+        let content = std::fs::read(path)?;
+        Ok(format!("sha256:{:x}", Sha256::digest(&content)))
+    }
+
+    /// Internal atomic write implementation
+    ///
+    /// Uses tempfile + rename pattern to ensure atomic writes.
+    /// On Windows, retries with backoff if file is locked.
+    fn atomic_write_internal(path: &Path, content: &[u8]) -> CalvinResult<()> {
+        let dir = path.parent().unwrap_or(Path::new("."));
+
+        // Ensure directory exists
+        std::fs::create_dir_all(dir)?;
+
+        // Create temp file in same directory (ensures same filesystem)
+        let mut temp = NamedTempFile::new_in(dir)?;
+        temp.write_all(content)?;
+        temp.flush()?;
+
+        // Try atomic rename with retries
+        for attempt in 0..=MAX_RETRIES {
+            match temp.persist(path) {
+                Ok(_) => return Ok(()),
+                Err(e) => {
+                    if attempt < MAX_RETRIES {
+                        // Retry with backoff
+                        let delay = Duration::from_millis(RETRY_DELAYS_MS[attempt as usize]);
+                        thread::sleep(delay);
+                        temp = e.file;
+                    } else {
+                        // Exhausted retries
+                        return Err(e.error.into());
+                    }
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 
