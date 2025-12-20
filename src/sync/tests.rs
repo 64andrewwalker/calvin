@@ -169,3 +169,56 @@ fn compile_assets_cursor_only_generates_commands() {
 // the migration from src/adapters/ to src/infrastructure/adapters/.
 // The new adapters are now the sole source of truth and are validated
 // by golden tests in tests/golden/.
+
+#[test]
+fn lockfile_namespace_consistency_with_domain() {
+    use std::path::Path;
+
+    // Test that old and new LockfileNamespace produce same results
+    let old_ns_project = crate::sync::lockfile::LockfileNamespace::Project;
+    let old_ns_home = crate::sync::lockfile::LockfileNamespace::Home;
+    let new_ns_project = crate::domain::value_objects::LockfileNamespace::Project;
+    let new_ns_home = crate::domain::value_objects::LockfileNamespace::Home;
+
+    // Test as_str consistency
+    assert_eq!(old_ns_project.as_str(), new_ns_project.as_str());
+    assert_eq!(old_ns_home.as_str(), new_ns_home.as_str());
+
+    // Test lockfile_key consistency
+    let test_paths = vec![
+        Path::new("file.md"),
+        Path::new(".claude/settings.json"),
+        Path::new("~/.config/test"),
+        Path::new("~/"),
+        Path::new("~"),
+    ];
+
+    for path in &test_paths {
+        let old_key_project = crate::sync::lockfile::lockfile_key(old_ns_project, path);
+        let new_key_project = crate::domain::value_objects::lockfile_key(new_ns_project, path);
+        assert_eq!(
+            old_key_project, new_key_project,
+            "Project key mismatch for path {:?}",
+            path
+        );
+
+        let old_key_home = crate::sync::lockfile::lockfile_key(old_ns_home, path);
+        let new_key_home = crate::domain::value_objects::lockfile_key(new_ns_home, path);
+        assert_eq!(
+            old_key_home, new_key_home,
+            "Home key mismatch for path {:?}",
+            path
+        );
+    }
+}
+
+#[test]
+fn hash_content_consistency_with_domain() {
+    // Test that old and new hash functions produce same results
+    let test_content = "Hello, World!\nThis is test content.";
+
+    let old_hash = crate::sync::lockfile::hash_content(test_content);
+    let new_hash = crate::domain::value_objects::ContentHash::from_content(test_content);
+
+    assert_eq!(old_hash, new_hash.as_str(), "Hash content mismatch");
+}

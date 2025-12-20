@@ -4,11 +4,13 @@
 //! These are defined in the domain layer but can be re-exported for legacy code.
 
 mod hash;
+mod lockfile_namespace;
 mod path;
 mod scope;
 mod target;
 
 pub use hash::ContentHash;
+pub use lockfile_namespace::{lockfile_key, parse_lockfile_key, LockfileNamespace};
 pub use path::{PathError, SafePath};
 pub use scope::Scope;
 pub use target::Target;
