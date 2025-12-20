@@ -1,26 +1,49 @@
-//! VS Code Infrastructure Adapter
+//! VS Code (GitHub Copilot) Adapter
 //!
-//! Implements the `TargetAdapter` port for VS Code (GitHub Copilot).
-//! This adapter wraps the legacy `crate::adapters::vscode::VSCodeAdapter`
-//! and translates between domain entities and legacy types.
+//! Generates output for VS Code with GitHub Copilot:
+//! - `.github/instructions/<id>.instructions.md` - Instruction files (project scope)
+//! - `~/.vscode/instructions/<id>.instructions.md` - Instruction files (user scope)
+//!
+//! Path matrix (from platform.md):
+//! - Project scope: `.github/instructions/`
+//! - User scope: `~/.vscode/instructions/`
 
-use crate::adapters::TargetAdapter as LegacyTargetAdapter;
-use crate::domain::entities::{Asset, OutputFile};
+use std::path::PathBuf;
+
+use crate::domain::entities::{Asset, AssetKind, OutputFile};
 use crate::domain::ports::target_adapter::{
     AdapterDiagnostic, AdapterError, DiagnosticSeverity, TargetAdapter,
 };
 use crate::domain::value_objects::{Scope, Target};
 
 /// VS Code adapter
-pub struct VSCodeAdapter {
-    legacy_adapter: crate::adapters::vscode::VSCodeAdapter,
-}
+pub struct VSCodeAdapter;
 
 impl VSCodeAdapter {
     pub fn new() -> Self {
-        Self {
-            legacy_adapter: crate::adapters::vscode::VSCodeAdapter::new(),
+        Self
+    }
+
+    /// Get the instructions directory based on scope
+    fn instructions_dir(&self, scope: Scope) -> PathBuf {
+        match scope {
+            Scope::User => PathBuf::from("~/.vscode/instructions"),
+            Scope::Project => PathBuf::from(".github/instructions"),
         }
+    }
+
+    /// Generate applyTo frontmatter for instruction files
+    fn generate_instruction_frontmatter(&self, asset: &Asset) -> String {
+        let mut fm = String::from("---\n");
+
+        fm.push_str(&format!("description: {}\n", asset.description()));
+
+        if let Some(apply) = asset.apply() {
+            fm.push_str(&format!("applyTo: \"{}\"\n", apply));
+        }
+
+        fm.push_str("---\n");
+        fm
     }
 }
 
@@ -36,126 +59,262 @@ impl TargetAdapter for VSCodeAdapter {
     }
 
     fn compile(&self, asset: &Asset) -> Result<Vec<OutputFile>, AdapterError> {
-        let legacy_asset = asset_to_legacy(asset);
-        let legacy_outputs = self.legacy_adapter.compile(&legacy_asset).map_err(|e| {
-            AdapterError::CompilationFailed {
-                message: e.to_string(),
-            }
-        })?;
+        let mut outputs = Vec::new();
 
-        let outputs = legacy_outputs
-            .into_iter()
-            .map(|o| OutputFile::new(o.path, o.content, self.target()))
-            .collect();
+        // All assets generate individual .instructions.md files
+        let instructions_dir = self.instructions_dir(asset.scope());
+        let path = instructions_dir.join(format!("{}.instructions.md", asset.id()));
+
+        let frontmatter = self.generate_instruction_frontmatter(asset);
+        let footer = self.footer(&asset.source_path().display().to_string());
+        let content = format!("{}\n{}\n\n{}", frontmatter, asset.content().trim(), footer);
+
+        outputs.push(OutputFile::new(path, content, self.target()));
 
         Ok(outputs)
     }
 
     fn validate(&self, output: &OutputFile) -> Vec<AdapterDiagnostic> {
-        let legacy_output =
-            crate::adapters::OutputFile::new(output.path().clone(), output.content().to_string());
+        let mut diagnostics = Vec::new();
 
-        self.legacy_adapter
-            .validate(&legacy_output)
-            .into_iter()
-            .map(diagnostic_to_domain)
-            .collect()
+        if output.content().trim().is_empty() {
+            diagnostics.push(AdapterDiagnostic {
+                severity: DiagnosticSeverity::Warning,
+                message: "Generated output is empty".to_string(),
+            });
+        }
+
+        if output.content().contains("TODO") {
+            diagnostics.push(AdapterDiagnostic {
+                severity: DiagnosticSeverity::Info,
+                message: "Output contains TODO markers".to_string(),
+            });
+        }
+
+        diagnostics
     }
 
     fn security_baseline(
         &self,
-        config: &crate::config::Config,
+        _config: &crate::config::Config,
     ) -> Result<Vec<OutputFile>, AdapterError> {
-        let legacy_outputs = self.legacy_adapter.security_baseline(config);
-
-        let outputs = legacy_outputs
-            .into_iter()
-            .map(|o| OutputFile::new(o.path, o.content, self.target()))
-            .collect();
-
-        Ok(outputs)
-    }
-
-    fn header(&self, source_path: &str) -> String {
-        self.legacy_adapter.header(source_path)
-    }
-
-    fn footer(&self, source_path: &str) -> String {
-        self.legacy_adapter.footer(source_path)
+        // VS Code doesn't have a central security config
+        // Security is handled via settings.json in the IDE
+        Ok(Vec::new())
     }
 
     fn post_compile(&self, assets: &[Asset]) -> Result<Vec<OutputFile>, AdapterError> {
-        let legacy_assets: Vec<crate::models::PromptAsset> =
-            assets.iter().map(asset_to_legacy).collect();
+        let mut outputs = Vec::new();
 
-        let legacy_outputs = self
-            .legacy_adapter
-            .post_compile(&legacy_assets)
-            .map_err(|e| AdapterError::CompilationFailed {
-                message: e.to_string(),
-            })?;
-
-        let outputs = legacy_outputs
-            .into_iter()
-            .map(|o| OutputFile::new(o.path, o.content, self.target()))
-            .collect();
+        // Generate AGENTS.md summary index
+        let agents_content = generate_agents_md(assets);
+        outputs.push(OutputFile::new("AGENTS.md", agents_content, self.target()));
 
         Ok(outputs)
     }
 }
 
-/// Convert domain Asset to legacy PromptAsset
-fn asset_to_legacy(asset: &Asset) -> crate::models::PromptAsset {
-    crate::models::PromptAsset::new(
-        asset.id(),
-        asset.source_path().clone(),
-        crate::models::Frontmatter {
-            description: asset.description().to_string(),
-            kind: match asset.kind() {
-                crate::domain::entities::AssetKind::Policy => crate::models::AssetKind::Policy,
-                crate::domain::entities::AssetKind::Action => crate::models::AssetKind::Action,
-                crate::domain::entities::AssetKind::Agent => crate::models::AssetKind::Agent,
-            },
-            scope: match asset.scope() {
-                Scope::Project => crate::models::Scope::Project,
-                Scope::User => crate::models::Scope::User,
-            },
-            targets: asset
-                .targets()
-                .iter()
-                .map(|t| match t {
-                    Target::ClaudeCode => crate::models::Target::ClaudeCode,
-                    Target::Cursor => crate::models::Target::Cursor,
-                    Target::VSCode => crate::models::Target::VSCode,
-                    Target::Antigravity => crate::models::Target::Antigravity,
-                    Target::Codex => crate::models::Target::Codex,
-                    Target::All => crate::models::Target::All,
-                })
-                .collect(),
-            apply: asset.apply().map(|s| s.to_string()),
-        },
-        asset.content().to_string(),
-    )
-}
+/// Generate AGENTS.md summary index from all assets
+fn generate_agents_md(assets: &[Asset]) -> String {
+    let mut content = String::from("# AGENTS.md\n\n");
+    content.push_str("<!-- Generated by Calvin. DO NOT EDIT. -->\n\n");
+    content.push_str("This file provides an index of available AI agents and workflows.\n\n");
 
-/// Convert legacy Diagnostic to domain AdapterDiagnostic
-fn diagnostic_to_domain(d: crate::adapters::Diagnostic) -> AdapterDiagnostic {
-    AdapterDiagnostic {
-        severity: match d.severity {
-            crate::adapters::DiagnosticSeverity::Error => DiagnosticSeverity::Error,
-            crate::adapters::DiagnosticSeverity::Warning => DiagnosticSeverity::Warning,
-            crate::adapters::DiagnosticSeverity::Info => DiagnosticSeverity::Info,
-        },
-        message: d.message,
+    // Group by kind
+    let policies: Vec<_> = assets
+        .iter()
+        .filter(|a| a.kind() == AssetKind::Policy)
+        .collect();
+    let actions: Vec<_> = assets
+        .iter()
+        .filter(|a| a.kind() == AssetKind::Action)
+        .collect();
+    let agents: Vec<_> = assets
+        .iter()
+        .filter(|a| a.kind() == AssetKind::Agent)
+        .collect();
+
+    if !policies.is_empty() {
+        content.push_str("## Policies\n\n");
+        for asset in policies {
+            content.push_str(&format!("- **{}**: {}\n", asset.id(), asset.description()));
+        }
+        content.push('\n');
     }
+
+    if !actions.is_empty() {
+        content.push_str("## Actions\n\n");
+        for asset in actions {
+            content.push_str(&format!("- **{}**: {}\n", asset.id(), asset.description()));
+        }
+        content.push('\n');
+    }
+
+    if !agents.is_empty() {
+        content.push_str("## Agents\n\n");
+        for asset in agents {
+            content.push_str(&format!("- **{}**: {}\n", asset.id(), asset.description()));
+        }
+        content.push('\n');
+    }
+
+    content
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::entities::AssetKind;
-    use crate::domain::value_objects::Scope;
     use std::path::PathBuf;
+
+    fn create_policy_asset(id: &str, description: &str, content: &str) -> Asset {
+        Asset::new(id, format!("policies/{}.md", id), description, content)
+            .with_kind(AssetKind::Policy)
+    }
+
+    fn create_action_asset(id: &str, description: &str, content: &str) -> Asset {
+        Asset::new(id, format!("actions/{}.md", id), description, content)
+            .with_kind(AssetKind::Action)
+    }
+
+    // === TDD: Compile Tests ===
+
+    #[test]
+    fn compile_policy_project_scope() {
+        let adapter = VSCodeAdapter::new();
+        let asset = create_policy_asset("code-style", "Code style guidelines", "# Style\n\nRules.");
+
+        let outputs = adapter.compile(&asset).unwrap();
+
+        assert_eq!(outputs.len(), 1);
+        assert_eq!(
+            outputs[0].path(),
+            &PathBuf::from(".github/instructions/code-style.instructions.md")
+        );
+    }
+
+    #[test]
+    fn compile_policy_user_scope() {
+        let adapter = VSCodeAdapter::new();
+        let asset = create_policy_asset("global-style", "Global guidelines", "# Global")
+            .with_scope(Scope::User);
+
+        let outputs = adapter.compile(&asset).unwrap();
+
+        assert_eq!(
+            outputs[0].path(),
+            &PathBuf::from("~/.vscode/instructions/global-style.instructions.md")
+        );
+    }
+
+    #[test]
+    fn compile_action_generates_instruction() {
+        let adapter = VSCodeAdapter::new();
+        let asset = create_action_asset("gen-tests", "Generate tests", "# Generate");
+
+        let outputs = adapter.compile(&asset).unwrap();
+
+        assert_eq!(outputs.len(), 1);
+        assert_eq!(
+            outputs[0].path(),
+            &PathBuf::from(".github/instructions/gen-tests.instructions.md")
+        );
+    }
+
+    #[test]
+    fn compile_with_apply_includes_applyto() {
+        let adapter = VSCodeAdapter::new();
+        let asset = create_policy_asset("rust-style", "Rust rules", "# Rust").with_apply("**/*.rs");
+
+        let outputs = adapter.compile(&asset).unwrap();
+
+        assert!(outputs[0].content().contains("applyTo: \"**/*.rs\""));
+    }
+
+    #[test]
+    fn compile_includes_frontmatter() {
+        let adapter = VSCodeAdapter::new();
+        let asset = create_policy_asset("test", "Test description", "Content");
+
+        let outputs = adapter.compile(&asset).unwrap();
+
+        assert!(outputs[0].content().starts_with("---\n"));
+        assert!(outputs[0]
+            .content()
+            .contains("description: Test description"));
+    }
+
+    #[test]
+    fn compile_includes_footer() {
+        let adapter = VSCodeAdapter::new();
+        let asset = create_policy_asset("test", "desc", "content");
+
+        let outputs = adapter.compile(&asset).unwrap();
+
+        assert!(outputs[0].content().contains("Generated by Calvin"));
+        assert!(outputs[0].content().contains("DO NOT EDIT"));
+    }
+
+    // === TDD: Validate Tests ===
+
+    #[test]
+    fn validate_empty_content_warns() {
+        let adapter = VSCodeAdapter::new();
+        let output = OutputFile::new(
+            ".github/instructions/test.instructions.md",
+            "",
+            Target::VSCode,
+        );
+
+        let diags = adapter.validate(&output);
+
+        assert!(!diags.is_empty());
+        assert!(diags.iter().any(|d| d.message.contains("empty")));
+    }
+
+    #[test]
+    fn validate_todo_marker_info() {
+        let adapter = VSCodeAdapter::new();
+        let output = OutputFile::new(
+            ".github/instructions/test.instructions.md",
+            "# TODO: implement this",
+            Target::VSCode,
+        );
+
+        let diags = adapter.validate(&output);
+
+        assert!(diags
+            .iter()
+            .any(|d| { d.message.contains("TODO") && d.severity == DiagnosticSeverity::Info }));
+    }
+
+    #[test]
+    fn validate_valid_content_no_warnings() {
+        let adapter = VSCodeAdapter::new();
+        let output = OutputFile::new(
+            ".github/instructions/test.instructions.md",
+            "---\ndescription: Test\n---\n\n# Content",
+            Target::VSCode,
+        );
+
+        let diags = adapter.validate(&output);
+
+        // Should only have warnings for actual issues
+        assert!(diags.iter().all(|d| !d.message.contains("empty")));
+    }
+
+    // === TDD: Security Baseline ===
+
+    #[test]
+    fn security_baseline_returns_empty() {
+        let adapter = VSCodeAdapter::new();
+        let config = crate::config::Config::default();
+
+        let baseline = adapter.security_baseline(&config).unwrap();
+
+        assert!(baseline.is_empty());
+    }
+
+    // === TDD: Trait Implementation ===
 
     #[test]
     fn adapter_target_is_vscode() {
@@ -164,39 +323,32 @@ mod tests {
     }
 
     #[test]
-    fn compile_policy_generates_instruction() {
+    fn adapter_version_is_one() {
         let adapter = VSCodeAdapter::new();
-        let asset = Asset::new(
-            "code-style",
-            PathBuf::from("policies/code-style.md"),
-            "Code style guidelines",
-            "# Style\n\nFollow these rules.",
-        )
-        .with_kind(AssetKind::Policy)
-        .with_scope(Scope::Project);
+        assert_eq!(adapter.version(), 1);
+    }
 
-        let outputs = adapter.compile(&asset).unwrap();
+    // === TDD: Frontmatter ===
 
-        assert_eq!(outputs.len(), 1);
-        assert!(outputs[0]
-            .path()
-            .to_string_lossy()
-            .contains(".instructions.md"));
+    #[test]
+    fn frontmatter_format_correct() {
+        let adapter = VSCodeAdapter::new();
+        let asset = create_policy_asset("test", "Test description", "");
+
+        let fm = adapter.generate_instruction_frontmatter(&asset);
+
+        assert!(fm.starts_with("---\n"));
+        assert!(fm.ends_with("---\n"));
+        assert!(fm.contains("description: Test description"));
     }
 
     #[test]
-    fn compile_user_scope_uses_home_path() {
+    fn frontmatter_with_apply() {
         let adapter = VSCodeAdapter::new();
-        let asset = Asset::new(
-            "global-style",
-            PathBuf::from("policies/global-style.md"),
-            "Global guidelines",
-            "# Global",
-        )
-        .with_kind(AssetKind::Policy)
-        .with_scope(Scope::User);
+        let asset = create_policy_asset("test", "desc", "").with_apply("*.ts");
 
-        let outputs = adapter.compile(&asset).unwrap();
-        assert!(outputs[0].path().to_string_lossy().contains("~"));
+        let fm = adapter.generate_instruction_frontmatter(&asset);
+
+        assert!(fm.contains("applyTo: \"*.ts\""));
     }
 }
