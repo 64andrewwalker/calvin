@@ -37,7 +37,7 @@ pub enum CalvinError {
 
     /// YAML parsing error
     #[error("YAML parsing error: {0}")]
-    Yaml(#[from] serde_yaml::Error),
+    Yaml(#[from] serde_yml::Error),
 
     /// Directory not found
     #[error("directory not found: {path}")]
@@ -54,6 +54,20 @@ pub enum CalvinError {
     /// Sync was aborted by user in interactive mode
     #[error("sync aborted by user")]
     SyncAborted,
+
+    /// Compilation error
+    #[error("compile error: {message}")]
+    Compile { message: String },
+
+    /// File system error (from domain::ports::file_system)
+    #[error("file system error: {0}")]
+    FileSystem(String),
+}
+
+impl From<crate::domain::ports::file_system::FsError> for CalvinError {
+    fn from(err: crate::domain::ports::file_system::FsError) -> Self {
+        CalvinError::FileSystem(err.to_string())
+    }
 }
 
 #[cfg(test)]

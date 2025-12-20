@@ -1,6 +1,7 @@
 # Calvin - Project Analysis Report
 
 > **Generated**: 2025-12-18  
+> **Updated**: 2025-12-20 (架构 v2 重构完成)  
 > **Version**: 0.2.0  
 > **Status**: Feature Complete
 
@@ -26,31 +27,31 @@ graph TB
         config["config.toml"]
     end
 
-    subgraph Parser["🔍 Source Parser"]
-        extract["Frontmatter Extraction"]
-        validate["YAML Validation"]
-        models["PromptAsset Models"]
+    subgraph Domain["🏛️ Domain Layer (Pure Logic)"]
+        entities["Entities<br/>Asset, OutputFile, Lockfile"]
+        services["Services<br/>Compiler, Planner, OrphanDetector"]
+        policies_d["Policies<br/>ScopePolicy, SecurityPolicy"]
+        ports["Ports<br/>Traits for I/O"]
     end
 
-    subgraph Compiler["⚙️ Compiler Engine"]
-        adapters["Target Adapters"]
-        security["Security Module"]
-        escaping["Context-Aware Escaping"]
+    subgraph Application["⚙️ Application Layer (Orchestration)"]
+        deploy_uc["DeployUseCase"]
+        check_uc["CheckUseCase"]
+        diff_uc["DiffUseCase"]
+        watch_uc["WatchUseCase"]
     end
 
-    subgraph Adapters["🎯 Platform Adapters"]
-        claude["ClaudeCodeAdapter"]
-        cursor["CursorAdapter"]
-        vscode["VSCodeAdapter"]
-        antigravity["AntigravityAdapter"]
-        codex["CodexAdapter"]
+    subgraph Infrastructure["🔧 Infrastructure Layer (I/O)"]
+        adapters["Adapters<br/>ClaudeCode, Cursor, VSCode..."]
+        repos["Repositories<br/>Asset, Lockfile, Config"]
+        fs["FileSystem<br/>Local, Remote"]
+        events["EventSinks<br/>JSON, Console"]
     end
 
-    subgraph Sync["🔄 Sync Engine"]
-        plan["Plan (Diff Detection)"]
-        conflict["Conflict Resolution"]
-        execute["Execute (Write Files)"]
-        lockfile["Lockfile Management"]
+    subgraph Presentation["🖥️ Presentation Layer (CLI)"]
+        cli["CLI Parser"]
+        factory["UseCase Factory"]
+        output["Output Renderers"]
     end
 
     subgraph Outputs["📤 Generated Outputs"]
@@ -61,126 +62,111 @@ graph TB
         codex_out["~/.codex/prompts/"]
     end
 
-    subgraph CLI["🖥️ CLI Interface"]
-        deploy["deploy"]
-        check["check"]
-        watch["watch"]
-        diff["diff"]
-        explain["explain"]
-        migrate["migrate"]
-    end
-
-    Sources --> Parser
-    Parser --> Compiler
-    Compiler --> Adapters
-    claude --> claude_out
-    cursor --> cursor_out
-    vscode --> vscode_out
-    antigravity --> antigravity_out
-    codex --> codex_out
-    Adapters --> Sync
-    Sync --> Outputs
-    CLI --> Parser
-    CLI --> Sync
+    Sources --> Domain
+    Domain --> Application
+    Application --> Infrastructure
+    Infrastructure --> Outputs
+    Presentation --> Application
+    cli --> factory
+    factory --> deploy_uc
 ```
 
 ---
 
-## Module Dependency Graph
+## Module Dependency Graph (v2 Architecture)
 
 ```mermaid
 graph LR
-    subgraph Core["Core Modules"]
+    subgraph Presentation["Presentation Layer"]
         main["main.rs"]
-        cli["cli.rs"]
-        lib["lib.rs"]
+        cli["presentation/cli.rs"]
+        factory["presentation/factory.rs"]
+        commands["commands/"]
     end
 
-    subgraph Models["Data Models"]
-        models["models.rs"]
-        config["config.rs"]
-        error["error.rs"]
+    subgraph Application["Application Layer"]
+        deploy_uc["deploy/use_case.rs"]
+        check_uc["check.rs"]
+        diff_uc["diff.rs"]
+        watch_uc["watch.rs"]
+        pipeline["pipeline.rs"]
+        compiler["compiler.rs"]
     end
 
-    subgraph Parser["Parsing"]
-        parser["parser.rs"]
+    subgraph Domain["Domain Layer"]
+        entities["entities/"]
+        services["services/"]
+        policies["policies/"]
+        ports["ports/"]
+        value_objects["value_objects/"]
     end
 
-    subgraph Adapters["Adapters"]
-        adapters_mod["adapters/mod.rs"]
-        claude_code["claude_code.rs"]
-        cursor["cursor.rs"]
-        vscode["vscode.rs"]
-        antigravity["antigravity.rs"]
-        codex["codex.rs"]
-        escaping["escaping.rs"]
-    end
-
-    subgraph Sync["Sync Engine"]
-        sync_mod["sync/mod.rs"]
-        engine["engine.rs"]
-        plan["plan.rs"]
-        execute["execute.rs"]
-        lockfile["lockfile.rs"]
-        conflict["conflict.rs"]
-        remote["remote.rs"]
-        scope["scope.rs"]
-    end
-
-    subgraph Security["Security"]
-        security["security.rs"]
-        security_baseline["security_baseline.rs"]
-    end
-
-    subgraph UI["User Interface"]
-        ui_mod["ui/mod.rs"]
-        views["ui/views/"]
-        blocks["ui/blocks/"]
-        primitives["ui/primitives/"]
-        widgets["ui/widgets/"]
-    end
-
-    subgraph Commands["Commands"]
-        commands_mod["commands/mod.rs"]
-        deploy["deploy/"]
-        check["check.rs"]
-        watch["watch.rs"]
-        interactive["interactive.rs"]
-    end
-
-    subgraph FS["File System"]
-        fs["fs.rs"]
-        watcher["watcher.rs"]
+    subgraph Infrastructure["Infrastructure Layer"]
+        adapters["adapters/"]
+        fs["fs/"]
+        sync["sync/"]
+        repos["repositories/"]
+        conflict["conflict/"]
+        events["events/"]
     end
 
     main --> cli
-    cli --> commands_mod
-    commands_mod --> deploy
-    commands_mod --> check
-    commands_mod --> watch
-    deploy --> sync_mod
-    deploy --> parser
-    deploy --> adapters_mod
-    sync_mod --> engine
-    engine --> plan
-    engine --> execute
-    engine --> lockfile
-    engine --> conflict
-    engine --> remote
-    adapters_mod --> claude_code
-    adapters_mod --> cursor
-    adapters_mod --> vscode
-    adapters_mod --> antigravity
-    adapters_mod --> codex
-    adapters_mod --> escaping
-    adapters_mod --> security_baseline
-    parser --> models
-    models --> config
-    check --> security
-    ui_mod --> views
-    ui_mod --> blocks
-    sync_mod --> fs
+    cli --> commands
+    commands --> factory
+    factory --> deploy_uc
+    deploy_uc --> services
+    deploy_uc --> ports
+    adapters -.-> ports
+    repos -.-> ports
+    fs -.-> ports
+    services --> entities
+    services --> value_objects
+    policies --> value_objects
 ```
+
+---
+
+## Layered Architecture (v2)
+
+Calvin follows a **Clean Architecture** pattern with four layers:
+
+| Layer | Directory | Purpose | Dependencies |
+|-------|-----------|---------|--------------|
+| **Domain** | `src/domain/` | Pure business logic, no I/O | None |
+| **Application** | `src/application/` | Use case orchestration | Domain |
+| **Infrastructure** | `src/infrastructure/` | I/O implementations | Domain (ports) |
+| **Presentation** | `src/presentation/`, `src/commands/` | CLI & UI | Application |
+
+### Domain Layer (`src/domain/`)
+
+| Module | Description |
+|--------|-------------|
+| `entities/` | Asset, OutputFile, Lockfile |
+| `value_objects/` | Scope, Target, Hash, SafePath, SecurityMode |
+| `services/` | Compiler, Planner, OrphanDetector, Differ |
+| `policies/` | ScopePolicy, SecurityPolicy |
+| `ports/` | Trait definitions for infrastructure |
+
+### Application Layer (`src/application/`)
+
+| Use Case | Purpose |
+|----------|---------|
+| `DeployUseCase` | Orchestrates deploy flow (load → compile → plan → execute) |
+| `CheckUseCase` | Runs security health checks |
+| `DiffUseCase` | Generates diff preview |
+| `WatchUseCase` | File watching with auto-deploy |
+| `AssetPipeline` | Parse, filter, and compile assets |
+
+### Infrastructure Layer (`src/infrastructure/`)
+
+| Module | Description |
+|--------|-------------|
+| `adapters/` | 5 platform adapters (ClaudeCode, Cursor, VSCode, Antigravity, Codex) |
+| `repositories/` | FsAssetRepository, TomlLockfileRepository |
+| `fs/` | LocalFs, RemoteFs, DestinationFs |
+| `sync/` | LocalProjectDestination, LocalHomeDestination, RemoteDestination |
+| `conflict/` | InteractiveResolver |
+| `events/` | JsonEventSink |
 
 ---
 
@@ -193,11 +179,11 @@ graph LR
 - **Output**: `Vec<PromptAsset>` - validated AST with resolved references
 - **Key Features**:
   - Frontmatter extraction with `---` delimiters
-  - YAML validation via `serde_yaml`
+  - YAML validation via `serde_yml`
   - Required field validation (`description` field)
   - ID derivation from file paths (kebab-case)
 
-### 2. Data Models (`src/models.rs`)
+### 2. Data Models (`src/models.rs` + `src/domain/`)
 
 | Type | Description |
 |------|-------------|
@@ -206,8 +192,11 @@ graph LR
 | `Target` | ClaudeCode, Cursor, VSCode, Antigravity, Codex, All |
 | `Frontmatter` | Parsed YAML metadata |
 | `PromptAsset` | Complete parsed source file |
+| `Asset` | Domain entity (immutable) |
+| `OutputFile` | Compiled output file |
+| `Lockfile` | Tracks deployed file hashes |
 
-### 3. Target Adapters (`src/adapters/`)
+### 3. Target Adapters (`src/infrastructure/adapters/`)
 
 Each adapter implements the `TargetAdapter` trait:
 
@@ -219,22 +208,18 @@ Each adapter implements the `TargetAdapter` trait:
 | `AntigravityAdapter` | `.agent/rules/`, `.agent/workflows/` | Rules and workflows |
 | `CodexAdapter` | `~/.codex/prompts/` | User-level prompts with $ARGUMENTS |
 
-### 4. Sync Engine (`src/sync/`)
+### 4. Deploy Use Case (`src/application/deploy/`)
 
-Three-stage sync lifecycle:
+The core orchestration logic:
 
-1. **Plan** (`plan.rs`): Detect changes and conflicts via lockfile comparison
-2. **Resolve** (`conflict.rs`): Handle conflicts (force/interactive/skip)
-3. **Execute** (`execute.rs`): Transfer files using optimal strategy
+1. **Load** assets via `AssetRepository`
+2. **Compile** to outputs via `TargetAdapter`
+3. **Plan** changes via `Planner` service
+4. **Resolve** conflicts via `ConflictResolver`
+5. **Execute** writes via `SyncDestination`
+6. **Update** lockfile via `LockfileRepository`
 
-| Module | Responsibility |
-|--------|---------------|
-| `engine.rs` | SyncEngine orchestration (1413 lines) |
-| `lockfile.rs` | SHA256 hash tracking for change detection |
-| `remote.rs` | SSH/SCP sync for remote servers |
-| `scope.rs` | ScopePolicy for project/home/remote destinations |
-
-### 5. Security Module (`src/security.rs`)
+### 5. Security Module (`src/security/` + `src/domain/policies/security.rs`)
 
 Three-tier security mode system:
 
@@ -247,7 +232,7 @@ Three-tier security mode system:
 **Hardcoded Minimum Deny List** (even in yolo mode):
 - `.env`, `.env.*`, `*.pem`, `*.key`, `id_rsa`, `id_ed25519`, `.git/`
 
-### 6. Configuration (`src/config.rs`)
+### 6. Configuration (`src/config/`)
 
 **Configuration Hierarchy** (highest to lowest priority):
 1. CLI flags
@@ -256,7 +241,7 @@ Three-tier security mode system:
 4. User config (`~/.config/calvin/config.toml`)
 5. Built-in defaults
 
-### 7. CLI Interface (`src/cli.rs`)
+### 7. CLI Interface (`src/presentation/cli.rs`)
 
 | Command | Description |
 |---------|-------------|
@@ -294,7 +279,7 @@ Modular TUI system with:
 |-------|---------|---------|
 | `clap` | 4 | CLI framework with derive macros |
 | `serde` | 1 | Serialization/deserialization |
-| `serde_yaml` | 0.9 | YAML frontmatter parsing |
+| `serde_yml` | 0.0.12 | YAML frontmatter parsing |
 | `serde_json` | 1 | JSON output generation |
 | `toml` | 0.8 | Configuration file parsing |
 | `anyhow` | 1 | Application error handling |
@@ -309,6 +294,7 @@ Modular TUI system with:
 | `dirs` | 6.0.0 | Platform-specific directories |
 | `which` | 8 | Tool detection (rsync/scp) |
 | `ctrlc` | 3 | Graceful shutdown |
+| `is-terminal` | 0.4 | TTY detection |
 
 ### Dev Dependencies
 
@@ -422,7 +408,7 @@ For each target file:
 |----|----------|-----------|
 | TD-1 | Rust language | Zero runtime deps, small binary, memory safety |
 | TD-2 | clap with derive | Industry standard CLI framework |
-| TD-3 | serde_yaml + custom extraction | Simple, no extra dependencies |
+| TD-3 | serde_yml + custom extraction | Simple, no extra dependencies |
 | TD-4 | Context-aware escaping | Prevent JSON/TOML corruption |
 | TD-5 | notify crate | De-facto standard for file watching |
 | TD-6 | System SSH tools | Respects user's ~/.ssh/config |
@@ -438,34 +424,30 @@ For each target file:
 | TD-16 | Hardcoded minimum deny | Prevent accidental secret exposure |
 | TD-17 | Binary size optimization | ~1MB vs ~15-20MB unoptimized |
 | TD-18 | Versioned adapters | Handle IDE format changes |
+| TD-19 | Clean Architecture (v2) | Better testability and maintainability |
+| TD-20 | is-terminal over atty | More actively maintained |
 
 ---
 
-## Identified Technical Debt
+## Technical Debt Status
 
-### P0 - Critical (Before Release)
+### ✅ Resolved (v0.2.0)
 
-| Item | Status | Description |
-|------|--------|-------------|
-| Clippy warnings | 🔄 Pending | deploy targets need cleanup |
-| Parser ID derivation | 🔄 Pending | Inconsistent ID handling |
-| Doctor sink dedup | 🔄 Pending | Duplicate check results |
+| Item | Resolution |
+|------|------------|
+| SyncEngine god object (1600+ lines) | Split into UseCase + Services |
+| Domain layer I/O dependencies | Moved to Infrastructure via Ports |
+| atty crate (unmaintained) | Migrated to is-terminal |
+| serde_yaml (deprecated) | Migrated to serde_yml |
+| sync/ module sprawl | Simplified to 2-file compatibility layer |
 
-### P1 - High Priority
-
-| Item | Status | Description |
-|------|--------|-------------|
-| Conflict resolution consolidation | 🔄 Pending | Multiple similar implementations |
-| Security module split | 🔄 Pending | 1030 lines, could be modularized |
-| Watch incremental parsing | 🔄 Pending | Performance improvements |
-
-### P2 - Medium Priority
+### 🔄 Remaining (Low Priority)
 
 | Item | Status | Description |
 |------|--------|-------------|
-| Workspace rustfmt pass | 🔄 Pending | Code formatting consistency |
-| Test coverage | 🔄 Pending | Currently ~57%, target >80% |
-| Format versioning | 🔄 Pending | Read/validate format version |
+| proptest | Future | Property-based testing |
+| Plugin system | Design | Extensible adapter loading |
+| Multi-target batch | v0.5.0+ | Parallel deployment |
 
 ---
 
@@ -473,10 +455,16 @@ For each target file:
 
 | Category | Count | Description |
 |----------|-------|-------------|
-| Unit tests | 142 | Parser, adapters, models, config |
-| CLI tests | 13 | Command-line argument parsing |
-| Integration tests | 9 | Full compile cycles |
-| **Total** | **164** | All passing ✅ |
+| Unit tests | 513+ | Domain, Infrastructure, Application |
+| Integration tests | 76+ | CLI commands |
+| Snapshot tests | 9 | Golden output verification |
+| **Total** | **600+** | All passing ✅ |
+
+### Coverage Metrics
+
+- **Lines**: 75%+ (target: ≥70%)
+- **Functions**: 84%+
+- **Branches**: 74%+
 
 ### Testing Strategy
 
@@ -484,51 +472,7 @@ For each target file:
 2. **Snapshot Tests**: Using `insta` crate for generated output
 3. **Golden Tests**: Reference `.promptpack/` → expected output
 4. **Escaping Tests**: JSON with quotes corruption prevention
-5. **Variant Tests**: Edge cases for sync engine and scope policy
-
----
-
-## Recommendations for Onboarding
-
-### Getting Started
-
-1. **Install Rust**: `rustup install stable`
-2. **Build**: `cargo build --release`
-3. **Run tests**: `cargo test`
-4. **Try it**: 
-   ```bash
-   ./target/release/calvin explain --brief
-   ./target/release/calvin deploy --dry-run
-   ```
-
-### Key Files to Read First
-
-1. `README.md` - Overview and quick start
-2. `spec.md` - Original specification (Chinese)
-3. `docs/architecture.md` - System design
-4. `docs/tech-decisions.md` - Technology choices
-5. `src/models.rs` - Core data structures
-6. `src/adapters/mod.rs` - Adapter trait definition
-
-### Development Workflow
-
-1. Source files live in `.promptpack/`
-2. Run `cargo test` before committing
-3. Use `cargo clippy` for lint checks
-4. Update `TODO.md` when completing tasks
-5. Follow existing patterns in adapters/
-
-### Common Tasks
-
-| Task | Command |
-|------|---------|
-| Build release | `cargo build --release` |
-| Run all tests | `cargo test` |
-| Check lints | `cargo clippy` |
-| Format code | `cargo fmt` |
-| Preview changes | `./target/release/calvin diff` |
-| Deploy locally | `./target/release/calvin deploy` |
-| Deploy to home | `./target/release/calvin deploy --home` |
+5. **Variant Tests**: Edge cases for planner and scope policy
 
 ---
 
@@ -536,9 +480,9 @@ For each target file:
 
 | Category | Count |
 |----------|-------|
-| Source files (`.rs`) | ~80 |
-| Total lines of code | ~12,000+ |
-| Documentation files | 32+ |
+| Source files (`.rs`) | 147 |
+| Total lines of code | ~23,000 |
+| Documentation files | 40+ |
 | Test files | 19 |
 | Example workflows | 36 |
 
@@ -546,11 +490,12 @@ For each target file:
 
 | File | Lines | Purpose |
 |------|-------|---------|
-| `src/sync/engine.rs` | 1413 | Unified sync engine |
-| `src/security.rs` | 1030 | Doctor validation |
-| `src/config.rs` | 789 | Configuration hierarchy |
-| `src/watcher.rs` | 691 | File watcher |
-| `src/cli.rs` | 499 | CLI argument parsing |
+| `src/application/deploy/use_case.rs` | 768 | Deploy orchestration |
+| `src/application/diff.rs` | 682 | Diff generation |
+| `src/security/checks.rs` | 558 | Platform security checks |
+| `src/presentation/cli.rs` | 519 | CLI argument parsing |
+| `src/domain/services/planner.rs` | 478 | Sync planning logic |
+| `src/domain/services/compiler.rs` | 457 | Compilation helpers |
 
 ---
 
@@ -558,7 +503,7 @@ For each target file:
 
 | Workflow | Status | Description |
 |----------|--------|-------------|
-| `ci.yml` | ✅ Configured | Build and test |
+| `ci.yml` | ✅ Configured | Build and test (Ubuntu, Windows, macOS) |
 | `release.yml` | ✅ Configured | Cross-compilation and releases |
 
 ### Release Targets
@@ -579,18 +524,62 @@ For each target file:
 
 ---
 
+## Recommendations for Onboarding
+
+### Getting Started
+
+1. **Install Rust**: `rustup install stable`
+2. **Build**: `cargo build --release`
+3. **Run tests**: `cargo test`
+4. **Try it**: 
+   ```bash
+   ./target/release/calvin explain --brief
+   ./target/release/calvin deploy --dry-run
+   ```
+
+### Key Files to Read First
+
+1. `README.md` - Overview and quick start
+2. `spec.md` - Original specification (Chinese)
+3. `docs/architecture/overview.md` - System design
+4. `docs/architecture/layers.md` - Four-layer architecture
+5. `src/domain/mod.rs` - Domain layer entry
+6. `src/application/deploy/use_case.rs` - Core use case
+
+### Development Workflow
+
+1. Source files live in `.promptpack/`
+2. Run `cargo test` before committing
+3. Use `cargo clippy` for lint checks
+4. Update `TODO.md` when completing tasks
+5. Follow existing patterns in `infrastructure/adapters/`
+
+### Common Tasks
+
+| Task | Command |
+|------|---------|
+| Build release | `cargo build --release` |
+| Run all tests | `cargo test` |
+| Check lints | `cargo clippy` |
+| Format code | `cargo fmt` |
+| Preview changes | `./target/release/calvin diff` |
+| Deploy locally | `./target/release/calvin deploy` |
+| Deploy to home | `./target/release/calvin deploy --home` |
+
+---
+
 ## Conclusion
 
 Calvin is a well-architected, feature-complete PromptOps tool with:
 
-- ✅ Clean separation of concerns (parser, adapters, sync engine)
+- ✅ Clean Architecture (domain/application/infrastructure layers)
 - ✅ Comprehensive platform support (5 AI assistants)
 - ✅ Strong security defaults with flexibility
-- ✅ Cross-platform distribution
-- ✅ Good test coverage with 164 passing tests
+- ✅ Cross-platform distribution (macOS, Linux, Windows)
+- ✅ Excellent test coverage with 600+ passing tests
+- ✅ Modern dependency stack (is-terminal, serde_yml)
 
-**Next Steps**:
-1. Address P0 technical debt items
-2. Increase test coverage to >80%
-3. Complete IDE version detection (TD-18)
-4. Finalize shell completions
+**Next Steps** (v0.5.0+):
+1. Consider plugin system for custom adapters
+2. Add property-based testing (proptest)
+3. Optimize for large-scale PromptPacks

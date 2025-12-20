@@ -1,5 +1,5 @@
-use crate::cli::ColorWhen;
 use crate::ui::terminal::{detect_capabilities, TerminalCapabilities};
+use calvin::presentation::ColorWhen;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct UiContext {

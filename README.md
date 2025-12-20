@@ -3,6 +3,8 @@
 > *Making agents behave.* 🤖
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![codecov](https://codecov.io/gh/calvin-cli/calvin/graph/badge.svg)](https://codecov.io/gh/calvin-cli/calvin)
+[![CI](https://github.com/calvin-cli/calvin/actions/workflows/ci.yml/badge.svg)](https://github.com/calvin-cli/calvin/actions/workflows/ci.yml)
 
 **Calvin** is a PromptOps compiler and synchronization tool that lets you maintain AI rules, commands, and workflows in a single source format, then compile and distribute them to multiple AI coding assistant platforms.
 
@@ -137,25 +139,51 @@ calvin deploy --remote user@host:/path/to/project
 
 ## Documentation
 
-- **[Architecture](docs/architecture.md)**: System design and component overview
-- **[Command Reference](docs/api/cli-reference.md)**: CLI commands and options
-- **[Configuration](docs/guides/configuration.md)**: Config file, environment variables
-- **[Target Platforms](docs/guides/target-platforms.md)**: Supported IDEs and output formats
-- **[Tech Decisions](docs/architecture/decisions.md)**: Technology choices and rationale
-- **[Implementation Plan](docs/contributing/implementation-plan.md)**: Phased development roadmap
+### User Documentation
+
+- **[Command Reference](docs/command-reference.md)**: CLI commands and options
+- **[Configuration](docs/configuration.md)**: Config file, environment variables
+- **[Target Platforms](docs/target-platforms.md)**: Supported IDEs and output formats
+
+### API Reference
+
+- **[API Overview](docs/api/README.md)**: API documentation index
+- **[Library API](docs/api/library.md)**: Rust library reference
+- **[Frontmatter Spec](docs/api/frontmatter.md)**: Source file format specification
+- **[API Changelog](docs/api/changelog.md)**: Format version history
+- **[API Versioning](docs/api/versioning.md)**: Versioning policy
+
+### Guides
+
+- **[Scope Guide](docs/guides/scope-guide.md)**: Understanding project vs user scope
+- **[Pitfall Mitigations](docs/guides/pitfall-mitigations.md)**: Known issues and solutions
+
+### Architecture (for Contributors)
+
+- **[Architecture Overview](docs/architecture/overview.md)**: System design and goals
+- **[Layered Architecture](docs/architecture/layers.md)**: Four-layer clean architecture
+- **[Directory Structure](docs/architecture/directory.md)**: Codebase organization
+- **[Tech Decisions](docs/tech-decisions.md)**: Technology choices and rationale
+
+### Reports
+
+- **[Security Audit](docs/reports/security-audit-report.md)**: Security analysis and findings
+- **[API Review](docs/reports/api-review-2025-12-19.md)**: CLI and library API review
 
 ## Project Status
 
 **Version**: v0.2.0  
-**Stage**: Feature complete, polish in progress
+**Stage**: Feature complete, architecture v2 deployed
 
 Recent additions:
-- ✅ Modular CLI animation system with consistent UI
+- ✅ Clean Architecture refactoring (domain/application/infrastructure layers)
+- ✅ 600+ tests passing with 75%+ coverage
+- ✅ Cross-platform CI (Ubuntu, Windows, macOS)
 - ✅ SSH remote sync with rsync acceleration
 - ✅ User-scope installations (`--home` flag)
 - ✅ Security health checks (`check` command)
 
-See [TODO.md](TODO.md) for detailed roadmap.
+See [docs/architecture/TODO.md](docs/architecture/TODO.md) for detailed roadmap.
 
 ## Philosophy
 

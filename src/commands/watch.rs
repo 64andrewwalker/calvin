@@ -2,7 +2,7 @@ use std::path::Path;
 
 use anyhow::{bail, Result};
 
-use crate::cli::ColorWhen;
+use calvin::presentation::ColorWhen;
 
 pub fn cmd_watch(
     source: &Path,
@@ -11,8 +11,8 @@ pub fn cmd_watch(
     color: Option<ColorWhen>,
     no_animation: bool,
 ) -> Result<()> {
-    use calvin::config::DeployTargetConfig;
-    use calvin::watcher::{watch, WatchEvent, WatchOptions};
+    use calvin::application::watch::{WatchEvent, WatchOptions, WatchUseCase};
+    use calvin::domain::value_objects::{DeployTarget, Scope};
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -30,13 +30,13 @@ pub fn cmd_watch(
 
     // Determine deploy target: CLI flag > config
     // If neither, show helpful error
-    let deploy_to_home = if home {
-        true
+    let scope = if home {
+        Scope::User
     } else {
         match config.deploy.target {
-            DeployTargetConfig::Home => true,
-            DeployTargetConfig::Project => false,
-            DeployTargetConfig::Unset => {
+            DeployTarget::Home => Scope::User,
+            DeployTarget::Project => Scope::Project,
+            DeployTarget::Unset => {
                 if json {
                     bail!("No deploy target configured. Add [deploy].target to config.toml or use --home flag.");
                 }
@@ -57,20 +57,16 @@ pub fn cmd_watch(
         }
     };
 
-    let target_label = if deploy_to_home {
+    let target_label = if scope == Scope::User {
         "Home (~/)"
     } else {
         "Project"
     };
 
-    let options = WatchOptions {
-        source: source.to_path_buf(),
-        project_root,
-        targets: vec![],
-        json,
-        config,
-        deploy_to_home,
-    };
+    let options = WatchOptions::new(source.to_path_buf(), project_root)
+        .with_scope(scope)
+        .with_json(json)
+        .with_config(config);
 
     // Set up Ctrl+C handler
     let running = Arc::new(AtomicBool::new(true));
@@ -94,8 +90,9 @@ pub fn cmd_watch(
         );
     }
 
-    // Start watching
-    watch(options, running, |event| {
+    // Start watching using the new WatchUseCase
+    let use_case = WatchUseCase::new(options);
+    use_case.start(running, |event| {
         if json {
             println!("{}", event.to_json());
         } else {

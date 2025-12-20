@@ -21,6 +21,12 @@ Thumbs.db
 # Test artifacts
 /test-output/
 
+# Coverage reports
+/target/llvm-cov/
+lcov.info
+*.profraw
+*.profdata
+
 # Environment & Secrets (never commit)
 .env
 .env.*
@@ -28,5 +34,14 @@ Thumbs.db
 *.key
 secrets/
 
-# Generated files (managed by calvin itself)
-# Note: Generated platform outputs should be committed, but we mark them
+# Generated files (managed by calvin)
+# These can be regenerated from .promptpack/ with `calvin deploy`
+.claude/
+.cursor/
+.agent/
+.github/copilot-instructions.md
+.github/instructions/
+AGENTS.md
+
+# Keep .promptpack/ (source of truth for prompts)
+# !.promptpack/

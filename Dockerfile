@@ -1,5 +1,5 @@
 # Calvin - Multi-stage build for minimal image
-FROM rust:1.84-slim-bookworm AS builder
+FROM rust:1-slim-bookworm AS builder
 
 WORKDIR /build
 

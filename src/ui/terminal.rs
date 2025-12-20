@@ -11,9 +11,10 @@ pub struct TerminalCapabilities {
 }
 
 pub fn detect_capabilities() -> TerminalCapabilities {
+    use is_terminal::IsTerminal;
     detect_capabilities_impl(
         |key| std::env::var(key).ok(),
-        atty::is(atty::Stream::Stdout),
+        std::io::stdout().is_terminal(),
         crossterm::terminal::size().ok(),
     )
 }

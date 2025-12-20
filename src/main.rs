@@ -5,12 +5,10 @@
 use anyhow::Result;
 use clap::Parser;
 
-mod cli;
 mod commands;
-mod state;
 mod ui;
 
-use cli::{Cli, Commands};
+use calvin::presentation::{Cli, ColorWhen, Commands};
 
 fn main() {
     let cli = Cli::parse();
@@ -44,7 +42,7 @@ fn dispatch(
     command: Commands,
     json: bool,
     verbose: u8,
-    color: Option<cli::ColorWhen>,
+    color: Option<ColorWhen>,
     no_animation: bool,
 ) -> Result<()> {
     match command {
@@ -84,9 +82,7 @@ fn dispatch(
             dry_run,
             targets,
         } => {
-            if !json {
-                eprintln!("[WARN] `calvin sync` is deprecated; use `calvin deploy`.");
-            }
+            ui::output::print_deprecation_warning("calvin sync", "calvin deploy", json);
             commands::deploy::cmd_sync(
                 &source,
                 remote,
@@ -105,18 +101,14 @@ fn dispatch(
         }
         Commands::Diff { source, home } => commands::debug::cmd_diff(&source, home, json),
         Commands::Doctor { mode } => {
-            if !json {
-                eprintln!("[WARN] `calvin doctor` is deprecated; use `calvin check`.");
-            }
+            ui::output::print_deprecation_warning("calvin doctor", "calvin check", json);
             commands::check::cmd_doctor(&mode, json, verbose, color, no_animation)
         }
         Commands::Audit {
             mode,
             strict_warnings,
         } => {
-            if !json {
-                eprintln!("[WARN] `calvin audit` is deprecated; use `calvin check`.");
-            }
+            ui::output::print_deprecation_warning("calvin audit", "calvin check", json);
             commands::check::cmd_audit(&mode, strict_warnings, json, verbose, color, no_animation)
         }
         Commands::Parse { source } => commands::debug::cmd_parse(&source, json),
@@ -129,9 +121,11 @@ fn dispatch(
             yes,
             dry_run,
         } => {
-            if !json {
-                eprintln!("[WARN] `calvin install` is deprecated; use `calvin deploy` or `calvin deploy --home`.");
-            }
+            ui::output::print_deprecation_warning(
+                "calvin install",
+                "calvin deploy` or `calvin deploy --home",
+                json,
+            );
             commands::deploy::cmd_install(
                 &source,
                 user,
@@ -164,5 +158,6 @@ fn dispatch(
 }
 
 fn is_interactive_run(json: bool, yes: bool) -> bool {
-    !json && !yes && atty::is(atty::Stream::Stdin)
+    use is_terminal::IsTerminal;
+    !json && !yes && std::io::stdin().is_terminal()
 }

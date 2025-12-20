@@ -4,6 +4,22 @@ use crate::ui::blocks::warning::WarningBlock;
 use crate::ui::context::UiContext;
 use crate::ui::primitives::icon::Icon;
 
+/// Print a deprecation warning for a command
+pub fn print_deprecation_warning(old_cmd: &str, new_cmd: &str, json: bool) {
+    if json {
+        let _ = crate::ui::json::emit(serde_json::json!({
+            "event": "warning",
+            "kind": "deprecation",
+            "old_command": old_cmd,
+            "new_command": new_cmd,
+            "message": format!("`{}` is deprecated; use `{}`.", old_cmd, new_cmd)
+        }));
+        return;
+    }
+
+    eprintln!("[WARN] `{}` is deprecated; use `{}`.", old_cmd, new_cmd);
+}
+
 /// Warn if security.allow_naked is set to true
 /// Currently not wired up - reserved for future use
 #[allow(dead_code)]
@@ -51,7 +67,7 @@ fn format_allow_naked_warning(supports_color: bool, supports_unicode: bool) -> S
 
 pub fn print_config_warnings(
     path: &Path,
-    warnings: &[calvin::config::ConfigWarning],
+    warnings: &[calvin::domain::value_objects::ConfigWarning],
     ui: &UiContext,
 ) {
     if warnings.is_empty() {
@@ -104,7 +120,7 @@ pub fn print_config_warnings(
 
 pub fn format_config_warnings(
     path: &Path,
-    warnings: &[calvin::config::ConfigWarning],
+    warnings: &[calvin::domain::value_objects::ConfigWarning],
     supports_color: bool,
     supports_unicode: bool,
 ) -> String {
@@ -122,7 +138,7 @@ pub fn format_config_warnings(
 
 fn format_config_warning(
     path: &Path,
-    warning: &calvin::config::ConfigWarning,
+    warning: &calvin::domain::value_objects::ConfigWarning,
     supports_color: bool,
     supports_unicode: bool,
 ) -> String {
@@ -164,7 +180,7 @@ mod tests {
         let dir = tempdir().unwrap();
         let path = dir.path().join("config.toml");
 
-        let warning = calvin::config::ConfigWarning {
+        let warning = calvin::domain::value_objects::ConfigWarning {
             key: "targtes".to_string(),
             file: path.clone(),
             line: Some(12),

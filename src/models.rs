@@ -32,24 +32,8 @@ pub enum Scope {
     User,
 }
 
-/// Target platform for compilation
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, clap::ValueEnum)]
-#[serde(rename_all = "kebab-case")]
-pub enum Target {
-    /// Claude Code (Anthropic)
-    ClaudeCode,
-    /// Cursor IDE
-    Cursor,
-    /// VS Code with GitHub Copilot
-    #[serde(alias = "vscode")]
-    VSCode,
-    /// Google Antigravity
-    Antigravity,
-    /// OpenAI Codex CLI
-    Codex,
-    /// All platforms
-    All,
-}
+// Re-export Target from domain layer for backward compatibility
+pub use crate::domain::value_objects::Target;
 
 /// YAML frontmatter extracted from source files
 ///
@@ -146,7 +130,7 @@ mod tests {
     #[test]
     fn test_frontmatter_deserialize_minimal() {
         let yaml = "description: Test action";
-        let fm: Frontmatter = serde_yaml::from_str(yaml).unwrap();
+        let fm: Frontmatter = serde_yml::from_str(yaml).unwrap();
 
         assert_eq!(fm.description, "Test action");
         assert_eq!(fm.kind, AssetKind::Action); // default
@@ -166,7 +150,7 @@ targets:
   - cursor
 apply: "*.rs"
 "#;
-        let fm: Frontmatter = serde_yaml::from_str(yaml).unwrap();
+        let fm: Frontmatter = serde_yml::from_str(yaml).unwrap();
 
         assert_eq!(fm.description, "Security rules");
         assert_eq!(fm.kind, AssetKind::Policy);
@@ -182,7 +166,7 @@ description: Generate tests
 kind: action
 scope: user
 "#;
-        let fm: Frontmatter = serde_yaml::from_str(yaml).unwrap();
+        let fm: Frontmatter = serde_yml::from_str(yaml).unwrap();
 
         assert_eq!(fm.description, "Generate tests");
         assert_eq!(fm.kind, AssetKind::Action);
@@ -195,7 +179,7 @@ scope: user
 description: Code reviewer agent
 kind: agent
 "#;
-        let fm: Frontmatter = serde_yaml::from_str(yaml).unwrap();
+        let fm: Frontmatter = serde_yml::from_str(yaml).unwrap();
 
         assert_eq!(fm.kind, AssetKind::Agent);
     }
@@ -203,7 +187,7 @@ kind: agent
     #[test]
     fn test_frontmatter_missing_description_fails() {
         let yaml = "kind: policy";
-        let result: Result<Frontmatter, _> = serde_yaml::from_str(yaml);
+        let result: Result<Frontmatter, _> = serde_yml::from_str(yaml);
 
         assert!(result.is_err());
     }
@@ -260,38 +244,38 @@ kind: agent
     fn test_target_serde_kebab_case() {
         // Deserialize kebab-case
         let yaml = "claude-code";
-        let target: Target = serde_yaml::from_str(yaml).unwrap();
+        let target: Target = serde_yml::from_str(yaml).unwrap();
         assert_eq!(target, Target::ClaudeCode);
 
         // vscode alias works
         let yaml = "vscode";
-        let target: Target = serde_yaml::from_str(yaml).unwrap();
+        let target: Target = serde_yml::from_str(yaml).unwrap();
         assert_eq!(target, Target::VSCode);
     }
 
     #[test]
     fn test_asset_kind_serde() {
         let yaml = "policy";
-        let kind: AssetKind = serde_yaml::from_str(yaml).unwrap();
+        let kind: AssetKind = serde_yml::from_str(yaml).unwrap();
         assert_eq!(kind, AssetKind::Policy);
 
         let yaml = "action";
-        let kind: AssetKind = serde_yaml::from_str(yaml).unwrap();
+        let kind: AssetKind = serde_yml::from_str(yaml).unwrap();
         assert_eq!(kind, AssetKind::Action);
 
         let yaml = "agent";
-        let kind: AssetKind = serde_yaml::from_str(yaml).unwrap();
+        let kind: AssetKind = serde_yml::from_str(yaml).unwrap();
         assert_eq!(kind, AssetKind::Agent);
     }
 
     #[test]
     fn test_scope_serde() {
         let yaml = "project";
-        let scope: Scope = serde_yaml::from_str(yaml).unwrap();
+        let scope: Scope = serde_yml::from_str(yaml).unwrap();
         assert_eq!(scope, Scope::Project);
 
         let yaml = "user";
-        let scope: Scope = serde_yaml::from_str(yaml).unwrap();
+        let scope: Scope = serde_yml::from_str(yaml).unwrap();
         assert_eq!(scope, Scope::User);
     }
 }

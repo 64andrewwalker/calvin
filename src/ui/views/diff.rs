@@ -53,12 +53,12 @@ pub fn render_diff_summary_with_orphans(
     b.add_line(format!("{} new", new_files));
     b.add_line(format!("{} modified", modified_files));
     b.add_line(format!("{} unchanged", unchanged_files));
-    
+
     // Only show orphan line if there are orphans
     if orphan_files > 0 {
         b.add_line(format!("{} orphan", orphan_files));
     }
-    
+
     b.render(supports_color, supports_unicode)
 }
 
