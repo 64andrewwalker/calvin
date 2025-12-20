@@ -93,6 +93,11 @@ fn dispatch(
             no_animation,
         ),
         Commands::Version => commands::debug::cmd_version(json, verbose, color, no_animation),
+        Commands::Init {
+            path,
+            template,
+            force,
+        } => commands::init::cmd_init(&path, &template, force, json, verbose, color, no_animation),
     }
 }
 
