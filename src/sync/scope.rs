@@ -1,76 +1,38 @@
-use crate::models::{PromptAsset, Scope};
+//! Scope Policy for sync operations
+//!
+//! **Migration Note**: `ScopePolicy` and `DeploymentTarget` are now defined in
+//! `domain::policies` and re-exported here for backward compatibility.
+//! The `apply` method on `ScopePolicy` is implemented here as an extension
+//! for legacy code using `PromptAsset`.
 
-/// Deployment target type (where outputs should be written).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DeploymentTarget {
-    /// Project directory.
-    Project,
-    /// User home directory.
-    Home,
-    /// Deploy to both (based on asset scope).
-    Both,
-}
+use crate::models::PromptAsset;
 
-/// Policy for handling asset scope during compilation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum ScopePolicy {
-    /// Keep the original scope from the asset frontmatter.
-    #[default]
-    Keep,
-    /// Keep only `scope: project` assets.
-    ProjectOnly,
-    /// Keep only `scope: user` assets.
-    UserOnly,
-    /// Force all assets to `scope: user`.
-    ForceUser,
-    /// Force all assets to `scope: project`.
-    ForceProject,
-}
+// Re-export domain types for backward compatibility
+pub use crate::domain::policies::{DeploymentTarget, ScopePolicy};
 
-impl ScopePolicy {
-    /// Determine scope policy from a deployment target.
-    pub fn from_target(target: DeploymentTarget) -> Self {
-        match target {
-            DeploymentTarget::Project => ScopePolicy::Keep,
-            DeploymentTarget::Home => ScopePolicy::ForceUser,
-            DeploymentTarget::Both => ScopePolicy::Keep,
-        }
-    }
-
+/// Extension trait for applying ScopePolicy to PromptAsset vectors
+pub trait ScopePolicyExt {
     /// Apply the policy to a list of assets.
-    pub fn apply(&self, assets: Vec<PromptAsset>) -> Vec<PromptAsset> {
-        match self {
-            ScopePolicy::Keep => assets,
-            ScopePolicy::ProjectOnly => assets
-                .into_iter()
-                .filter(|a| a.frontmatter.scope == Scope::Project)
-                .collect(),
-            ScopePolicy::UserOnly => assets
-                .into_iter()
-                .filter(|a| a.frontmatter.scope == Scope::User)
-                .collect(),
-            ScopePolicy::ForceUser => assets
-                .into_iter()
-                .map(|mut a| {
-                    a.frontmatter.scope = Scope::User;
-                    a
-                })
-                .collect(),
-            ScopePolicy::ForceProject => assets
-                .into_iter()
-                .map(|mut a| {
-                    a.frontmatter.scope = Scope::Project;
-                    a
-                })
-                .collect(),
-        }
+    fn apply(&self, assets: Vec<PromptAsset>) -> Vec<PromptAsset>;
+}
+
+impl ScopePolicyExt for ScopePolicy {
+    fn apply(&self, assets: Vec<PromptAsset>) -> Vec<PromptAsset> {
+        assets
+            .into_iter()
+            .filter(|a| self.should_include(a.frontmatter.scope.into()))
+            .map(|mut a| {
+                a.frontmatter.scope = self.transform_scope(a.frontmatter.scope.into()).into();
+                a
+            })
+            .collect()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::Frontmatter;
+    use crate::models::{Frontmatter, Scope};
 
     fn make_asset(id: &str, scope: Scope) -> PromptAsset {
         let mut fm = Frontmatter::new(format!("asset {id}"));
@@ -78,6 +40,7 @@ mod tests {
         PromptAsset::new(id, format!("{id}.md"), fm, "Content")
     }
 
+    // Re-exported domain types work correctly
     #[test]
     fn from_target_maps_home_to_force_user() {
         assert_eq!(
@@ -86,6 +49,7 @@ mod tests {
         );
     }
 
+    // Extension trait tests for apply() on PromptAsset
     #[test]
     fn apply_keep_keeps_all_assets() {
         let assets = vec![

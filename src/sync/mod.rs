@@ -34,7 +34,7 @@ use crate::models::Target;
 pub use compile::compile_assets;
 pub use lockfile::{lockfile_key, Lockfile, LockfileNamespace};
 pub use pipeline::AssetPipeline;
-pub use scope::{DeploymentTarget, ScopePolicy};
+pub use scope::{DeploymentTarget, ScopePolicy, ScopePolicyExt};
 pub use writer::atomic_write;
 
 // Re-export OutputFile from domain entities

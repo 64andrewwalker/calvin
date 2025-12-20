@@ -45,6 +45,26 @@ impl std::fmt::Display for Scope {
     }
 }
 
+// Conversion from legacy models::Scope
+impl From<crate::models::Scope> for Scope {
+    fn from(scope: crate::models::Scope) -> Self {
+        match scope {
+            crate::models::Scope::Project => Scope::Project,
+            crate::models::Scope::User => Scope::User,
+        }
+    }
+}
+
+// Conversion to legacy models::Scope
+impl From<Scope> for crate::models::Scope {
+    fn from(scope: Scope) -> Self {
+        match scope {
+            Scope::Project => crate::models::Scope::Project,
+            Scope::User => crate::models::Scope::User,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
