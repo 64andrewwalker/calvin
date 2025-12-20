@@ -303,3 +303,42 @@ Week 1:
 - [ ] 所有测试通过
 - [ ] cargo clippy 无警告
 
+---
+
+## 6. 当前进度 (2025-12-20)
+
+### 已完成
+
+- [x] Phase A: 类型转换 (`From` traits)
+- [x] Phase B.1: 一致性测试
+- [x] Phase B.2: 对齐 ClaudeCode 适配器行为
+- [x] Phase B.3: `sync/compile.rs` 迁移到新适配器
+- [x] Phase C: 统一 OutputFile API (`.path()`, `.content()` 方法)
+
+### 剩余工作
+
+1. **VSCode/Codex/Antigravity infrastructure adapters 仍是 wrapper**
+   - 它们持有 `legacy_adapter` 实例，调用旧适配器
+   - 需要将逻辑完全移入新适配器
+
+2. **`sync/mod.rs` 仍依赖 `adapters::OutputFile`**
+   - 作为 re-export 使用
+   - 需要迁移到 `domain::entities::OutputFile`
+
+3. **`lib.rs` 公共导出**
+   - `all_adapters`, `get_adapter`, `OutputFile`, `TargetAdapter` 仍从旧模块导出
+
+### 阻塞因素
+
+删除 `src/adapters/` 需要先完成以下工作：
+1. 重写 VSCode/Codex/Antigravity 适配器（移除对旧适配器的依赖）
+2. 迁移 `sync` 模块使用 `domain::entities::OutputFile`
+3. 更新 `lib.rs` 公共 API
+
+### 估计工作量
+
+- 重写 3 个 infrastructure adapters: ~2-3 小时
+- 迁移 OutputFile 类型: ~1 小时
+- 更新公共 API: ~30 分钟
+- 测试和修复: ~1 小时
+
