@@ -2,6 +2,8 @@
 //!
 //! This module centralizes the "minimum security" rules so both adapters and
 //! `doctor/audit` can stay consistent.
+//!
+//! This is a pure domain policy - no I/O operations.
 
 use crate::config::Config;
 
@@ -118,5 +120,31 @@ mod tests {
         let patterns = effective_claude_deny_patterns(&config);
         assert!(!patterns.contains(&".env.*".to_string()));
         assert!(patterns.contains(&".env".to_string()));
+    }
+
+    // Additional tests for glob_matches
+    #[test]
+    fn test_glob_matches_exact() {
+        assert!(glob_matches(".env", ".env"));
+        assert!(!glob_matches(".env", ".envrc"));
+    }
+
+    #[test]
+    fn test_glob_matches_wildcard() {
+        assert!(glob_matches(".env.*", ".env.local"));
+        assert!(glob_matches(".env.*", ".env.production"));
+        assert!(!glob_matches(".env.*", ".env"));
+    }
+
+    #[test]
+    fn test_glob_matches_question_mark() {
+        assert!(glob_matches("id_?sa", "id_rsa"));
+        assert!(glob_matches("id_?d25519", "id_ed25519"));
+    }
+
+    #[test]
+    fn test_glob_matches_star_extension() {
+        assert!(glob_matches("*.pem", "server.pem"));
+        assert!(glob_matches("*.key", "private.key"));
     }
 }

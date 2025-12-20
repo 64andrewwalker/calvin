@@ -3,6 +3,7 @@
 //! Provides an interactive CLI experience for first-time and existing users.
 
 mod menu;
+mod state;
 #[cfg(test)]
 mod tests;
 mod wizard;
@@ -12,8 +13,8 @@ use std::path::Path;
 use anyhow::Result;
 use is_terminal::IsTerminal;
 
-use crate::state::{detect_state, ProjectState};
 use calvin::presentation::ColorWhen;
+use state::{detect_state, ProjectState};
 
 pub fn cmd_interactive(
     cwd: &Path,

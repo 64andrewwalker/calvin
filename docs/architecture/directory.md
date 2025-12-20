@@ -1,6 +1,6 @@
 # 目录结构
 
-> **Updated**: 2025-12-21 (sync/ watcher/ fs.rs 模块已清理)
+> **Updated**: 2025-12-21 (Legacy 模块清理完成: sync/ watcher/ fs.rs state.rs security_baseline.rs)
 
 ## 代码目录
 
@@ -30,6 +30,7 @@ src/
 │   ├── interactive/        # 交互式模式模块
 │   │   ├── menu.rs
 │   │   ├── wizard.rs
+│   │   ├── state.rs        # 项目状态检测 (从 src/state.rs 迁移)
 │   │   ├── tests.rs
 │   │   └── mod.rs
 │   ├── debug.rs
@@ -89,6 +90,7 @@ src/
 │   ├── policies/           # 策略
 │   │   ├── scope_policy.rs # Scope 处理策略
 │   │   ├── security.rs     # 安全策略
+│   │   ├── security_baseline.rs  # 安全基线 (从 src/security_baseline.rs 迁移)
 │   │   └── mod.rs
 │   ├── ports/              # 端口 (接口定义)
 │   │   ├── asset_repository.rs     # trait AssetRepository
@@ -149,9 +151,7 @@ src/
 │
 ├── error.rs                # 错误类型定义
 ├── models.rs               # PromptAsset 等输入模型 (核心)
-├── parser.rs               # frontmatter 解析 (核心)
-├── state.rs                # 状态管理 (legacy)
-└── security_baseline.rs    # 安全基线 (legacy)
+└── parser.rs               # frontmatter 解析 (核心)
 ```
 
 ## 目录归属说明
@@ -167,11 +167,17 @@ src/
 | `config/`, `security/` | 独立 | 功能模块 |
 | `*.rs` (根目录) | Legacy | 待迁移到合适位置 |
 
-## 迁移说明
+## 迁移历史
 
-以下模块保留在根目录是历史原因，未来版本可能迁移：
+已完成的迁移:
 
-- `models.rs` → `domain/entities/` (部分已迁移)
-- `parser.rs` → `infrastructure/` 或 `domain/services/`
-- `fs.rs` → 已由 `infrastructure/fs/` 取代，可考虑删除
-- `state.rs` → 评估是否仍需要
+- ✅ `sync/` → 已删除 (功能已合并到 application/)
+- ✅ `watcher/` → `application/watch/`
+- ✅ `fs.rs` → 已删除 (由 `infrastructure/fs/` 取代)
+- ✅ `state.rs` → `commands/interactive/state.rs`
+- ✅ `security_baseline.rs` → `domain/policies/security_baseline.rs`
+
+保留在根目录的核心模块:
+
+- `models.rs` - 核心输入模型，广泛使用，保持稳定
+- `parser.rs` - frontmatter 解析，广泛使用，保持稳定

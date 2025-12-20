@@ -6,7 +6,6 @@ use anyhow::Result;
 use clap::Parser;
 
 mod commands;
-mod state;
 mod ui;
 
 use calvin::presentation::{Cli, ColorWhen, Commands};

@@ -62,7 +62,7 @@ pub fn check_claude_code(
             );
         }
 
-        let expected_patterns = crate::security_baseline::effective_claude_deny_patterns(config);
+        let expected_patterns = crate::domain::policies::effective_claude_deny_patterns(config);
 
         // Parse and validate deny list against expected patterns.
         if let Ok(content) = std::fs::read_to_string(&settings_file) {

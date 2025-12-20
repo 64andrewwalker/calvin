@@ -1,3 +1,7 @@
+//! Project State Detection
+//!
+//! Detects the state of a Calvin project for the interactive command.
+
 use std::path::Path;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

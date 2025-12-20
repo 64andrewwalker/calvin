@@ -5,6 +5,8 @@
 
 mod scope_policy;
 mod security;
+mod security_baseline;
 
 pub use scope_policy::{DeploymentTarget, ScopePolicy};
 pub use security::SecurityPolicy;
+pub use security_baseline::{effective_claude_deny_patterns, MINIMUM_DENY};

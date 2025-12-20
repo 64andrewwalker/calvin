@@ -25,7 +25,6 @@ pub mod error;
 pub mod models;
 pub mod parser;
 pub mod security;
-pub(crate) mod security_baseline;
 
 // Re-exports for convenience
 pub use application::{compile_assets, DeployResult};
