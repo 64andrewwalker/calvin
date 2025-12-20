@@ -39,7 +39,7 @@
 |---------|------------|---------------|--------|
 | **Remote deploy (rsync)** | ⚠️ Port defined, not wired | ✅ Full support | **HIGH** - Remote deploys will fail |
 | **Remote deploy (SSH)** | ⚠️ Port defined, not wired | ✅ Full support | **HIGH** - Remote deploys will fail |
-| **rsync batch optimization** | ❌ | ✅ (for >10 files) | MEDIUM - Performance |
+| **rsync batch optimization** | ⚠️ Implemented in SyncDestination, not yet wired | ✅ (for >10 files) | MEDIUM - Performance |
 | **Remote conflict resolution** | ❌ | ✅ (via RemoteFileSystem) | HIGH - No remote conflicts |
 
 ## Detailed Gap Analysis
