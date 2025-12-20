@@ -5,6 +5,7 @@
 
 pub mod asset_repository;
 pub mod config_repository;
+pub mod conflict_resolver;
 pub mod deploy_events;
 pub mod file_system;
 pub mod lockfile_repository;
@@ -13,6 +14,9 @@ pub mod target_adapter;
 
 pub use asset_repository::AssetRepository;
 pub use config_repository::ConfigRepository;
+pub use conflict_resolver::{
+    ConflictChoice, ConflictContext, ConflictReason, ConflictResolver, ForceResolver, SafeResolver,
+};
 pub use deploy_events::{DeployEvent, DeployEventSink, NoopEventSink};
 pub use file_system::{FileSystem, FsError, FsResult};
 pub use lockfile_repository::{LockfileError, LockfileRepository};
