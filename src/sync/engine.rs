@@ -253,7 +253,7 @@ impl<'a, FS: FileSystem> SyncEngine<'a, FS> {
         };
 
         for (index, output) in plan.to_write.iter().enumerate() {
-            let path_str = output.path.display().to_string();
+            let path_str = output.path().display().to_string();
 
             if let Some(ref mut cb) = callback {
                 cb(SyncEvent::ItemStart {
@@ -262,7 +262,7 @@ impl<'a, FS: FileSystem> SyncEngine<'a, FS> {
                 });
             }
 
-            let expanded_output_path = self.fs.expand_home(&output.path);
+            let expanded_output_path = self.fs.expand_home(output.path());
             let target_path = root.join(expanded_output_path);
 
             // Ensure parent directory exists
@@ -281,7 +281,7 @@ impl<'a, FS: FileSystem> SyncEngine<'a, FS> {
             }
 
             // Write file
-            match self.fs.write_atomic(&target_path, &output.content) {
+            match self.fs.write_atomic(&target_path, output.content()) {
                 Ok(()) => {
                     if let Some(ref mut cb) = callback {
                         cb(SyncEvent::ItemWritten {
@@ -470,13 +470,13 @@ impl<'a, FS: FileSystem> SyncEngine<'a, FS> {
         let skipped_set: HashSet<&str> = result.skipped.iter().map(|s| s.as_str()).collect();
 
         for output in self.outputs {
-            let path_str = output.path.display().to_string();
+            let path_str = output.path().display().to_string();
 
             if written_set.contains(path_str.as_str()) || skipped_set.contains(path_str.as_str()) {
                 // For both written and skipped: record the output content hash
                 // (skipped means target already has this content)
-                let hash = crate::sync::lockfile::hash_content(&output.content);
-                let key = lockfile_key(self.lockfile_namespace, &output.path);
+                let hash = crate::sync::lockfile::hash_content(output.content());
+                let key = lockfile_key(self.lockfile_namespace, output.path());
                 // Scope is encoded in the key prefix (home: or project:)
                 lockfile.set_hash(&key, &hash);
             }
@@ -502,7 +502,8 @@ mod tests {
     use tempfile::TempDir;
 
     fn make_output(path: &str, content: &str) -> OutputFile {
-        OutputFile::new(PathBuf::from(path), content.to_string())
+        use crate::domain::value_objects::Target;
+        OutputFile::new(PathBuf::from(path), content.to_string(), Target::All)
     }
 
     fn create_temp_project() -> TempDir {

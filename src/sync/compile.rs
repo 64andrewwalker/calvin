@@ -12,11 +12,6 @@ use crate::error::CalvinResult;
 use crate::infrastructure::adapters::all_adapters;
 use crate::models::{PromptAsset, Target};
 
-/// Convert domain OutputFile to legacy OutputFile
-fn to_legacy_output(output: crate::domain::entities::OutputFile) -> OutputFile {
-    OutputFile::new(output.path().clone(), output.content().to_string())
-}
-
 /// Convert Target to domain Target
 fn to_domain_target(target: &Target) -> DomainTarget {
     match target {
@@ -91,8 +86,7 @@ pub fn compile_assets(
             // Compile asset with this adapter
             match adapter.compile(asset) {
                 Ok(files) => {
-                    // Convert domain outputs to legacy outputs
-                    outputs.extend(files.into_iter().map(to_legacy_output));
+                    outputs.extend(files);
                 }
                 Err(e) => {
                     return Err(crate::error::CalvinError::Compile {
@@ -114,7 +108,7 @@ pub fn compile_assets(
                     let command_path = commands_base.join(format!("{}.md", asset.id()));
                     let footer = adapter.footer(&asset.source_path().display().to_string());
                     let content = generate_cursor_command_content(asset, &footer);
-                    outputs.push(OutputFile::new(command_path, content));
+                    outputs.push(OutputFile::new(command_path, content, DomainTarget::Cursor));
                 }
             }
         }
@@ -132,7 +126,7 @@ pub fn compile_assets(
         // Post-compile (e.g. AGENTS.md)
         match adapter.post_compile(&domain_assets) {
             Ok(post_outputs) => {
-                outputs.extend(post_outputs.into_iter().map(to_legacy_output));
+                outputs.extend(post_outputs);
             }
             Err(e) => {
                 return Err(crate::error::CalvinError::Compile {
@@ -144,7 +138,7 @@ pub fn compile_assets(
         // Security baseline - convert config errors
         match adapter.security_baseline(config) {
             Ok(baseline) => {
-                outputs.extend(baseline.into_iter().map(to_legacy_output));
+                outputs.extend(baseline);
             }
             Err(e) => {
                 return Err(crate::error::CalvinError::Compile {
@@ -155,7 +149,7 @@ pub fn compile_assets(
     }
 
     // Sort for deterministic output
-    outputs.sort_by(|a, b| a.path.cmp(&b.path));
+    outputs.sort_by(|a, b| a.path().cmp(b.path()));
 
     Ok(outputs)
 }

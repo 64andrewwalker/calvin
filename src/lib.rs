@@ -20,7 +20,6 @@ pub mod infrastructure;
 pub mod presentation;
 
 // Legacy modules (will be refactored)
-pub mod adapters;
 pub mod config;
 pub mod error;
 pub mod fs;
@@ -32,9 +31,12 @@ pub mod sync;
 pub mod watcher;
 
 // Re-exports for convenience
-pub use adapters::{all_adapters, get_adapter, OutputFile, TargetAdapter};
+// Note: OutputFile and TargetAdapter are now from the domain layer
 pub use config::{Config, SecurityMode};
+pub use domain::entities::OutputFile;
+pub use domain::ports::TargetAdapter;
 pub use error::{CalvinError, CalvinResult};
+pub use infrastructure::adapters::{all_adapters, get_adapter};
 pub use models::{AssetKind, Frontmatter, PromptAsset, Scope, Target};
 pub use parser::parse_frontmatter;
 pub use security::{run_doctor, DoctorReport, DoctorSink};
