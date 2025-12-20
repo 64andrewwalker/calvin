@@ -192,7 +192,13 @@ pub fn cmd_deploy_with_explicit_target(
     }
 
     // Run deploy
-    let result = if json {
+    // Note: Remote targets always use legacy engine (new engine doesn't support SSH/rsync yet)
+    let is_remote_target = matches!(&target_for_bridge, DeployTarget::Remote(_));
+
+    let result = if is_remote_target {
+        // Remote: always use legacy DeployRunner (has SSH/rsync support)
+        runner.run()?
+    } else if json {
         // JSON mode: use new engine with JsonEventSink
         use calvin::infrastructure::JsonEventSink;
         use std::sync::Arc;
@@ -212,36 +218,31 @@ pub fn cmd_deploy_with_explicit_target(
         let json_sink = Arc::new(JsonEventSink::stdout());
         let use_case_result = use_case.execute_with_events(&use_case_options, json_sink);
         super::bridge::convert_result(&use_case_result)
-    } else {
-        // Non-JSON mode: run without callback
-        // Check if new engine is enabled
-        if super::bridge::should_use_new_engine() {
-            // Use new DeployUseCase architecture
-            // Pass cleanup flag to let use case handle orphan cleanup
-            let use_case_options = super::bridge::convert_options(
-                source,
-                &target_for_bridge,
-                &options_for_bridge,
-                cleanup,
-            );
-            // Determine effective targets: CLI > config > all
-            let effective_targets = if options_for_bridge.targets.is_empty() {
-                config.enabled_targets()
-            } else {
-                options_for_bridge.targets.clone()
-            };
-            let use_case = super::bridge::create_use_case_for_targets(&effective_targets);
-            let use_case_result = use_case.execute(&use_case_options);
-            super::bridge::convert_result(&use_case_result)
+    } else if super::bridge::should_use_new_engine() {
+        // Non-JSON local mode: use new DeployUseCase architecture
+        let use_case_options = super::bridge::convert_options(
+            source,
+            &target_for_bridge,
+            &options_for_bridge,
+            cleanup,
+        );
+        // Determine effective targets: CLI > config > all
+        let effective_targets = if options_for_bridge.targets.is_empty() {
+            config.enabled_targets()
         } else {
-            // Use legacy DeployRunner
-            runner.run()?
-        }
+            options_for_bridge.targets.clone()
+        };
+        let use_case = super::bridge::create_use_case_for_targets(&effective_targets);
+        let use_case_result = use_case.execute(&use_case_options);
+        super::bridge::convert_result(&use_case_result)
+    } else {
+        // Use legacy DeployRunner
+        runner.run()?
     };
 
     // Track if we used the new engine (for skipping legacy orphan detection)
-    // JSON mode always uses new engine now, non-JSON checks the flag
-    let used_new_engine = json || super::bridge::should_use_new_engine();
+    // Remote targets always use legacy engine, others depend on json/flag
+    let used_new_engine = !is_remote_target && (json || super::bridge::should_use_new_engine());
 
     // Render summary
     if json {
