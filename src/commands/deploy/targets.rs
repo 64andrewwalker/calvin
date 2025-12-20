@@ -1,8 +1,5 @@
 //! Deploy target types and configuration
 
-#![allow(dead_code)]
-
-use calvin::sync::SyncDestination;
 use std::path::PathBuf;
 
 /// Deployment target
@@ -26,27 +23,6 @@ impl DeployTarget {
         }
     }
 
-    /// Convert to SyncDestination for two-stage sync
-    ///
-    /// **DEPRECATED**: Use infrastructure::sync destinations instead.
-    pub fn to_sync_destination(&self) -> SyncDestination {
-        match self {
-            DeployTarget::Project(root) => SyncDestination::Local(root.clone()),
-            DeployTarget::Home => {
-                let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
-                SyncDestination::Local(home)
-            }
-            DeployTarget::Remote(remote) => {
-                let (host, path) = if let Some((h, p)) = remote.split_once(':') {
-                    (h.to_string(), PathBuf::from(p))
-                } else {
-                    (remote.clone(), PathBuf::from("."))
-                };
-                SyncDestination::Remote { host, path }
-            }
-        }
-    }
-
     /// Check if this is a local target
     pub fn is_local(&self) -> bool {
         !matches!(self, DeployTarget::Remote(_))
@@ -58,27 +34,30 @@ mod tests {
     use super::*;
 
     #[test]
-    fn project_to_sync_destination() {
+    fn project_destination_display() {
         let target = DeployTarget::Project(PathBuf::from("/project"));
-        let dest = target.to_sync_destination();
-        assert!(matches!(dest, SyncDestination::Local(p) if p == PathBuf::from("/project")));
+        assert_eq!(target.destination_display(), Some("/project".to_string()));
     }
 
     #[test]
-    fn remote_to_sync_destination() {
+    fn home_destination_display() {
+        let target = DeployTarget::Home;
+        assert_eq!(target.destination_display(), Some("~/".to_string()));
+    }
+
+    #[test]
+    fn remote_destination_display() {
         let target = DeployTarget::Remote("user@host:/path".to_string());
-        let dest = target.to_sync_destination();
-        assert!(
-            matches!(dest, SyncDestination::Remote { host, path } if host == "user@host" && path == PathBuf::from("/path"))
+        assert_eq!(
+            target.destination_display(),
+            Some("user@host:/path".to_string())
         );
     }
 
     #[test]
-    fn remote_without_path() {
-        let target = DeployTarget::Remote("server".to_string());
-        let dest = target.to_sync_destination();
-        assert!(
-            matches!(dest, SyncDestination::Remote { host, path } if host == "server" && path == PathBuf::from("."))
-        );
+    fn is_local() {
+        assert!(DeployTarget::Project(PathBuf::from("/")).is_local());
+        assert!(DeployTarget::Home.is_local());
+        assert!(!DeployTarget::Remote("host".to_string()).is_local());
     }
 }

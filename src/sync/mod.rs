@@ -16,12 +16,9 @@
 
 mod compile;
 mod conflict;
-pub mod execute;
 pub mod lockfile;
 pub mod orphan;
 pub mod pipeline;
-pub mod plan;
-pub mod remote;
 pub mod scope;
 pub mod writer;
 
@@ -38,11 +35,6 @@ pub use writer::atomic_write;
 
 // Re-export OutputFile from domain entities
 pub use crate::domain::entities::OutputFile;
-
-// Re-export two-stage sync API (legacy, being migrated to DeployUseCase)
-pub use execute::{execute_sync, execute_sync_with_callback, SyncStrategy};
-pub use plan::{plan_sync, plan_sync_remote, resolve_conflicts_interactive};
-pub use plan::{Conflict, ResolveResult, SyncDestination, SyncPlan};
 
 // Re-export conflict resolution types (ConflictReason is shared between plan and conflict modules)
 pub use conflict::{ConflictChoice, ConflictReason, ConflictResolver, InteractiveResolver};
