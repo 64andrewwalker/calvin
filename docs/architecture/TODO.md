@@ -455,6 +455,7 @@
 
 | 日期 | 更新内容 |
 |------|----------|
+| 2025-12-21 | **fs.rs 删除** - 移除 legacy FileSystem trait 及其实现，代码使用 domain::ports::FileSystem |
 | 2025-12-21 | **Legacy 模块清理** - 删除孤立的 `src/sync/` 目录（未在 lib.rs 中声明）|
 | 2025-12-21 | **watcher 迁移完成** - `src/watcher/` → `application/watch/` (WatchUseCase 完整实现) |
 | 2025-12-20 | **Domain 层依赖重构完成** - 移动 SecurityMode/DeployTarget/ConfigWarning/Target 到 domain 层，创建 DomainConfig trait |

@@ -117,12 +117,12 @@ Layer 0 → Layer 1 → Layer 2 ← Layer 3
 | `config/` | `src/config/` | 配置类型和加载 |
 | `security/` | `src/security/` | 安全检查逻辑 |
 
-## Legacy 模块
+## 核心模块
 
-以下模块是历史遗留，部分功能已迁移：
+以下模块是稳定的核心模块，不属于四层但被广泛使用：
 
 | 模块 | 状态 | 说明 |
 |------|------|------|
-| `models.rs` | 保留 | PromptAsset 等类型定义 |
-| `parser.rs` | 保留 | frontmatter 解析 |
-| `fs.rs` | 待评估 | FileSystem trait (与 infrastructure/fs 重复) |
+| `models.rs` | 核心 | PromptAsset, Frontmatter 等输入模型 |
+| `parser.rs` | 核心 | frontmatter 解析 |
+| `error.rs` | 核心 | CalvinError, CalvinResult 错误类型 |

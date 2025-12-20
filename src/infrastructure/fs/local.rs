@@ -120,44 +120,6 @@ impl LocalFs {
     }
 }
 
-// === Legacy FileSystem trait implementation ===
-// This allows LocalFs to be used with sync module which uses the old trait
-
-impl crate::fs::FileSystem for LocalFs {
-    fn read_to_string(&self, path: &Path) -> crate::error::CalvinResult<String> {
-        let expanded = expand_home_internal(path);
-        Ok(std::fs::read_to_string(&expanded)?)
-    }
-
-    fn write_atomic(&self, path: &Path, content: &str) -> crate::error::CalvinResult<()> {
-        Self::atomic_write_internal(path, content.as_bytes())
-    }
-
-    fn exists(&self, path: &Path) -> bool {
-        let expanded = expand_home_internal(path);
-        expanded.exists()
-    }
-
-    fn hash_file(&self, path: &Path) -> crate::error::CalvinResult<String> {
-        let content = std::fs::read(path)?;
-        Ok(format!("sha256:{:x}", Sha256::digest(&content)))
-    }
-
-    fn create_dir_all(&self, path: &Path) -> crate::error::CalvinResult<()> {
-        let expanded = expand_home_internal(path);
-        Ok(std::fs::create_dir_all(&expanded)?)
-    }
-
-    fn expand_home(&self, path: &Path) -> PathBuf {
-        expand_home_internal(path)
-    }
-
-    fn remove_file(&self, path: &Path) -> crate::error::CalvinResult<()> {
-        let expanded = expand_home_internal(path);
-        Ok(std::fs::remove_file(&expanded)?)
-    }
-}
-
 /// Expand ~/ prefix to user home directory
 ///
 /// This is a standalone function for use outside of FileSystem trait.

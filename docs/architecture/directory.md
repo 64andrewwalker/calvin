@@ -1,6 +1,6 @@
 # 目录结构
 
-> **Updated**: 2025-12-21 (sync/ watcher/ 模块已清理)
+> **Updated**: 2025-12-21 (sync/ watcher/ fs.rs 模块已清理)
 
 ## 代码目录
 
@@ -148,9 +148,8 @@ src/
 │   └── mod.rs
 │
 ├── error.rs                # 错误类型定义
-├── fs.rs                   # FileSystem trait (legacy, 与 infrastructure/fs 重复)
-├── models.rs               # PromptAsset 等模型 (legacy)
-├── parser.rs               # frontmatter 解析 (legacy)
+├── models.rs               # PromptAsset 等输入模型 (核心)
+├── parser.rs               # frontmatter 解析 (核心)
 ├── state.rs                # 状态管理 (legacy)
 └── security_baseline.rs    # 安全基线 (legacy)
 ```
