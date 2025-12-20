@@ -9,7 +9,7 @@ use crossterm::style::Stylize;
 
 use crate::ui::primitives::icon::Icon;
 use crate::ui::theme;
-use calvin::sync::orphan::OrphanFile;
+use calvin::domain::services::OrphanFile;
 
 /// Render orphan file list with status indicators
 ///
