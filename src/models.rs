@@ -32,24 +32,8 @@ pub enum Scope {
     User,
 }
 
-/// Target platform for compilation
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, clap::ValueEnum)]
-#[serde(rename_all = "kebab-case")]
-pub enum Target {
-    /// Claude Code (Anthropic)
-    ClaudeCode,
-    /// Cursor IDE
-    Cursor,
-    /// VS Code with GitHub Copilot
-    #[serde(alias = "vscode")]
-    VSCode,
-    /// Google Antigravity
-    Antigravity,
-    /// OpenAI Codex CLI
-    Codex,
-    /// All platforms
-    All,
-}
+// Re-export Target from domain layer for backward compatibility
+pub use crate::domain::value_objects::Target;
 
 /// YAML frontmatter extracted from source files
 ///

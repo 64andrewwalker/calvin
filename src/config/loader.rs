@@ -3,19 +3,10 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::domain::value_objects::{ConfigWarning, DeployTarget, Target};
 use crate::error::CalvinResult;
-use crate::models::Target;
 
-use super::types::{Config, DeployTargetConfig, SecurityMode, Verbosity};
-
-/// Non-fatal configuration warning surfaced to CLI users.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ConfigWarning {
-    pub key: String,
-    pub file: PathBuf,
-    pub line: Option<usize>,
-    pub suggestion: Option<String>,
-}
+use super::types::{Config, SecurityMode, Verbosity};
 
 /// Load configuration and collect non-fatal warnings (e.g. unknown keys).
 pub fn load_with_warnings(path: &Path) -> CalvinResult<(Config, Vec<ConfigWarning>)> {
@@ -126,18 +117,18 @@ pub fn with_env_overrides(mut config: Config) -> Config {
 }
 
 /// Save deploy target to config file
-pub fn save_deploy_target(config_path: &Path, target: DeployTargetConfig) -> CalvinResult<()> {
+pub fn save_deploy_target(config_path: &Path, target: DeployTarget) -> CalvinResult<()> {
     use std::io::Write;
 
     // Don't save Unset
-    if target == DeployTargetConfig::Unset {
+    if target == DeployTarget::Unset {
         return Ok(());
     }
 
     let target_str = match target {
-        DeployTargetConfig::Home => "home",
-        DeployTargetConfig::Project => "project",
-        DeployTargetConfig::Unset => return Ok(()),
+        DeployTarget::Home => "home",
+        DeployTarget::Project => "project",
+        DeployTarget::Unset => return Ok(()),
     };
 
     // Read existing config or start fresh

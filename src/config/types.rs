@@ -5,12 +5,14 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
+use crate::domain::ports::DomainConfig;
+use crate::domain::value_objects::{ConfigWarning, Target};
 use crate::error::CalvinResult;
-use crate::models::Target;
 
-use super::loader::{self, ConfigWarning};
+use super::loader;
 
-// Re-export SecurityMode from domain layer
+// Re-export domain types for backward compatibility
+pub use crate::domain::value_objects::DeployTarget;
 pub use crate::domain::value_objects::SecurityMode;
 
 /// Format version configuration
@@ -131,25 +133,12 @@ fn default_true() -> bool {
     true
 }
 
-/// Deploy target configuration
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "lowercase")]
-pub enum DeployTargetConfig {
-    /// Not configured (user needs to choose)
-    #[default]
-    Unset,
-    /// Deploy to project directory
-    Project,
-    /// Deploy to user home directory
-    Home,
-}
-
 /// Deploy configuration
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct DeployConfig {
     /// Default deploy target (project or home)
     #[serde(default)]
-    pub target: DeployTargetConfig,
+    pub target: DeployTarget,
 }
 
 /// Output configuration
@@ -292,7 +281,37 @@ impl Config {
     ///
     /// Updates or creates the [deploy] section in config.toml with the target.
     /// Preserves other settings in the file.
-    pub fn save_deploy_target(config_path: &Path, target: DeployTargetConfig) -> CalvinResult<()> {
+    pub fn save_deploy_target(config_path: &Path, target: DeployTarget) -> CalvinResult<()> {
         loader::save_deploy_target(config_path, target)
+    }
+}
+
+/// Implementation of DomainConfig for Config
+///
+/// This allows the domain layer to work with Config through the DomainConfig trait
+/// without directly depending on the Config type.
+impl DomainConfig for Config {
+    fn security_mode(&self) -> SecurityMode {
+        self.security.mode
+    }
+
+    fn enabled_targets(&self) -> Vec<Target> {
+        self.enabled_targets()
+    }
+
+    fn deploy_target(&self) -> DeployTarget {
+        self.deploy.target
+    }
+
+    fn format_version(&self) -> &str {
+        &self.format.version
+    }
+
+    fn atomic_writes(&self) -> bool {
+        self.sync.atomic_writes
+    }
+
+    fn respect_lockfile(&self) -> bool {
+        self.sync.respect_lockfile
     }
 }

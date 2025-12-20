@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Target platform for compilation
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, clap::ValueEnum)]
 #[serde(rename_all = "kebab-case")]
 pub enum Target {
     /// Claude Code (Anthropic)
