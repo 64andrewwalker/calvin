@@ -66,7 +66,7 @@ impl TargetAdapter for VSCodeAdapter {
         let path = instructions_dir.join(format!("{}.instructions.md", asset.id()));
 
         let frontmatter = self.generate_instruction_frontmatter(asset);
-        let footer = self.footer(&asset.source_path().display().to_string());
+        let footer = self.footer(&asset.source_path_normalized());
         let content = format!("{}\n{}\n\n{}", frontmatter, asset.content().trim(), footer);
 
         outputs.push(OutputFile::new(path, content, self.target()));

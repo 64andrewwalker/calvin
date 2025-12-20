@@ -133,7 +133,7 @@ pub fn compile_assets(
                         Scope::Project => PathBuf::from(".cursor/commands"),
                     };
                     let command_path = commands_base.join(format!("{}.md", asset.id()));
-                    let footer = adapter.footer(&asset.source_path().display().to_string());
+                    let footer = adapter.footer(&asset.source_path_normalized());
                     let content = generate_cursor_command_content(asset, &footer);
                     outputs.push(OutputFile::new(command_path, content, DomainTarget::Cursor));
                 }

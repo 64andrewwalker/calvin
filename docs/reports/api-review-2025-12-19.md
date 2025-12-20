@@ -1,6 +1,7 @@
 # API Design Review
 
 > **Generated**: 2025-12-19  
+> **Updated**: 2025-12-20 (Architecture v2 完成)  
 > **Workflow**: 5-QA API Design Review  
 > **Version**: Calvin 0.2.0
 
@@ -87,37 +88,44 @@ calvin [GLOBAL_OPTIONS] <COMMAND> [COMMAND_OPTIONS]
 
 ## 2. Library API Review
 
-### 2.1 Public Exports (`lib.rs`)
+### 2.1 Public Exports (`lib.rs`) - Updated for v2
 
 ```rust
-// Modules
-pub mod adapters;
+// Architecture layers (v2)
+pub mod application;
+pub mod domain;
+pub mod infrastructure;
+pub mod presentation;
+
+// Core modules
 pub mod config;
 pub mod error;
 pub mod fs;
 pub mod models;
 pub mod parser;
 pub mod security;
-pub mod security_baseline;
-pub mod sync;
+pub(crate) mod security_baseline;  // ✅ Now private
 pub mod watcher;
 
 // Convenience re-exports
-pub use adapters::{all_adapters, get_adapter, OutputFile, TargetAdapter};
+pub use application::{compile_assets, DeployResult};
 pub use config::{Config, SecurityMode};
+pub use domain::entities::OutputFile;
+pub use domain::ports::TargetAdapter;
 pub use error::{CalvinError, CalvinResult};
+pub use infrastructure::adapters::{all_adapters, get_adapter};
 pub use models::{AssetKind, Frontmatter, PromptAsset, Scope, Target};
 pub use parser::parse_frontmatter;
 pub use security::{run_doctor, DoctorReport, DoctorSink};
-pub use sync::{compile_assets, SyncEngine, SyncEngineOptions, SyncOptions, SyncResult};
 pub use watcher::{parse_incremental, watch, IncrementalCache, WatchEvent, WatchOptions};
 ```
 
-**Assessment**:
+**Assessment** (v2 update):
 - ✅ Minimal surface area (only essential types exported)
-- ✅ Clear module organization
+- ✅ Clear four-layer architecture (domain/application/infrastructure/presentation)
 - ✅ Result types with custom error enum
-- ⚠️ `security_baseline` could be private (only used internally)
+- ✅ `security_baseline` is now private (`pub(crate)`) ← **Fixed**
+- ✅ `SyncEngine` removed, replaced by `DeployResult`
 
 ### 2.2 Error Types (`CalvinError`)
 
@@ -331,20 +339,20 @@ v1.0 → v1.1 (deprecated) → v1.2 → v2.0 (removed)
 
 ### 8.1 Issues Found
 
-| ID | Severity | Description |
-|----|----------|-------------|
-| API-1 | Low | Watch event naming inconsistency (`started` vs `sync_started`) |
-| API-2 | Info | `security_baseline` module unnecessarily public |
-| API-3 | Info | No library usage examples in docstrings |
+| ID | Severity | Description | Status |
+|----|----------|-------------|--------|
+| API-1 | Low | Watch event naming inconsistency (`started` vs `sync_started`) | Open |
+| API-2 | Info | `security_baseline` module unnecessarily public | ✅ Fixed (now `pub(crate)`) |
+| API-3 | Info | No library usage examples in docstrings | Open |
 
 ### 8.2 Recommendations
 
-| Priority | Action | Impact |
-|----------|--------|--------|
-| P3 | Standardize watch event names | Minor JSON consistency |
-| P3 | Make `security_baseline` private | Smaller public API |
-| P2 | Add `//! # Examples` to lib.rs | Better library UX |
-| P3 | Add JSON Schema for outputs | CI/tooling integration |
+| Priority | Action | Impact | Status |
+|----------|--------|--------|--------|
+| P3 | Standardize watch event names | Minor JSON consistency | Open |
+| P3 | Make `security_baseline` private | Smaller public API | ✅ Done |
+| P2 | Add `//! # Examples` to lib.rs | Better library UX | Open |
+| P3 | Add JSON Schema for outputs | CI/tooling integration | Open |
 
 ---
 
@@ -375,15 +383,22 @@ None - v0.2 maintains full backward compatibility via hidden deprecated commands
 3. **Documented versioning** - Clear deprecation policy
 4. **Secure defaults** - Path validation, lockfile protection
 5. **Machine-friendly** - Consistent JSON output, proper exit codes
+6. **Clean Architecture (v2)** - Four-layer separation, testable code
 
 ### Areas for Improvement
 
 1. Minor event naming inconsistency in watch mode
-2. Could reduce public API surface (`security_baseline`)
-3. Library examples in documentation
+2. Library examples in documentation
+
+### Improvements Since Last Review (v2)
+
+1. ✅ `security_baseline` module is now private (`pub(crate)`)
+2. ✅ `SyncEngine` god object removed, replaced by `DeployUseCase`
+3. ✅ Domain layer has no I/O dependencies
+4. ✅ Cross-platform CI (Windows support added)
 
 ### Verdict
 
-**API Quality: Excellent (8.5/10)**
+**API Quality: Excellent (9/10)** ← Updated from 8.5
 
-The API is well-designed for both human users and automation. No breaking changes needed.
+The API is well-designed for both human users and automation. Architecture v2 improved modularity and testability. No breaking changes needed.

@@ -81,7 +81,7 @@ impl TargetAdapter for CursorAdapter {
                 let rule_path = rules_dir.join(asset.id()).join("RULE.md");
 
                 let frontmatter = self.generate_rule_frontmatter(asset);
-                let footer = self.footer(&asset.source_path().display().to_string());
+                let footer = self.footer(&asset.source_path_normalized());
                 let content = format!("{}\n{}\n\n{}", frontmatter, asset.content().trim(), footer);
 
                 outputs.push(OutputFile::new(rule_path, content, Target::Cursor));

@@ -54,7 +54,7 @@ impl TargetAdapter for ClaudeCodeAdapter {
 
         // Put footer at the END so it doesn't interfere with Claude Code's command preview
         // Claude Code shows the first line as the command description
-        let footer = self.footer(&asset.source_path().display().to_string());
+        let footer = self.footer(&asset.source_path_normalized());
 
         // Determine first line for command preview:
         // Priority: description > H1 title > first paragraph
