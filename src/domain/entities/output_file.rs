@@ -186,4 +186,26 @@ mod tests {
 
         assert_eq!(output.len(), 5);
     }
+
+    // === TDD: From<adapters::OutputFile> ===
+
+    #[test]
+    fn output_file_from_legacy() {
+        use crate::adapters::OutputFile as LegacyOutputFile;
+
+        let legacy = LegacyOutputFile::new("path/to/file.md", "content");
+        let domain = OutputFile::from(legacy);
+
+        assert_eq!(domain.path(), &PathBuf::from("path/to/file.md"));
+        assert_eq!(domain.content(), "content");
+        assert_eq!(domain.target(), Target::All); // Default when not specified
+    }
+}
+
+// === From implementations ===
+
+impl From<crate::adapters::OutputFile> for OutputFile {
+    fn from(legacy: crate::adapters::OutputFile) -> Self {
+        OutputFile::new_simple(legacy.path, legacy.content)
+    }
 }
