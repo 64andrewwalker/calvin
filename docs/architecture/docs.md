@@ -1,5 +1,8 @@
 # 文档架构
 
+> **Status**: Planned (website/ 目录尚未创建)
+> **Updated**: 2025-12-20
+
 ## 文档即代码 (Docs-as-Code)
 
 ```
