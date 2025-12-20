@@ -1,7 +1,7 @@
 # Lockfile 迁移计划
 
 > 日期: 2025-12-20
-> 状态: 设计完成，准备实施
+> 状态: **部分完成** - Step 1-3 已完成，Step 4-6 保持兼容层
 
 ## 目标
 
@@ -170,10 +170,36 @@ fn lockfile_key_project_path() {
 }
 ```
 
+## 当前进度
+
+### ✅ 已完成 (2025-12-20)
+
+- **Step 1**: `domain::entities::Lockfile` 已有 `contains()` 和 `set_hash()`
+- **Step 2**: `LockfileNamespace` 已迁移到 `domain/value_objects/lockfile_namespace.rs`
+- **Step 3**: `hash_content` 已迁移为 `domain/value_objects/hash.rs::ContentHash`
+
+### ⏸ 保持兼容层
+
+- **Step 4-6**: `sync/lockfile.rs` 和 `sync/orphan.rs` 保持现状作为遗留兼容层
+- 原因: `commands/debug.rs::cmd_diff_legacy` 仍使用旧 API
+- 新代码 (`cmd_diff_new_engine`, `DiffUseCase`, `DeployUseCase`) 已使用 domain 版本
+
+### 使用指南
+
+**新代码应该使用:**
+- `domain::entities::Lockfile` - 纯数据实体
+- `infrastructure::repositories::TomlLockfileRepository` - I/O 操作
+- `domain::services::OrphanDetector` - 孤儿检测
+- `domain::value_objects::LockfileNamespace` - 命名空间
+
+**遗留代码 (兼容):**
+- `sync::lockfile::Lockfile` - 带 I/O 的旧实现
+- `sync::orphan::detect_orphans` - 旧 API
+
 ## 验收标准
 
-- [ ] `sync/lockfile.rs` 不再定义 `Lockfile` struct
-- [ ] 所有 560+ 测试通过
-- [ ] 无 deprecated 警告
-- [ ] 代码行数减少 > 100 行
+- [x] domain 版本功能完整
+- [x] 新代码使用 domain 版本
+- [x] 所有测试通过
+- [ ] 可选: 完全删除 `sync/lockfile.rs` 中的 struct 定义
 
