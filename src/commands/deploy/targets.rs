@@ -1,5 +1,7 @@
 //! Deploy target types and configuration
 
+#![allow(dead_code)]
+
 use calvin::sync::SyncDestination;
 use std::path::PathBuf;
 
@@ -25,6 +27,8 @@ impl DeployTarget {
     }
 
     /// Convert to SyncDestination for two-stage sync
+    ///
+    /// **DEPRECATED**: Use infrastructure::sync destinations instead.
     pub fn to_sync_destination(&self) -> SyncDestination {
         match self {
             DeployTarget::Project(root) => SyncDestination::Local(root.clone()),

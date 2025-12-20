@@ -1,4 +1,10 @@
 //! Core deploy runner using two-stage sync
+//!
+//! **DEPRECATED**: This module is being replaced by `DeployUseCase`.
+//! It will be removed in v0.4.0.
+
+#![allow(deprecated)]
+#![allow(dead_code)]
 
 use std::path::{Path, PathBuf};
 
@@ -17,6 +23,11 @@ use super::targets::DeployTarget;
 use crate::ui::context::UiContext;
 
 /// Deploy runner using two-stage sync
+///
+/// **DEPRECATED**: This struct is being replaced by `DeployUseCase`.
+/// It will be removed in v0.4.0.
+#[deprecated(since = "0.3.0", note = "Use DeployUseCase instead")]
+#[allow(dead_code)]
 pub struct DeployRunner {
     /// Source directory (.promptpack)
     source: PathBuf,
@@ -29,7 +40,6 @@ pub struct DeployRunner {
     /// Configuration
     config: Config,
     /// UI context (legacy - used by old cmd.rs code path)
-    #[allow(dead_code)]
     ui: UiContext,
 }
 

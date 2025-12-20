@@ -72,13 +72,6 @@ pub fn convert_result(use_case_result: &UseCaseResult) -> SyncResult {
     }
 }
 
-/// Check if we should use the new engine
-///
-/// The new engine is now the default. Set CALVIN_LEGACY_ENGINE=1 to use the old engine.
-pub fn should_use_new_engine() -> bool {
-    !std::env::var("CALVIN_LEGACY_ENGINE").is_ok_and(|v| v == "1" || v.to_lowercase() == "true")
-}
-
 /// Create a deploy use case for the given targets (local destinations)
 pub fn create_use_case_for_targets(targets: &[calvin::Target]) -> ConcreteDeployUseCase {
     let adapters = create_adapters_for_legacy_targets(targets);
@@ -194,25 +187,5 @@ mod tests {
         );
 
         assert!(options.clean_orphans);
-    }
-
-    // Note: These tests modify environment variables and must run serially.
-    // Using a static mutex to prevent race conditions.
-    static ENV_TEST_MUTEX: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
-    #[test]
-    fn should_use_new_engine_default_true() {
-        let _lock = ENV_TEST_MUTEX.lock().unwrap();
-        // Clear any existing env var
-        std::env::remove_var("CALVIN_LEGACY_ENGINE");
-        assert!(should_use_new_engine());
-    }
-
-    #[test]
-    fn should_use_legacy_engine_when_flag_set() {
-        let _lock = ENV_TEST_MUTEX.lock().unwrap();
-        std::env::set_var("CALVIN_LEGACY_ENGINE", "1");
-        assert!(!should_use_new_engine());
-        std::env::remove_var("CALVIN_LEGACY_ENGINE");
     }
 }

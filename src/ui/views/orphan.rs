@@ -1,4 +1,9 @@
 //! Orphan file display views
+//!
+//! **DEPRECATED**: These views are being replaced by DeployUseCase's built-in orphan handling.
+//! They will be removed in v0.4.0.
+
+#![allow(dead_code)]
 
 use crossterm::style::Stylize;
 
