@@ -5,7 +5,7 @@
 
 use std::collections::HashSet;
 
-use crate::adapters::OutputFile;
+use super::OutputFile;
 use crate::sync::lockfile::{lockfile_key, Lockfile, LockfileNamespace};
 
 /// Calvin file signature patterns

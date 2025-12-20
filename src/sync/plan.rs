@@ -5,7 +5,7 @@
 
 use std::path::PathBuf;
 
-use crate::adapters::OutputFile;
+use super::OutputFile;
 use crate::error::CalvinResult;
 use crate::fs::FileSystem;
 use crate::sync::lockfile::{lockfile_key, Lockfile, LockfileNamespace};

@@ -5,7 +5,7 @@
 
 use std::path::PathBuf;
 
-use crate::adapters::OutputFile;
+use super::OutputFile;
 use crate::domain::entities::Asset;
 use crate::domain::value_objects::Target as DomainTarget;
 use crate::error::CalvinResult;

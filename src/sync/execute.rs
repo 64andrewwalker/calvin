@@ -4,7 +4,7 @@
 
 use std::path::Path;
 
-use crate::adapters::OutputFile;
+use super::OutputFile;
 use crate::error::CalvinResult;
 use crate::fs::FileSystem;
 use crate::sync::plan::{SyncDestination, SyncPlan};

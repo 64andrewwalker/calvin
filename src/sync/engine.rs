@@ -16,7 +16,7 @@
 
 use std::path::{Path, PathBuf};
 
-use crate::adapters::OutputFile;
+use super::OutputFile;
 use crate::error::CalvinResult;
 use crate::fs::{FileSystem, LocalFileSystem, RemoteFileSystem};
 use crate::sync::execute::{execute_sync_with_callback, SyncStrategy};
