@@ -2,12 +2,8 @@
 //!
 //! Provides security validation for AI coding assistant configurations.
 
-mod audit;
-mod doctor;
 mod engine;
 
-pub use audit::cmd_audit;
-pub use doctor::cmd_doctor;
 pub use engine::cmd_check;
 
 /// Parse security mode from string

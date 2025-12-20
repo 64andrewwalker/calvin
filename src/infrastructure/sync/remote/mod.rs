@@ -1,17 +1,27 @@
 //! Remote Sync Destination
 //!
-//! Implements SyncDestination for remote servers via SSH/rsync.
-//! Uses rsync for efficient batch transfers.
+//! Implements SyncDestination for remote servers via SSH.
+//! Uses a pluggable transfer strategy (rsync preferred, scp fallback).
+
+mod rsync;
+mod scp;
+mod transfer;
+
+pub use rsync::RsyncTransfer;
+pub use scp::ScpTransfer;
+pub use transfer::{detect_strategy, TransferStrategy};
 
 use crate::domain::entities::OutputFile;
 use crate::domain::ports::{SyncDestination, SyncDestinationError, SyncOptions, SyncResult};
 use crate::domain::value_objects::Scope;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 /// Sync destination for remote servers
 ///
-/// Uses rsync for efficient batch file transfers.
+/// Uses SSH for single file operations and a configurable transfer
+/// strategy (rsync or scp) for batch operations.
 pub struct RemoteDestination {
     /// Remote host (e.g., "ubuntu-server" or "user@host")
     host: String,
@@ -39,20 +49,33 @@ impl RemoteDestination {
         }
     }
 
-    /// Check if rsync is available
-    pub fn has_rsync() -> bool {
-        Command::new("rsync")
-            .arg("--version")
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()
-            .map(|s| s.success())
-            .unwrap_or(false)
-    }
-
     /// Build the remote destination string
     fn remote_dest(&self) -> String {
         format!("{}:{}", self.host, self.remote_path)
+    }
+
+    /// Stage output files to a temporary directory
+    fn stage_files(
+        staging_root: &Path,
+        outputs: &[OutputFile],
+    ) -> Result<Vec<PathBuf>, SyncDestinationError> {
+        let mut staged_files = Vec::new();
+
+        for output in outputs {
+            let target_path = staging_root.join(output.path());
+
+            if let Some(parent) = target_path.parent() {
+                std::fs::create_dir_all(parent)
+                    .map_err(|e| SyncDestinationError::IoError(e.to_string()))?;
+            }
+
+            std::fs::write(&target_path, output.content())
+                .map_err(|e| SyncDestinationError::IoError(e.to_string()))?;
+
+            staged_files.push(output.path().clone());
+        }
+
+        Ok(staged_files)
     }
 }
 
@@ -66,7 +89,6 @@ impl SyncDestination for RemoteDestination {
     }
 
     fn exists(&self, path: &Path) -> bool {
-        // Check file existence via SSH
         let remote_file = format!("{}/{}", self.remote_path, path.display());
         Command::new("ssh")
             .arg(&self.host)
@@ -79,7 +101,6 @@ impl SyncDestination for RemoteDestination {
     }
 
     fn read(&self, path: &Path) -> Result<String, SyncDestinationError> {
-        // Read file via SSH
         let remote_file = format!("{}/{}", self.remote_path, path.display());
         let output = Command::new("ssh")
             .arg(&self.host)
@@ -99,7 +120,6 @@ impl SyncDestination for RemoteDestination {
     }
 
     fn hash(&self, path: &Path) -> Result<String, SyncDestinationError> {
-        // Compute hash via SSH
         let remote_file = format!("{}/{}", self.remote_path, path.display());
         let output = Command::new("ssh")
             .arg(&self.host)
@@ -126,15 +146,12 @@ impl SyncDestination for RemoteDestination {
     }
 
     fn write_file(&self, path: &Path, content: &str) -> Result<(), SyncDestinationError> {
-        // Write single file via SSH
-        // For single files, we use echo with SSH
         let remote_file = format!("{}/{}", self.remote_path, path.display());
         let remote_dir = Path::new(&remote_file)
             .parent()
             .map(|p| p.display().to_string())
             .unwrap_or_default();
 
-        // Create parent directory and write file
         let mut child = Command::new("ssh")
             .arg(&self.host)
             .arg(format!(
@@ -147,7 +164,6 @@ impl SyncDestination for RemoteDestination {
             .spawn()
             .map_err(|e| SyncDestinationError::ConnectionError(e.to_string()))?;
 
-        use std::io::Write;
         if let Some(stdin) = child.stdin.as_mut() {
             stdin
                 .write_all(content.as_bytes())
@@ -194,33 +210,21 @@ impl SyncDestination for RemoteDestination {
         outputs: &[OutputFile],
         options: &SyncOptions,
     ) -> Result<SyncResult, SyncDestinationError> {
-        if !Self::has_rsync() {
-            return Err(SyncDestinationError::NotAvailable(
-                "rsync is not installed".to_string(),
-            ));
-        }
+        // Detect available transfer strategy
+        let strategy = detect_strategy().ok_or_else(|| {
+            SyncDestinationError::NotAvailable(
+                "No transfer method available. Install rsync (preferred) or ensure scp is in PATH."
+                    .to_string(),
+            )
+        })?;
 
-        // Create temp directory for staging
+        // Create staging directory
         let temp_dir =
             tempfile::tempdir().map_err(|e| SyncDestinationError::IoError(e.to_string()))?;
         let staging_root = temp_dir.path();
 
         // Stage all files
-        let mut staged_files = Vec::new();
-        for output in outputs {
-            let target_path = staging_root.join(output.path());
-
-            // Create parent directories
-            if let Some(parent) = target_path.parent() {
-                std::fs::create_dir_all(parent)
-                    .map_err(|e| SyncDestinationError::IoError(e.to_string()))?;
-            }
-
-            // Write file
-            std::fs::write(&target_path, output.content())
-                .map_err(|e| SyncDestinationError::IoError(e.to_string()))?;
-            staged_files.push(output.path().clone());
-        }
+        let staged_files = Self::stage_files(staging_root, outputs)?;
 
         if options.dry_run {
             return Ok(SyncResult {
@@ -230,43 +234,17 @@ impl SyncDestination for RemoteDestination {
             });
         }
 
-        // Build rsync command
-        let mut cmd = Command::new("rsync");
-        cmd.arg("-avz")
-            .arg("--progress")
-            .arg("-e")
-            .arg("ssh")
-            .arg(format!("{}/", staging_root.display())) // trailing slash = copy contents
-            .arg(self.remote_dest())
-            .stdin(Stdio::inherit()); // Allow password input
-
-        if options.json {
-            cmd.stdout(Stdio::null()).stderr(Stdio::piped());
-        } else {
-            cmd.stdout(Stdio::inherit()).stderr(Stdio::inherit());
-        }
-
-        let status = cmd
-            .status()
-            .map_err(|e| SyncDestinationError::CommandFailed(e.to_string()))?;
-
-        if !status.success() {
-            return Err(SyncDestinationError::CommandFailed(format!(
-                "rsync failed with exit code: {:?}",
-                status.code()
-            )));
-        }
-
-        Ok(SyncResult {
-            written: staged_files,
-            skipped: vec![],
-            errors: vec![],
-        })
+        // Execute transfer using detected strategy
+        strategy.transfer(
+            staging_root,
+            &self.host,
+            &self.remote_path,
+            &staged_files,
+            options,
+        )
     }
 
     fn resolve_path(&self, path: &Path) -> PathBuf {
-        // For remote, we just return the path as-is
-        // The remote host handles path resolution
         path.to_path_buf()
     }
 
@@ -343,15 +321,5 @@ mod tests {
         let dest = RemoteDestination::new("admin@192.168.1.1:~/projects", PathBuf::from("."));
         assert_eq!(dest.host, "admin@192.168.1.1");
         assert_eq!(dest.remote_path, "~/projects");
-    }
-
-    // Note: SSH/rsync integration tests require actual network access
-    // and are better suited for integration tests with a test container.
-    // The following tests verify command construction without execution.
-
-    #[test]
-    fn has_rsync_does_not_panic() {
-        // This just verifies the function doesn't panic, actual result depends on system
-        let _ = RemoteDestination::has_rsync();
     }
 }

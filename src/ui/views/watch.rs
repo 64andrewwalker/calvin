@@ -2,14 +2,6 @@ use crate::ui::blocks::header::CommandHeader;
 use crate::ui::primitives::icon::Icon;
 use calvin::application::watch::WatchEvent;
 
-#[allow(dead_code)]
-pub fn render_watch_header(source: &str, supports_color: bool, supports_unicode: bool) -> String {
-    let mut header = CommandHeader::new(Icon::Watch, "Calvin Watch");
-    header.add("Source", source);
-    header.add("Hint", "Press Ctrl+C to stop");
-    header.render(supports_color, supports_unicode)
-}
-
 pub fn render_watch_header_with_target(
     source: &str,
     target: &str,

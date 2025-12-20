@@ -5,7 +5,6 @@
 //! ## Design Notes
 //!
 //! - Global flags (--json, --color, --verbose, --no-animation) are inherited by all subcommands
-//! - Hidden commands (sync, install, doctor, audit) are deprecated and redirect to new unified commands
 //! - The CLI supports both interactive and non-interactive modes
 
 use std::path::PathBuf;
@@ -101,66 +100,6 @@ pub enum Commands {
         brief: bool,
     },
 
-    /// Install PromptPack assets to system/user scope
-    #[command(hide = true)]
-    Install {
-        /// Path to .promptpack directory
-        #[arg(short, long, default_value = ".promptpack")]
-        source: PathBuf,
-
-        /// Install to user scope (home directory) - only installs scope: user assets
-        #[arg(long)]
-        user: bool,
-
-        /// Install ALL assets to global user directories (ignores scope in frontmatter)
-        #[arg(long, short = 'g')]
-        global: bool,
-
-        /// Target platforms (will prompt interactively if not specified)
-        #[arg(short, long, value_delimiter = ',')]
-        targets: Option<Vec<Target>>,
-
-        /// Force overwrite of modified files
-        #[arg(short, long)]
-        force: bool,
-
-        /// Skip interactive prompts (auto-confirm overwrites)
-        #[arg(short, long)]
-        yes: bool,
-
-        /// Dry run - show what would be done
-        #[arg(long)]
-        dry_run: bool,
-    },
-
-    /// Compile and sync PromptPack to target platforms
-    #[command(hide = true)]
-    Sync {
-        /// Path to .promptpack directory
-        #[arg(short, long, default_value = ".promptpack")]
-        source: PathBuf,
-
-        /// Remote destination (user@host:/path)
-        #[arg(long)]
-        remote: Option<String>,
-
-        /// Force overwrite of modified files
-        #[arg(short, long)]
-        force: bool,
-
-        /// Skip interactive prompts (auto-confirm overwrites)
-        #[arg(short, long)]
-        yes: bool,
-
-        /// Dry run - show what would be done
-        #[arg(long)]
-        dry_run: bool,
-
-        /// Target platforms (will prompt interactively if not specified)
-        #[arg(short, long, value_delimiter = ',')]
-        targets: Option<Vec<Target>>,
-    },
-
     /// Watch for changes and sync continuously
     Watch {
         /// Path to .promptpack directory
@@ -181,26 +120,6 @@ pub enum Commands {
         /// Diff against home directory outputs (~/...)
         #[arg(long)]
         home: bool,
-    },
-
-    /// Validate platform configurations
-    #[command(hide = true)]
-    Doctor {
-        /// Security mode to validate against
-        #[arg(long, default_value = "balanced")]
-        mode: String,
-    },
-
-    /// Security audit for CI (exits non-zero on violations)
-    #[command(hide = true)]
-    Audit {
-        /// Security mode (strict recommended for CI)
-        #[arg(long, default_value = "strict")]
-        mode: String,
-
-        /// Fail on warnings too
-        #[arg(long)]
-        strict_warnings: bool,
     },
 
     /// Migrate assets or adapters to newer versions
@@ -315,126 +234,31 @@ mod tests {
     }
 
     #[test]
-    fn test_cli_parse_sync() {
-        let cli = Cli::try_parse_from(["calvin", "sync"]).unwrap();
-        assert!(matches!(cli.command, Some(Commands::Sync { .. })));
-    }
-
-    #[test]
-    fn test_cli_parse_sync_with_args() {
-        let cli = Cli::try_parse_from([
-            "calvin",
-            "sync",
-            "--source",
-            "my-pack",
-            "--force",
-            "--dry-run",
-        ])
-        .unwrap();
-
-        if let Some(Commands::Sync {
-            source,
-            force,
-            dry_run,
-            ..
-        }) = cli.command
-        {
-            assert_eq!(source, PathBuf::from("my-pack"));
-            assert!(force);
-            assert!(dry_run);
-        } else {
-            panic!("Expected Sync command");
-        }
-    }
-
-    #[test]
-    fn test_cli_parse_sync_yes() {
-        let cli = Cli::try_parse_from(["calvin", "sync", "--yes"]).unwrap();
-        if let Some(Commands::Sync { yes, .. }) = cli.command {
-            assert!(yes);
-        } else {
-            panic!("Expected Sync command");
-        }
-    }
-
-    #[test]
-    fn test_cli_parse_sync_yes_short_flag() {
-        let cli = Cli::try_parse_from(["calvin", "sync", "-y"]).unwrap();
-        if let Some(Commands::Sync { yes, .. }) = cli.command {
-            assert!(yes);
-        } else {
-            panic!("Expected Sync command");
-        }
-    }
-
-    #[test]
-    fn test_cli_parse_doctor() {
-        let cli = Cli::try_parse_from(["calvin", "doctor", "--mode", "strict"]).unwrap();
-        if let Some(Commands::Doctor { mode }) = cli.command {
-            assert_eq!(mode, "strict");
-        } else {
-            panic!("Expected Doctor command");
-        }
-    }
-
-    #[test]
     fn test_cli_json_flag() {
-        let cli = Cli::try_parse_from(["calvin", "--json", "sync"]).unwrap();
+        let cli = Cli::try_parse_from(["calvin", "--json", "deploy"]).unwrap();
         assert!(cli.json);
-        assert!(matches!(cli.command, Some(Commands::Sync { .. })));
+        assert!(matches!(cli.command, Some(Commands::Deploy { .. })));
     }
 
     #[test]
     fn test_cli_json_flag_after_subcommand() {
-        let cli = Cli::try_parse_from(["calvin", "sync", "--json"]).unwrap();
+        let cli = Cli::try_parse_from(["calvin", "deploy", "--json"]).unwrap();
         assert!(cli.json);
-        assert!(matches!(cli.command, Some(Commands::Sync { .. })));
+        assert!(matches!(cli.command, Some(Commands::Deploy { .. })));
     }
 
     #[test]
     fn test_cli_verbose_flag() {
-        let cli = Cli::try_parse_from(["calvin", "-vvv", "sync"]).unwrap();
+        let cli = Cli::try_parse_from(["calvin", "-vvv", "deploy"]).unwrap();
         assert_eq!(cli.verbose, 3);
-        assert!(matches!(cli.command, Some(Commands::Sync { .. })));
+        assert!(matches!(cli.command, Some(Commands::Deploy { .. })));
     }
 
     #[test]
     fn test_cli_verbose_flag_after_subcommand() {
-        let cli = Cli::try_parse_from(["calvin", "doctor", "-v"]).unwrap();
+        let cli = Cli::try_parse_from(["calvin", "check", "-v"]).unwrap();
         assert_eq!(cli.verbose, 1);
-        assert!(matches!(cli.command, Some(Commands::Doctor { .. })));
-    }
-
-    #[test]
-    fn test_cli_parse_audit() {
-        let cli = Cli::try_parse_from(["calvin", "audit"]).unwrap();
-        if let Some(Commands::Audit {
-            mode,
-            strict_warnings,
-        }) = cli.command
-        {
-            assert_eq!(mode, "strict"); // Default
-            assert!(!strict_warnings);
-        } else {
-            panic!("Expected Audit command");
-        }
-    }
-
-    #[test]
-    fn test_cli_parse_audit_with_options() {
-        let cli =
-            Cli::try_parse_from(["calvin", "audit", "--mode", "balanced", "--strict-warnings"])
-                .unwrap();
-        if let Some(Commands::Audit {
-            mode,
-            strict_warnings,
-        }) = cli.command
-        {
-            assert_eq!(mode, "balanced");
-            assert!(strict_warnings);
-        } else {
-            panic!("Expected Audit command");
-        }
+        assert!(matches!(cli.command, Some(Commands::Check { .. })));
     }
 
     #[test]
@@ -469,22 +293,12 @@ mod tests {
     }
 
     #[test]
-    fn test_cli_parse_install() {
-        let cli = Cli::try_parse_from(["calvin", "install", "--user"]).unwrap();
-        if let Some(Commands::Install { user, .. }) = cli.command {
-            assert!(user);
-        } else {
-            panic!("Expected Install command");
-        }
-    }
-
-    #[test]
-    fn test_cli_parse_sync_remote() {
-        let cli = Cli::try_parse_from(["calvin", "sync", "--remote", "user@host"]).unwrap();
-        if let Some(Commands::Sync { remote, .. }) = cli.command {
+    fn test_cli_parse_deploy_remote() {
+        let cli = Cli::try_parse_from(["calvin", "deploy", "--remote", "user@host"]).unwrap();
+        if let Some(Commands::Deploy { remote, .. }) = cli.command {
             assert_eq!(remote, Some("user@host".to_string()));
         } else {
-            panic!("Expected Sync command");
+            panic!("Expected Deploy command");
         }
     }
 
@@ -507,13 +321,13 @@ mod tests {
 
     #[test]
     fn test_cli_color_flag() {
-        let cli = Cli::try_parse_from(["calvin", "--color", "never", "sync"]).unwrap();
+        let cli = Cli::try_parse_from(["calvin", "--color", "never", "deploy"]).unwrap();
         assert!(matches!(cli.color, Some(ColorWhen::Never)));
     }
 
     #[test]
     fn test_cli_no_animation_flag() {
-        let cli = Cli::try_parse_from(["calvin", "--no-animation", "sync"]).unwrap();
+        let cli = Cli::try_parse_from(["calvin", "--no-animation", "deploy"]).unwrap();
         assert!(cli.no_animation);
     }
 }
