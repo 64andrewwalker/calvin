@@ -134,12 +134,18 @@ jobs:
           
           cat release_notes.md
           
-      - name: Delete existing nightly release
+      - name: Delete existing nightly release and tag
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release delete nightly --yes || true
-          git push origin :refs/tags/nightly || true
+          # Delete the release first (this doesn't delete the tag)
+          gh release delete nightly --yes --cleanup-tag 2>/dev/null || true
+          
+          # Also try to delete the tag directly in case release didn't exist
+          git push origin :refs/tags/nightly 2>/dev/null || true
+          
+          # Wait for GitHub to process the deletion
+          sleep 5
           
       - name: Create nightly release
         env:
@@ -188,8 +194,10 @@ jobs:
           ```
           EOF
           
+          # Create release with --target to avoid tag conflict
           gh release create nightly \
             --title "Nightly Build (${{ steps.meta.outputs.date }})" \
             --notes-file body.md \
             --prerelease \
+            --target ${{ github.sha }} \
             release-assets/*
