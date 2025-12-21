@@ -60,8 +60,25 @@ jobs:
         if: matrix.coverage
         id: coverage
         run: |
-          # Get total line coverage percentage
-          COVERAGE=$(cargo llvm-cov --all-features --summary-only 2>&1 | grep "TOTAL" | awk '{print $NF}' | sed 's/%//')
+          # Get total line coverage percentage - try multiple parsing approaches
+          OUTPUT=$(cargo llvm-cov --all-features --summary-only 2>&1)
+          echo "Raw output:"
+          echo "$OUTPUT"
+          
+          # Try to extract coverage from different output formats
+          COVERAGE=$(echo "$OUTPUT" | grep -E "^\s*TOTAL" | awk '{for(i=1;i<=NF;i++) if($i ~ /[0-9]+\.[0-9]+%/) print $i}' | sed 's/%//' | head -1)
+          
+          # Fallback: try another pattern
+          if [ -z "$COVERAGE" ]; then
+            COVERAGE=$(echo "$OUTPUT" | grep "TOTAL" | grep -oE '[0-9]+\.[0-9]+' | tail -1)
+          fi
+          
+          # Default to 0 if still empty
+          if [ -z "$COVERAGE" ]; then
+            echo "Warning: Could not parse coverage, defaulting to 0"
+            COVERAGE="0"
+          fi
+          
           echo "Total coverage: ${COVERAGE}%"
           echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
           
