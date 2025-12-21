@@ -1,0 +1,195 @@
+name: Nightly Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:  # 允许手动触发
+
+env:
+  CARGO_TERM_COLOR: always
+  BINARY_NAME: calvin
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            artifact_name: calvin-x86_64-apple-darwin
+            
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            artifact_name: calvin-aarch64-apple-darwin
+            
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            artifact_name: calvin-x86_64-pc-windows-msvc
+            
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            artifact_name: calvin-x86_64-unknown-linux-gnu
+            
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            artifact_name: calvin-aarch64-unknown-linux-gnu
+
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+          
+      - name: Install cross-compilation tools (Linux ARM)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+          
+      - name: Build release binary
+        run: cargo build --release --target ${{ matrix.target }}
+        
+      - name: Prepare binary (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          cd target/${{ matrix.target }}/release
+          strip ${{ env.BINARY_NAME }} || true
+          chmod +x ${{ env.BINARY_NAME }}
+          tar czf ../../../${{ matrix.artifact_name }}.tar.gz ${{ env.BINARY_NAME }}
+          
+      - name: Prepare binary (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cd target/${{ matrix.target }}/release
+          7z a ../../../${{ matrix.artifact_name }}.zip ${{ env.BINARY_NAME }}.exe
+          
+      - name: Upload artifact (Unix)
+        if: runner.os != 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_name }}.tar.gz
+          retention-days: 30
+          
+      - name: Upload artifact (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_name }}.zip
+          retention-days: 30
+
+  release:
+    name: Update Nightly Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 获取完整历史以生成 changelog
+      
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          
+      - name: Prepare release assets
+        run: |
+          mkdir -p release-assets
+          find artifacts -type f \( -name "*.tar.gz" -o -name "*.zip" \) -exec mv {} release-assets/ \;
+          cd release-assets
+          sha256sum * > SHA256SUMS.txt
+          ls -la
+          
+      - name: Get version and date
+        id: meta
+        run: |
+          VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          DATE=$(date -u +%Y-%m-%d)
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "date=$DATE" >> $GITHUB_OUTPUT
+          echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
+          
+      - name: Extract changelog
+        id: changelog
+        run: |
+          # 提取 [Unreleased] 部分的内容
+          awk '/^## \[Unreleased\]/{flag=1; next} /^## \[/{flag=0} flag' CHANGELOG.md > release_notes.md
+          
+          # 如果 Unreleased 部分为空，使用最近的提交
+          if [ ! -s release_notes.md ]; then
+            echo "### Recent Changes" > release_notes.md
+            echo "" >> release_notes.md
+            git log --oneline -10 --pretty=format:"- %s (%h)" >> release_notes.md
+          fi
+          
+          cat release_notes.md
+          
+      - name: Delete existing nightly release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete nightly --yes || true
+          git push origin :refs/tags/nightly || true
+          
+      - name: Create nightly release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cat << 'EOF' > body.md
+          ## Calvin Nightly Build
+          
+          **Version:** ${{ steps.meta.outputs.version }}-nightly+${{ steps.meta.outputs.short_sha }}
+          **Date:** ${{ steps.meta.outputs.date }}
+          **Commit:** ${{ github.sha }}
+          
+          > ⚠️ This is an automated nightly build from the `main` branch. 
+          > For stable releases, please use the [latest tagged release](../../releases/latest).
+          
+          ---
+          
+          EOF
+          
+          cat release_notes.md >> body.md
+          
+          cat << 'EOF' >> body.md
+          
+          ---
+          
+          ## Downloads
+          
+          | Platform | Download |
+          |----------|----------|
+          | **macOS (Apple Silicon)** | `calvin-aarch64-apple-darwin.tar.gz` |
+          | **macOS (Intel)** | `calvin-x86_64-apple-darwin.tar.gz` |
+          | **Windows (x64)** | `calvin-x86_64-pc-windows-msvc.zip` |
+          | **Linux (x64)** | `calvin-x86_64-unknown-linux-gnu.tar.gz` |
+          | **Linux (ARM64)** | `calvin-aarch64-unknown-linux-gnu.tar.gz` |
+          
+          ## Quick Install
+          
+          ```bash
+          # macOS/Linux
+          curl -fsSL https://github.com/${{ github.repository }}/releases/download/nightly/calvin-$(uname -m)-$(uname -s | tr '[:upper:]' '[:lower:]' | sed 's/darwin/apple-darwin/;s/linux/unknown-linux-gnu/').tar.gz | tar xz
+          sudo mv calvin /usr/local/bin/
+          
+          # Windows (PowerShell)
+          Invoke-WebRequest -Uri "https://github.com/${{ github.repository }}/releases/download/nightly/calvin-x86_64-pc-windows-msvc.zip" -OutFile calvin.zip
+          Expand-Archive calvin.zip -DestinationPath .
+          ```
+          EOF
+          
+          gh release create nightly \
+            --title "Nightly Build (${{ steps.meta.outputs.date }})" \
+            --notes-file body.md \
+            --prerelease \
+            release-assets/*

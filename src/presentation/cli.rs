@@ -148,6 +148,21 @@ pub enum Commands {
         #[arg(short, long, default_value = ".promptpack")]
         source: PathBuf,
     },
+
+    /// Initialize a new .promptpack directory
+    Init {
+        /// Directory to initialize (default: current directory)
+        #[arg(default_value = ".")]
+        path: PathBuf,
+
+        /// Template to use (minimal, standard, full)
+        #[arg(short, long, default_value = "standard")]
+        template: String,
+
+        /// Force initialization even if .promptpack already exists
+        #[arg(short, long)]
+        force: bool,
+    },
 }
 
 #[cfg(test)]
@@ -329,5 +344,52 @@ mod tests {
     fn test_cli_no_animation_flag() {
         let cli = Cli::try_parse_from(["calvin", "--no-animation", "deploy"]).unwrap();
         assert!(cli.no_animation);
+    }
+
+    #[test]
+    fn test_cli_parse_init() {
+        let cli = Cli::try_parse_from(["calvin", "init"]).unwrap();
+        if let Some(Commands::Init {
+            path,
+            template,
+            force,
+        }) = cli.command
+        {
+            assert_eq!(path, PathBuf::from("."));
+            assert_eq!(template, "standard");
+            assert!(!force);
+        } else {
+            panic!("Expected Init command");
+        }
+    }
+
+    #[test]
+    fn test_cli_parse_init_with_path() {
+        let cli = Cli::try_parse_from(["calvin", "init", "my-project"]).unwrap();
+        if let Some(Commands::Init { path, .. }) = cli.command {
+            assert_eq!(path, PathBuf::from("my-project"));
+        } else {
+            panic!("Expected Init command");
+        }
+    }
+
+    #[test]
+    fn test_cli_parse_init_with_template() {
+        let cli = Cli::try_parse_from(["calvin", "init", "--template", "minimal"]).unwrap();
+        if let Some(Commands::Init { template, .. }) = cli.command {
+            assert_eq!(template, "minimal");
+        } else {
+            panic!("Expected Init command");
+        }
+    }
+
+    #[test]
+    fn test_cli_parse_init_force() {
+        let cli = Cli::try_parse_from(["calvin", "init", "--force"]).unwrap();
+        if let Some(Commands::Init { force, .. }) = cli.command {
+            assert!(force);
+        } else {
+            panic!("Expected Init command");
+        }
     }
 }
