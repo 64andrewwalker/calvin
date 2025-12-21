@@ -725,6 +725,11 @@ where
     /// Update lockfile after sync
     ///
     /// Returns an optional warning message if the lockfile could not be saved
+    ///
+    /// # Lockfile Recovery
+    /// When files are skipped because their content is identical, we still need to
+    /// ensure they're tracked in the lockfile. This handles the case where the lockfile
+    /// was lost or empty but the files still exist with correct content.
     fn update_lockfile(
         &self,
         path: &Path,
@@ -732,22 +737,32 @@ where
         result: &DeployResult,
         scope: Scope,
     ) -> Option<String> {
+        use sha2::{Digest, Sha256};
         use std::collections::HashSet;
 
         let mut lockfile = self.lockfile_repo.load_or_new(path);
 
-        // Build set of written paths
+        // Build set of written and skipped paths
         let written_set: HashSet<_> = result.written.iter().collect();
+        let skipped_set: HashSet<_> = result.skipped.iter().collect();
 
-        // Update hashes for written files
+        // Update hashes for written files and ensure skipped files are tracked
         for file in &plan.files {
+            let key = Lockfile::make_key(scope, &file.path.display().to_string());
+
             if written_set.contains(&file.path) {
-                use sha2::{Digest, Sha256};
+                // File was written - update lockfile with new hash
                 let mut hasher = Sha256::new();
                 hasher.update(file.content.as_bytes());
                 let hash = format!("sha256:{:x}", hasher.finalize());
-
-                let key = Lockfile::make_key(scope, &file.path.display().to_string());
+                lockfile.set(&key, &hash);
+            } else if skipped_set.contains(&file.path) && !lockfile.contains(&key) {
+                // File was skipped (content identical) but not in lockfile
+                // This happens when lockfile was lost but files still exist
+                // Add it to lockfile so we track it going forward
+                let mut hasher = Sha256::new();
+                hasher.update(file.content.as_bytes());
+                let hash = format!("sha256:{:x}", hasher.finalize());
                 lockfile.set(&key, &hash);
             }
         }

@@ -400,3 +400,80 @@ enabled = ["cursor"]
         lockfile_content
     );
 }
+
+// ============================================================================
+// Lockfile Recovery Tests
+// ============================================================================
+
+/// Regression test: lockfile should be populated when re-deploying to existing files
+///
+/// This tests the scenario where:
+/// 1. Files have been deployed previously
+/// 2. Lockfile is lost/empty
+/// 3. Re-deploying should:
+///    a. Skip writing (because content is identical)
+///    b. BUT still update lockfile to track the files
+#[test]
+fn deploy_recovers_lockfile_when_files_exist() {
+    let dir = create_test_project();
+    create_asset(
+        &dir,
+        "test.md",
+        r#"---
+kind: policy
+description: Test
+scope: project
+targets: [cursor]
+---
+Content
+"#,
+    );
+    create_config(
+        &dir,
+        r#"
+[deploy]
+target = "project"
+
+[targets]
+enabled = ["cursor"]
+"#,
+    );
+
+    // First deploy - creates lockfile and output files
+    let output = run_deploy(&dir, &["--yes"]);
+    assert!(output.status.success());
+
+    // Verify lockfile was created and has entries
+    let lockfile_path = dir.path().join(".promptpack/.calvin.lock");
+    assert!(lockfile_path.exists(), "Lockfile should be created");
+
+    let lockfile_content = fs::read_to_string(&lockfile_path).unwrap();
+    assert!(
+        lockfile_content.contains("[files."),
+        "Lockfile should have file entries: {}",
+        lockfile_content
+    );
+
+    // Delete the lockfile to simulate it being lost
+    fs::remove_file(&lockfile_path).unwrap();
+
+    // Second deploy - files exist with identical content, should skip writing
+    // but lockfile should be recreated and populated
+    let output2 = run_deploy(&dir, &["--yes"]);
+    assert!(output2.status.success());
+
+    // Lockfile should exist again
+    assert!(
+        lockfile_path.exists(),
+        "Lockfile should be recreated after re-deploy"
+    );
+
+    // Lockfile should have the file entry
+    let lockfile_content2 = fs::read_to_string(&lockfile_path).unwrap();
+    assert!(
+        lockfile_content2.contains("[files."),
+        "Recovered lockfile should have file entries: {}",
+        lockfile_content2
+    );
+}
+
