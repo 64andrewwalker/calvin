@@ -183,14 +183,15 @@ jobs:
           
           ## Quick Install
           
+          **macOS / Linux:**
           ```bash
-          # macOS/Linux
           curl -fsSL https://github.com/${{ github.repository }}/releases/download/nightly/calvin-$(uname -m)-$(uname -s | tr '[:upper:]' '[:lower:]' | sed 's/darwin/apple-darwin/;s/linux/unknown-linux-gnu/').tar.gz | tar xz
           sudo mv calvin /usr/local/bin/
+          ```
           
-          # Windows (PowerShell)
-          Invoke-WebRequest -Uri "https://github.com/${{ github.repository }}/releases/download/nightly/calvin-x86_64-pc-windows-msvc.zip" -OutFile calvin.zip
-          Expand-Archive calvin.zip -DestinationPath .
+          **Windows (PowerShell):**
+          ```powershell
+          irm https://raw.githubusercontent.com/${{ github.repository }}/main/scripts/install-windows.ps1 | iex
           ```
           EOF
           
