@@ -70,18 +70,46 @@ And Calvin generates platform-specific outputs:
 
 ## Installation
 
+### Quick Install (Recommended)
+
+**Windows (PowerShell)**:
+```powershell
+irm https://raw.githubusercontent.com/64andrewwalker/calvin/main/scripts/install-windows.ps1 | iex
+```
+
+**macOS / Linux**:
 ```bash
-# macOS (Homebrew)
+curl -fsSL https://github.com/64andrewwalker/calvin/releases/download/nightly/calvin-$(uname -m)-$(uname -s | tr '[:upper:]' '[:lower:]' | sed 's/darwin/apple-darwin/;s/linux/unknown-linux-gnu/').tar.gz | tar xz
+sudo mv calvin /usr/local/bin/
+```
+
+### Package Managers
+
+```bash
+# macOS (Homebrew) - coming soon
 brew install calvin
 
-# Windows (Scoop)
+# Windows (Scoop) - coming soon
 scoop install calvin
 
-# Linux / cargo
+# Via Cargo
 cargo install calvin
 
-# Or download pre-built binaries from Releases
+# Via cargo-binstall (pre-built binaries)
+cargo binstall calvin
 ```
+
+### Manual Download
+
+Download pre-built binaries from [Releases](https://github.com/64andrewwalker/calvin/releases):
+
+| Platform | Download |
+|----------|----------|
+| Windows x64 | [`calvin-x86_64-pc-windows-msvc.zip`](https://github.com/64andrewwalker/calvin/releases/download/nightly/calvin-x86_64-pc-windows-msvc.zip) |
+| macOS Apple Silicon | [`calvin-aarch64-apple-darwin.tar.gz`](https://github.com/64andrewwalker/calvin/releases/download/nightly/calvin-aarch64-apple-darwin.tar.gz) |
+| macOS Intel | [`calvin-x86_64-apple-darwin.tar.gz`](https://github.com/64andrewwalker/calvin/releases/download/nightly/calvin-x86_64-apple-darwin.tar.gz) |
+| Linux x64 | [`calvin-x86_64-unknown-linux-gnu.tar.gz`](https://github.com/64andrewwalker/calvin/releases/download/nightly/calvin-x86_64-unknown-linux-gnu.tar.gz) |
+| Linux ARM64 | [`calvin-aarch64-unknown-linux-gnu.tar.gz`](https://github.com/64andrewwalker/calvin/releases/download/nightly/calvin-aarch64-unknown-linux-gnu.tar.gz) |
 
 ## Building from Source
 
