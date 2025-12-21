@@ -67,7 +67,11 @@ impl Lockfile {
     /// This must match the logic in `sync/lockfile.rs::lockfile_key` for compatibility:
     /// - Paths starting with `~` always use `home:` prefix (regardless of scope)
     /// - User scope paths that don't start with `~` get `~/` prepended
+    /// - Backslashes are normalized to forward slashes for cross-platform consistency
     pub fn make_key(scope: Scope, path: &str) -> String {
+        // Normalize path separators for cross-platform consistency (Windows uses \)
+        let path = path.replace('\\', "/");
+
         // Paths starting with ~ always use home: prefix (even if scope is Project)
         if path == "~" || path.starts_with("~/") {
             return format!("home:{}", path);
@@ -185,6 +189,17 @@ mod tests {
         // User scope paths without ~ get ~/ prepended
         let key = Lockfile::make_key(Scope::User, ".claude/settings.json");
         assert_eq!(key, "home:~/.claude/settings.json");
+    }
+
+    #[test]
+    fn lockfile_make_key_normalizes_windows_separators() {
+        // Windows paths with backslashes should be normalized to forward slashes
+        let key = Lockfile::make_key(Scope::User, "~/.claude/commands\\test.md");
+        assert_eq!(key, "home:~/.claude/commands/test.md");
+
+        // Multiple backslashes in a path
+        let key2 = Lockfile::make_key(Scope::Project, ".cursor\\rules\\test.md");
+        assert_eq!(key2, "project:.cursor/rules/test.md");
     }
 
     #[test]
