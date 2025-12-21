@@ -58,10 +58,26 @@ jobs:
         
       - name: Check coverage threshold
         if: matrix.coverage
+        id: coverage
         run: |
           # Get total line coverage percentage
           COVERAGE=$(cargo llvm-cov --all-features --summary-only 2>&1 | grep "TOTAL" | awk '{print $NF}' | sed 's/%//')
           echo "Total coverage: ${COVERAGE}%"
+          echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
+          
+          # Determine badge color
+          if (( $(echo "$COVERAGE >= 80" | bc -l) )); then
+            COLOR="brightgreen"
+          elif (( $(echo "$COVERAGE >= 70" | bc -l) )); then
+            COLOR="green"
+          elif (( $(echo "$COVERAGE >= 60" | bc -l) )); then
+            COLOR="yellowgreen"
+          elif (( $(echo "$COVERAGE >= 50" | bc -l) )); then
+            COLOR="yellow"
+          else
+            COLOR="red"
+          fi
+          echo "color=$COLOR" >> $GITHUB_OUTPUT
           
           # Fail if coverage drops below 70%
           if (( $(echo "$COVERAGE < 70" | bc -l) )); then
@@ -71,7 +87,7 @@ jobs:
           echo "✅ Coverage ${COVERAGE}% meets 70% threshold"
         
       - name: Upload coverage to Codecov
-        if: matrix.coverage
+        if: matrix.coverage && env.CODECOV_TOKEN != ''
         uses: codecov/codecov-action@v4
         with:
           files: lcov.info
@@ -79,6 +95,18 @@ jobs:
           verbose: true
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+          
+      - name: Update coverage badge
+        if: matrix.coverage && github.ref == 'refs/heads/main'
+        uses: schneegans/dynamic-badges-action@v1.7.0
+        with:
+          auth: ${{ secrets.GIST_TOKEN }}
+          gistID: ${{ vars.COVERAGE_GIST_ID }}
+          filename: calvin-coverage.json
+          label: coverage
+          message: ${{ steps.coverage.outputs.coverage }}%
+          color: ${{ steps.coverage.outputs.color }}
+          namedLogo: rust
         
       - name: Run clippy
         run: cargo clippy -- -D warnings
