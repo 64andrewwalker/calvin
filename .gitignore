@@ -38,10 +38,14 @@ secrets/
 # These can be regenerated from .promptpack/ with `calvin deploy`
 .claude/
 .cursor/
+.codex/
 .agent/
 .github/copilot-instructions.md
 .github/instructions/
 # Note: AGENTS.md is NOT ignored for this project (it's our dev guide)
+
+# Lockfile tracks user-specific deployment state (should not be committed)
+.promptpack/.calvin.lock
 
 # Keep .promptpack/ (source of truth for prompts)
 # !.promptpack/

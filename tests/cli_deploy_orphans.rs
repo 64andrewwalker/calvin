@@ -476,4 +476,3 @@ enabled = ["cursor"]
         lockfile_content2
     );
 }
-
