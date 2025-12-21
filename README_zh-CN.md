@@ -7,7 +7,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![CI](https://github.com/64andrewwalker/calvin/actions/workflows/ci.yml/badge.svg)](https://github.com/64andrewwalker/calvin/actions/workflows/ci.yml)
 [![Nightly](https://github.com/64andrewwalker/calvin/actions/workflows/nightly.yml/badge.svg)](https://github.com/64andrewwalker/calvin/releases/tag/nightly)
-[![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/64andrewwalker/GIST_ID/raw/calvin-coverage.json)](https://github.com/64andrewwalker/calvin/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/64andrewwalker/18eca57524acb51f1d2b3d1c7bf2a64a/raw/calvin-coverage.json)](https://github.com/64andrewwalker/calvin/actions/workflows/ci.yml)
 
 **Calvin** 是一个 PromptOps 编译器和同步工具，让你可以用统一的源格式维护 AI 规则、命令和工作流，然后编译分发到多个 AI 编程助手平台。
 
