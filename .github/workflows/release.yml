@@ -149,12 +149,21 @@ jobs:
     needs: [create-release, build]
     runs-on: ubuntu-latest
     steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        
+      - name: Download release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download ${{ github.ref_name }} \
+            --repo ${{ github.repository }} \
+            --pattern '*.tar.gz' \
+            --pattern '*.zip' \
+            --dir assets || true
+          
       - name: Generate checksums
         run: |
-          sha256sum *.tar.gz *.zip > SHA256SUMS.txt || true
+          cd assets
+          sha256sum * > ../SHA256SUMS.txt 2>/dev/null || echo "No assets found" > ../SHA256SUMS.txt
+          cat ../SHA256SUMS.txt
           
       - name: Upload checksums
         uses: actions/upload-release-asset@v1
