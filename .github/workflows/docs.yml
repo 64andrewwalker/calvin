@@ -63,8 +63,23 @@ jobs:
 
       - name: Copy docs content
         run: |
+          # 清理目标目录
           rm -rf fumadocs/content/docs/*
-          cp -r calvin/docs-content/* fumadocs/content/docs/
+          rm -f fumadocs/content/_home.mdx
+          rm -f fumadocs/content/site.config.json
+          
+          # 复制 _home.mdx 到 content/ (不是 content/docs/)
+          if [ -f "calvin/docs-content/_home.mdx" ]; then
+            cp calvin/docs-content/_home.mdx fumadocs/content/_home.mdx
+          fi
+          
+          # 复制 site.config.json 到 content/
+          if [ -f "calvin/docs-content/site.config.json" ]; then
+            cp calvin/docs-content/site.config.json fumadocs/content/site.config.json
+          fi
+          
+          # 复制 docs 目录内容到 content/docs/
+          cp -r calvin/docs-content/docs/* fumadocs/content/docs/
 
       - name: Build static site
         working-directory: fumadocs
