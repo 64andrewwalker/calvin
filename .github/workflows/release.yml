@@ -9,6 +9,9 @@ env:
   CARGO_TERM_COLOR: always
   BINARY_NAME: calvin
 
+permissions:
+  contents: write
+
 jobs:
   create-release:
     name: Create Release
