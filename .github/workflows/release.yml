@@ -2,68 +2,29 @@ name: Release
 
 on:
   push:
-    tags:
-      - 'v*'
-
-env:
-  CARGO_TERM_COLOR: always
-  BINARY_NAME: calvin
+    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
-  create-release:
-    name: Create Release
+  release-please:
     runs-on: ubuntu-latest
     outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
-      version: ${{ steps.get_version.outputs.version }}
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+      version: ${{ steps.release.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
-      
-      - name: Get version from tag
-        id: get_version
-        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-        
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: googleapis/release-please-action@v4
+        id: release
         with:
-          tag_name: ${{ github.ref }}
-          release_name: Calvin v${{ steps.get_version.outputs.version }}
-          draft: true
-          prerelease: false
-          body: |
-            ## What's Changed
-            
-            See [CHANGELOG.md](CHANGELOG.md) for details.
-            
-            ## Installation
-            
-            ### macOS (Homebrew)
-            ```bash
-            brew install calvin
-            ```
-            
-            ### Windows (Scoop)
-            ```bash
-            scoop install calvin
-            ```
-            
-            ### Cargo
-            ```bash
-            cargo install calvin
-            ```
-            
-            ### Manual Download
-            Download the appropriate binary for your platform below.
-
-  build:
-    name: Build ${{ matrix.target }}
-    needs: create-release
+          release-type: rust
+          
+  build-and-upload:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -111,49 +72,37 @@ jobs:
         if: runner.os != 'Windows'
         run: |
           cd target/${{ matrix.target }}/release
-          strip ${{ env.BINARY_NAME }} || true
-          chmod +x ${{ env.BINARY_NAME }}
-          tar czf ../../../${{ matrix.name }}.tar.gz ${{ env.BINARY_NAME }}
+          strip calvin || true
+          chmod +x calvin
+          tar czf ../../../${{ matrix.name }}.tar.gz calvin
           
       - name: Prepare binary (Windows)
         if: runner.os == 'Windows'
         run: |
           cd target/${{ matrix.target }}/release
-          7z a ../../../${{ matrix.name }}.zip ${{ env.BINARY_NAME }}.exe
+          7z a ../../../${{ matrix.name }}.zip calvin.exe
           
-      - name: Upload Release Asset (Unix)
-        if: runner.os != 'Windows'
-        uses: actions/upload-release-asset@v1
+      - name: Upload to release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ${{ matrix.name }}.tar.gz
-          asset_name: ${{ matrix.name }}.tar.gz
-          asset_content_type: application/gzip
-          
-      - name: Upload Release Asset (Windows)
-        if: runner.os == 'Windows'
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ${{ matrix.name }}.zip
-          asset_name: ${{ matrix.name }}.zip
-          asset_content_type: application/zip
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            gh release upload ${{ needs.release-please.outputs.tag_name }} ${{ matrix.name }}.zip --clobber
+          else
+            gh release upload ${{ needs.release-please.outputs.tag_name }} ${{ matrix.name }}.tar.gz --clobber
+          fi
+        shell: bash
 
-  # Generate checksums for all release artifacts
   checksums:
-    name: Generate Checksums
-    needs: [create-release, build]
+    needs: [release-please, build-and-upload]
+    if: ${{ needs.release-please.outputs.release_created }}
     runs-on: ubuntu-latest
     steps:
       - name: Download release assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release download ${{ github.ref_name }} \
+          gh release download ${{ needs.release-please.outputs.tag_name }} \
             --repo ${{ github.repository }} \
             --pattern '*.tar.gz' \
             --pattern '*.zip' \
@@ -166,11 +115,7 @@ jobs:
           cat ../SHA256SUMS.txt
           
       - name: Upload checksums
-        uses: actions/upload-release-asset@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: SHA256SUMS.txt
-          asset_name: SHA256SUMS.txt
-          asset_content_type: text/plain
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload ${{ needs.release-please.outputs.tag_name }} SHA256SUMS.txt --clobber --repo ${{ github.repository }}
