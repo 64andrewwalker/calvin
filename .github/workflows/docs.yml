@@ -85,6 +85,8 @@ jobs:
         working-directory: fumadocs
         run: pnpm build
         env:
+          NEXT_OUTPUT_MODE: export
+          NEXT_BASE_PATH: /calvin
           NEXT_PUBLIC_SITE_URL: https://64andrewwalker.github.io/calvin
 
       - name: Setup Pages
