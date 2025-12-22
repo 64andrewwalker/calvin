@@ -76,11 +76,13 @@ Calvin 会生成平台特定的输出：
 ### 快速安装（推荐）
 
 **Windows (PowerShell)**：
+
 ```powershell
 irm https://raw.githubusercontent.com/64andrewwalker/calvin/main/scripts/install-windows.ps1 | iex
 ```
 
 **macOS / Linux**：
+
 ```bash
 curl -fsSL https://github.com/64andrewwalker/calvin/releases/download/nightly/calvin-$(uname -m)-$(uname -s | tr '[:upper:]' '[:lower:]' | sed 's/darwin/apple-darwin/;s/linux/unknown-linux-gnu/').tar.gz | tar xz
 sudo mv calvin /usr/local/bin/
@@ -203,10 +205,11 @@ calvin deploy --remote user@host:/path/to/project
 
 ## 项目状态
 
-**版本**：v0.2.0  
+**版本**：v0.3.0  
 **阶段**：功能完整，架构 v2 已部署
 
 最近更新：
+
 - ✅ 整洁架构重构（domain/application/infrastructure 层）
 - ✅ 600+ 测试通过，75%+ 覆盖率
 - ✅ 跨平台 CI（Ubuntu、Windows、macOS）

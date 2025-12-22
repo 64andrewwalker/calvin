@@ -76,11 +76,13 @@ And Calvin generates platform-specific outputs:
 ### Quick Install (Recommended)
 
 **Windows (PowerShell)**:
+
 ```powershell
 irm https://raw.githubusercontent.com/64andrewwalker/calvin/main/scripts/install-windows.ps1 | iex
 ```
 
 **macOS / Linux**:
+
 ```bash
 curl -fsSL https://github.com/64andrewwalker/calvin/releases/download/nightly/calvin-$(uname -m)-$(uname -s | tr '[:upper:]' '[:lower:]' | sed 's/darwin/apple-darwin/;s/linux/unknown-linux-gnu/').tar.gz | tar xz
 sudo mv calvin /usr/local/bin/
@@ -203,10 +205,11 @@ calvin deploy --remote user@host:/path/to/project
 
 ## Project Status
 
-**Version**: v0.2.0  
+**Version**: v0.3.0  
 **Stage**: Feature complete, architecture v2 deployed
 
 Recent additions:
+
 - ✅ Clean Architecture refactoring (domain/application/infrastructure layers)
 - ✅ 600+ tests passing with 75%+ coverage
 - ✅ Cross-platform CI (Ubuntu, Windows, macOS)

@@ -92,6 +92,16 @@ All notable changes to Calvin's formats and interfaces.
 
 - Initial implementation
 
+### [0.3.0] - 2025-12-23
+
+**Major Architecture Update**
+
+- Clean Architecture (v2): Four-layer architecture (domain/application/infrastructure/presentation)
+- Remote Deployment: SSH-based sync with `--remote user@host:/path`
+- Orphan Detection: Automatic cleanup of stale generated files
+- Watch Mode E2E Tests: Comprehensive test coverage for file watching
+- File Size Health Check: Pre-commit validation for code file sizes
+
 ### Commands (v0.2.0+)
 
 | Command | Description |
