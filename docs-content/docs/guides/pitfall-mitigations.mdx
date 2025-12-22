@@ -220,23 +220,25 @@ hash = "sha256:def456..."
 
 ### Sync Decision Tree
 
+```mermaid
+flowchart TD
+    Start[Check Target File] --> Exists{Exists?}
+    Exists -- No --> Write[Write File + Lock]
+    Exists -- Yes --> InLock{In Lockfile?}
+    
+    InLock -- No --> Manual{Manual File}
+    Manual --> Skip1[SKIP]
+    Manual -- --force --> Write
+    
+    InLock -- Yes --> HashMatch{Hash Match?}
+    HashMatch -- Yes --> Safe[Safe to Overwrite] --> Write
+    
+    HashMatch -- No --> Modified{Modified by User!}
+    Modified --> Default[Default: SKIP + WARN]
+    Modified -- --force --> Force[Overwrite + WARN] --> Write
+    Modified -- --yes --> Write
 ```
-For each target file:
-  1. Does target file exist?
-     NO  → Write file, record hash in lockfile
-     YES → Continue
-  
-  2. Is file in lockfile?
-     NO  → User created manually, SKIP (or --force to overwrite)
-     YES → Continue
-  
-  3. Does current file hash match lockfile hash?
-     YES → File unchanged since last sync, safe to overwrite
-     NO  → User modified it!
-           → Default: SKIP + WARNING
-           → --force: Overwrite + WARNING
-           → --yes: Non-interactive overwrite
-```
+
 
 **Output Example**:
 ```

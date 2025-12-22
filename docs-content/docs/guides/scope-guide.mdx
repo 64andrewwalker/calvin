@@ -76,6 +76,26 @@ calvin deploy --home    # Force deploy to home directory
 | `target = "home"` | (none) | Deploy to home directory |
 | Any | `--home` | Deploy to home directory |
 
+### Logic Flow
+
+```mermaid
+flowchart TD
+    Start([Start Deploy]) --> CheckFlag{Has --home flag?}
+    CheckFlag -- Yes --> UseHome[Target: USER Home]
+    CheckFlag -- No --> CheckConfig{Config: target?}
+    CheckConfig -- "home" --> UseHome
+    CheckConfig -- "project" --> UseProject[Target: PROJECT Root]
+    
+    UseHome --> ApplyPolicy[Apply Scope Policy: ForceUser]
+    UseProject --> ApplyKeep[Apply Scope Policy: Keep]
+    
+    ApplyPolicy --> Deploy User[Deploy all to ~]
+    ApplyKeep --> CheckAsset{Asset Scope?}
+    CheckAsset -- "user" --> DeployUser[Deploy to ~]
+    CheckAsset -- "project" --> DeployProject[Deploy to Project]
+```
+
+
 ---
 
 ## Scope Policy
@@ -118,6 +138,30 @@ When you change from one target to another, files deployed under the old target 
 3. Change to: `target = "home"`
 4. Deploy creates: `~/.claude/rules/security.md`
 5. Old file `.claude/rules/security.md` is now an orphan
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Config
+    participant ProjectDir as Project (.claude/)
+    participant HomeDir as Home (~/.claude/)
+
+    Note over User, HomeDir: Phase 1: Target = Project
+    User->>Config: Set target="project"
+    User->>ProjectDir: Deploy security.md
+    Note right of ProjectDir: File created
+
+    Note over User, HomeDir: Phase 2: Target = Home
+    User->>Config: Set target="home"
+    User->>HomeDir: Deploy security.md
+    Note right of HomeDir: File created
+    
+    Note right of ProjectDir: security.md is now ORPHANED
+    Note over User, HomeDir: Phase 3: Cleanup
+    User->>ProjectDir: calvin deploy --cleanup
+    ProjectDir--xProjectDir: security.md deleted
+```
+
 
 ### Cleanup
 

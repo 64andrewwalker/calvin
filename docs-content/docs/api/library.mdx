@@ -5,7 +5,7 @@ description: Rust library API reference for Calvin - module overview, core types
 
 # Calvin Library API Reference
 
-> Version: 0.2.0 | Last Updated: 2025-12-21
+> Version: 0.2.0 | Last Updated: 2025-12-23 | Sync Status: ✅ Verified
 
 Calvin is available as a Rust library for programmatic use.
 
@@ -20,28 +20,26 @@ calvin = "0.2"
 
 ## Module Overview
 
-```
-calvin
-├── application/        # Use cases and orchestration
-│   ├── DeployUseCase   # Deploy assets to targets
-│   ├── CheckUseCase    # Security validation
-│   ├── WatchUseCase    # File watching with auto-deploy
-│   ├── DiffUseCase     # Preview changes
-│   └── AssetPipeline   # Parse, filter, compile
-├── domain/             # Pure business logic
-│   ├── entities/       # Asset, OutputFile, Lockfile
-│   ├── value_objects/  # Scope, Target, Hash
-│   ├── services/       # Planner, OrphanDetector
-│   ├── policies/       # ScopePolicy, SecurityPolicy
-│   └── ports/          # Trait interfaces
-├── infrastructure/     # I/O implementations
-│   ├── adapters/       # Platform adapters
-│   ├── fs/             # LocalFs, RemoteFs
-│   └── repositories/   # Asset, Lockfile repos
-├── config/             # Configuration types
-├── models/             # PromptAsset, Frontmatter
-├── parser/             # Frontmatter parsing
-└── security/           # Security checks
+```mermaid
+graph TD
+    Calvin[calvin] --> App[application/]
+    Calvin --> Dom[domain/]
+    Calvin --> Infra[infrastructure/]
+    Calvin --> Pres[presentation/]
+    
+    App --> Deploy[DeployUseCase]
+    App --> Check[CheckUseCase]
+    App --> Watch[WatchUseCase]
+    App --> Diff[DiffUseCase]
+    App --> Pipeline[AssetPipeline]
+    
+    Dom --> Entities[entities/]
+    Dom --> Ports[ports/]
+    Dom --> Services[services/]
+    
+    Infra --> Adapters[adapters/]
+    Infra --> FS[fs/]
+    Infra --> Repos[repositories/]
 ```
 
 ---
@@ -56,10 +54,14 @@ Source asset parsed from `.promptpack/` files.
 use calvin::PromptAsset;
 
 pub struct PromptAsset {
+    /// Unique identifier (derived from filename, kebab-case)
     pub id: String,
-    pub path: PathBuf,
+    /// Source file path relative to .promptpack/
+    pub source_path: PathBuf,
+    /// Parsed frontmatter
     pub frontmatter: Frontmatter,
-    pub body: String,
+    /// Content body (after frontmatter)
+    pub content: String,
 }
 ```
 
@@ -71,12 +73,21 @@ YAML metadata extracted from source files.
 use calvin::Frontmatter;
 
 pub struct Frontmatter {
+    /// Description of the asset (REQUIRED)
     pub description: String,
-    pub kind: Option<AssetKind>,
-    pub target: Option<Scope>,
-    pub targets: Option<Vec<Target>>,
-    pub apply: Option<Vec<String>>,
-    pub arguments: Option<Vec<Argument>>,
+    /// Kind of asset (policy, action, agent) - defaults to Action
+    pub kind: AssetKind,
+    /// Where to install (project or user level) - defaults to Project
+    pub scope: Scope,
+    /// Target platforms (empty = all enabled)
+    pub targets: Vec<Target>,
+    /// File glob pattern for conditional application
+    pub apply: Option<String>,
+}
+
+impl Frontmatter {
+    pub fn new(description: impl Into<String>) -> Self;
+    pub fn effective_targets(&self) -> Vec<Target>;
 }
 ```
 
@@ -91,16 +102,19 @@ pub struct OutputFile {
     path: PathBuf,
     content: String,
     target: Target,
-    hash: ContentHash,
+    hash: Option<String>,  // Cached SHA256 hash
 }
 
 impl OutputFile {
     pub fn new(path: impl Into<PathBuf>, content: impl Into<String>, target: Target) -> Self;
-    pub fn path(&self) -> &Path;
+    pub fn new_simple(path: impl Into<PathBuf>, content: impl Into<String>) -> Self;
+    pub fn path(&self) -> &PathBuf;
     pub fn content(&self) -> &str;
     pub fn target(&self) -> Target;
-    pub fn hash(&self) -> &ContentHash;
+    pub fn hash(&mut self) -> &str;  // Note: requires &mut self
+    pub fn cached_hash(&self) -> Option<&str>;
     pub fn is_empty(&self) -> bool;
+    pub fn len(&self) -> usize;
 }
 ```
 
@@ -111,8 +125,9 @@ Deployment scope: project or user.
 ```rust
 use calvin::Scope;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Scope {
+    #[default]
     Project,  // Deploy to project directory (e.g., ./.claude/)
     User,     // Deploy to home directory (e.g., ~/.claude/)
 }
@@ -125,19 +140,24 @@ Supported AI coding assistant platforms.
 ```rust
 use calvin::Target;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Target {
     ClaudeCode,
     Cursor,
     VSCode,
     Antigravity,
     Codex,
+    All,  // Meta-target that expands to all concrete targets
 }
 
 impl Target {
-    pub fn all() -> Vec<Target>;
+    /// All concrete targets (excluding `All`)
+    pub const ALL_CONCRETE: [Target; 5];
+    
+    pub fn is_all(&self) -> bool;
+    pub fn expand(&self) -> Vec<Target>;
+    pub fn directory_name(&self) -> &'static str;
     pub fn display_name(&self) -> &'static str;
-    pub fn from_str(s: &str) -> Option<Target>;
 }
 ```
 
@@ -150,10 +170,10 @@ use calvin::AssetKind;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum AssetKind {
+    Policy,     // Long-term rules (code style, security)
     #[default]
-    Action,     // Slash commands
-    Policy,     // Rules/guidelines
-    Agent,      // Sub-agent definitions
+    Action,     // Triggered commands/workflows
+    Agent,      // Specialized sub-agents/roles
 }
 ```
 
@@ -165,33 +185,96 @@ pub enum AssetKind {
 
 Orchestrates the complete deploy flow.
 
-```rust
-use calvin::application::{DeployUseCase, DeployOptions, DeployResult};
-use calvin::Config;
+```mermaid
+sequenceDiagram
+    participant Client
+    participant UseCase as DeployUseCase
+    participant AssetRepo as AssetRepository
+    participant Adapters as TargetAdapters
+    participant Planner
+    participant FS as FileSystem
+    participant LockRepo as LockfileRepository
 
-// Builder pattern
-let deploy = DeployUseCase::builder()
-    .source(&PathBuf::from(".promptpack"))
-    .destination(&PathBuf::from("."))
-    .targets(vec![Target::ClaudeCode, Target::Cursor])
-    .config(&Config::default())
-    .dry_run(false)
-    .force(false)
-    .cleanup(false)
-    .build();
+    Client->>UseCase: execute(options)
+    UseCase->>AssetRepo: load_all(source)
+    AssetRepo-->>UseCase: Vec<Asset>
+    
+    UseCase->>UseCase: apply_scope_policy()
+    
+    loop For each Asset & Adapter
+        UseCase->>Adapters: compile(asset)
+        Adapters-->>UseCase: Vec<OutputFile>
+    end
+    
+    UseCase->>LockRepo: load_or_new(path)
+    LockRepo-->>UseCase: Lockfile
+    
+    UseCase->>Planner: plan_sync(outputs, lockfile)
+    Planner-->>UseCase: SyncPlan
+    
+    UseCase->>UseCase: resolve_conflicts()
+    
+    loop For each file to write
+        UseCase->>FS: write(path, content)
+    end
+    
+    UseCase->>LockRepo: save(lockfile)
+    UseCase-->>Client: DeployResult
+```
+
+**Usage:**
+
+```rust
+use calvin::presentation::factory::create_deploy_use_case;
+use calvin::application::{DeployOptions, DeployResult};
+use calvin::Scope;
+use std::path::PathBuf;
+
+// Create use case with all dependencies wired up
+let use_case = create_deploy_use_case();
+
+// Configure options
+let options = DeployOptions::new(".promptpack")
+    .with_scope(Scope::Project)
+    .with_dry_run(false)
+    .with_force(false);
 
 // Execute
-let result: DeployResult = deploy.execute()?;
+let result: DeployResult = use_case.execute(&options);
 
-// With event callbacks
-let result = deploy.execute_with_events(|event| {
-    match event {
-        DeployEvent::Started { source, targets } => { /* ... */ }
-        DeployEvent::Compiled { asset_count, file_count } => { /* ... */ }
-        DeployEvent::FileWritten { path } => { /* ... */ }
-        DeployEvent::Completed { result } => { /* ... */ }
-    }
-})?;
+println!("Written: {} files", result.written.len());
+println!("Skipped: {} files", result.skipped.len());
+if !result.errors.is_empty() {
+    eprintln!("Errors: {:?}", result.errors);
+}
+```
+
+### DeployOptions
+
+Configuration for deploy operations.
+
+```rust
+use calvin::application::DeployOptions;
+
+pub struct DeployOptions {
+    pub source: PathBuf,
+    pub scope: Scope,
+    pub targets: Vec<Target>,
+    pub force: bool,
+    pub interactive: bool,
+    pub dry_run: bool,
+    pub clean_orphans: bool,
+}
+
+impl DeployOptions {
+    pub fn new(source: impl Into<PathBuf>) -> Self;
+    pub fn with_scope(self, scope: Scope) -> Self;
+    pub fn with_targets(self, targets: Vec<Target>) -> Self;
+    pub fn with_force(self, force: bool) -> Self;
+    pub fn with_dry_run(self, dry_run: bool) -> Self;
+    pub fn with_interactive(self, interactive: bool) -> Self;
+    pub fn with_clean_orphans(self, clean: bool) -> Self;
+}
 ```
 
 ### DeployResult
@@ -199,20 +282,23 @@ let result = deploy.execute_with_events(|event| {
 Result of a deployment operation.
 
 ```rust
+use calvin::application::DeployResult;
+
 pub struct DeployResult {
     pub written: Vec<PathBuf>,
     pub skipped: Vec<PathBuf>,
-    pub errors: Vec<DeployError>,
-    pub orphans_removed: Vec<PathBuf>,
+    pub deleted: Vec<PathBuf>,
+    pub errors: Vec<String>,
     pub warnings: Vec<String>,
+    pub asset_count: usize,
+    pub output_count: usize,
 }
 
 impl DeployResult {
-    pub fn written_count(&self) -> usize;
-    pub fn skipped_count(&self) -> usize;
-    pub fn error_count(&self) -> usize;
-    pub fn orphan_count(&self) -> usize;
+    pub fn new() -> Self;
+    pub fn add_warning(&mut self, warning: impl Into<String>);
     pub fn is_success(&self) -> bool;
+    pub fn has_changes(&self) -> bool;
 }
 ```
 
@@ -221,15 +307,16 @@ impl DeployResult {
 Security and configuration validation.
 
 ```rust
-use calvin::application::{CheckUseCase, CheckOptions, CheckResult};
+use calvin::application::check::{CheckUseCase, CheckOptions, CheckResult};
+use calvin::SecurityMode;
 
-let check = CheckUseCase::new(CheckOptions {
+let check = CheckUseCase::new();
+let options = CheckOptions {
     root: PathBuf::from("."),
     mode: SecurityMode::Balanced,
-    strict_warnings: false,
-});
+};
 
-let result: CheckResult = check.execute()?;
+let result: CheckResult = check.execute(&options);
 
 if result.is_success() {
     println!("All checks passed!");
@@ -246,24 +333,29 @@ File watching with auto-deployment.
 
 ```rust
 use calvin::application::watch::{WatchUseCase, WatchOptions, WatchEvent};
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 let running = Arc::new(AtomicBool::new(true));
-let options = WatchOptions::builder()
-    .source(PathBuf::from(".promptpack"))
-    .targets(vec![Target::ClaudeCode])
-    .build();
+let options = WatchOptions {
+    source: PathBuf::from(".promptpack"),
+    // ... other options
+};
 
-WatchUseCase::new(options).start(running.clone(), |event: WatchEvent| {
+let watcher = WatchUseCase::new(options);
+
+// Run until stopped
+watcher.run(running.clone(), |event: WatchEvent| {
     match event {
         WatchEvent::Started { source } => println!("Watching {}", source.display()),
-        WatchEvent::FileChanged { path } => println!("Changed: {}", path.display()),
-        WatchEvent::SyncComplete { result } => println!("Synced: {} files", result.written),
+        WatchEvent::FileChanged { path, .. } => println!("Changed: {}", path.display()),
+        WatchEvent::SyncComplete { written, skipped, .. } => {
+            println!("Synced: {} written, {} skipped", written, skipped);
+        }
         WatchEvent::Error { message } => eprintln!("Error: {}", message),
         WatchEvent::Shutdown => println!("Stopped"),
     }
-})?;
+});
 ```
 
 ### DiffUseCase
@@ -271,16 +363,17 @@ WatchUseCase::new(options).start(running.clone(), |event: WatchEvent| {
 Preview what would change without writing.
 
 ```rust
-use calvin::application::{DiffUseCase, DiffOptions, DiffResult, ChangeType};
+use calvin::application::diff::{DiffUseCase, DiffOptions, DiffResult, ChangeType};
+use calvin::presentation::factory::create_diff_use_case;
 
-let diff = DiffUseCase::new(DiffOptions {
+let diff = create_diff_use_case();
+let options = DiffOptions {
     source: PathBuf::from(".promptpack"),
-    destination: PathBuf::from("."),
-    targets: vec![Target::ClaudeCode],
-    scope: Some(Scope::Project),
-});
+    scope: Scope::Project,
+    targets: vec![],  // All targets
+};
 
-let result: DiffResult = diff.execute()?;
+let result: DiffResult = diff.execute(&options);
 
 for entry in result.entries() {
     match entry.change_type {
@@ -313,6 +406,35 @@ for output in outputs {
 
 ---
 
+## Presentation Layer (Dependency Injection)
+
+### Factory Functions
+
+The presentation layer provides factory functions for creating use cases with dependencies wired up.
+
+```rust
+use calvin::presentation::factory::{
+    create_deploy_use_case,
+    create_deploy_use_case_with_adapters,
+    create_diff_use_case,
+    create_adapters_for_targets,
+};
+use calvin::Target;
+
+// Create with all adapters
+let deploy = create_deploy_use_case();
+
+// Create with specific adapters
+let adapters = create_adapters_for_targets(&[Target::ClaudeCode, Target::Cursor]);
+let deploy = create_deploy_use_case_with_adapters(adapters);
+
+// For remote deployment
+use calvin::presentation::factory::create_deploy_use_case_for_remote;
+let remote_deploy = create_deploy_use_case_for_remote("user@host:/path", source_path);
+```
+
+---
+
 ## Infrastructure Layer
 
 ### Target Adapters
@@ -320,37 +442,18 @@ for output in outputs {
 Platform-specific adapters that implement `TargetAdapter` trait.
 
 ```rust
-use calvin::infrastructure::adapters::{ClaudeCodeAdapter, CursorAdapter};
+use calvin::infrastructure::adapters::{
+    ClaudeCodeAdapter, CursorAdapter, VSCodeAdapter,
+    AntigravityAdapter, CodexAdapter, all_adapters,
+};
 use calvin::domain::ports::TargetAdapter;
 
 // Get all adapters
-let adapters = calvin::all_adapters();
+let adapters: Vec<Box<dyn TargetAdapter>> = all_adapters();
 
-// Get specific adapter
-let claude = calvin::get_adapter(Target::ClaudeCode);
-
-// Use adapter directly
-let adapter = ClaudeCodeAdapter::new();
-let outputs = adapter.compile(&asset)?;
-```
-
-### File Systems
-
-Abstract file system operations.
-
-```rust
-use calvin::infrastructure::fs::{LocalFs, RemoteFs};
-use calvin::domain::ports::FileSystem;
-
-// Local file system
-let fs = LocalFs::new();
-fs.write_atomic(&path, &content)?;
-let exists = fs.exists(&path);
-let content = fs.read_to_string(&path)?;
-
-// Remote file system (SSH)
-let remote = RemoteFs::parse("user@host:/path")?;
-remote.write_atomic(&path, &content)?;
+// Create specific adapter
+let claude = ClaudeCodeAdapter::new();
+let outputs = claude.compile(&asset)?;
 ```
 
 ### Repositories
@@ -358,8 +461,7 @@ remote.write_atomic(&path, &content)?;
 Data access implementations.
 
 ```rust
-use calvin::infrastructure::repositories::{FsAssetRepository, TomlLockfileRepository};
-use calvin::domain::ports::{AssetRepository, LockfileRepository};
+use calvin::infrastructure::{FsAssetRepository, TomlLockfileRepository};
 
 // Load assets from file system
 let repo = FsAssetRepository::new();
@@ -367,8 +469,8 @@ let assets = repo.load_all(&source_path)?;
 
 // Manage lockfile
 let lockfile_repo = TomlLockfileRepository::new();
-let lockfile = lockfile_repo.load(&project_root)?;
-lockfile_repo.save(&project_root, &lockfile)?;
+let lockfile = lockfile_repo.load_or_new(&project_root);
+lockfile_repo.save(&lockfile, &lockfile_path)?;
 ```
 
 ---
@@ -388,10 +490,6 @@ let config = Config::load_or_default(Some(&project_root));
 // Access settings
 let mode = config.security.mode;
 let targets = config.enabled_targets();
-let atomic = config.sync.atomic_writes;
-
-// With environment overrides
-let config = Config::load_with_env(Some(&project_root));
 ```
 
 ### SecurityMode
@@ -402,7 +500,7 @@ Security strictness levels.
 use calvin::SecurityMode;
 
 pub enum SecurityMode {
-    Yolo,      // No security checks
+    Yolo,      // Minimal security checks
     Balanced,  // Default: reasonable protections
     Strict,    // Maximum security, warnings = errors
 }
@@ -421,7 +519,7 @@ use calvin::parse_frontmatter;
 
 let content = r#"---
 description: My action
-target: project
+scope: project
 ---
 
 # Action Content
@@ -491,61 +589,53 @@ fn my_function() -> CalvinResult<OutputFile> {
 ### Basic Deployment
 
 ```rust
-use calvin::{Config, Target};
-use calvin::application::{DeployUseCase, DeployOptions};
-use std::path::PathBuf;
+use calvin::presentation::factory::create_deploy_use_case;
+use calvin::application::DeployOptions;
+use calvin::Scope;
 
 fn deploy_project() -> calvin::CalvinResult<()> {
-    let source = PathBuf::from(".promptpack");
-    let dest = PathBuf::from(".");
-    let config = Config::load_or_default(Some(&dest));
+    let use_case = create_deploy_use_case();
     
-    let deploy = DeployUseCase::builder()
-        .source(&source)
-        .destination(&dest)
-        .targets(config.enabled_targets())
-        .config(&config)
-        .build();
+    let options = DeployOptions::new(".promptpack")
+        .with_scope(Scope::Project)
+        .with_clean_orphans(true);
     
-    let result = deploy.execute()?;
+    let result = use_case.execute(&options);
     
-    println!("Deployed {} files", result.written_count());
+    println!("Deployed {} files", result.written.len());
     if !result.warnings.is_empty() {
         for warn in &result.warnings {
             eprintln!("Warning: {}", warn);
         }
     }
     
-    Ok(())
+    if result.is_success() {
+        Ok(())
+    } else {
+        Err(calvin::CalvinError::Sync(result.errors.join("; ")))
+    }
 }
 ```
 
-### Custom Adapter
+### Deploy to Specific Targets
 
 ```rust
-use calvin::domain::ports::TargetAdapter;
-use calvin::domain::entities::{Asset, OutputFile};
-use calvin::domain::value_objects::Target;
+use calvin::presentation::factory::{
+    create_deploy_use_case_with_adapters,
+    create_adapters_for_targets,
+};
+use calvin::application::DeployOptions;
+use calvin::Target;
 
-struct MyCustomAdapter;
-
-impl TargetAdapter for MyCustomAdapter {
-    fn target(&self) -> Target {
-        Target::Custom("my-tool".into())
-    }
+fn deploy_to_claude_only() {
+    let adapters = create_adapters_for_targets(&[Target::ClaudeCode]);
+    let use_case = create_deploy_use_case_with_adapters(adapters);
     
-    fn compile(&self, asset: &Asset) -> Result<Vec<OutputFile>, AdapterError> {
-        // Custom compilation logic
-        let path = format!(".my-tool/{}.md", asset.id());
-        let content = format!("# {}\n\n{}", asset.description(), asset.content());
-        
-        Ok(vec![OutputFile::new(path, content, self.target())])
-    }
+    let options = DeployOptions::new(".promptpack")
+        .with_targets(vec![Target::ClaudeCode]);
     
-    fn validate(&self, output: &OutputFile) -> Vec<AdapterDiagnostic> {
-        // Custom validation
-        vec![]
-    }
+    let result = use_case.execute(&options);
+    println!("Deployed to Claude Code: {} files", result.written.len());
 }
 ```
 

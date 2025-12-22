@@ -16,18 +16,16 @@ Every `.md` file in `.promptpack/` can include YAML frontmatter between `---` de
 ```markdown
 ---
 description: Generate unit tests for a file
-target: project
+scope: project
 targets: [claude-code, cursor]
-apply: ["**/*.ts", "**/*.tsx"]
-arguments:
-  - name: target_file
-    required: true
+apply: "**/*.ts"
 ---
 
 # Generate Tests
 
 Your prompt content here...
 ```
+
 
 ---
 
@@ -66,7 +64,7 @@ Explicit type of asset. Usually inferred from the directory:
 kind: policy
 ```
 
-### target (scope)
+### scope
 
 **Type**: `"project"` | `"user"`  
 **Default**: `"project"`
@@ -76,10 +74,11 @@ Where the compiled output should be deployed:
 - `user`: Deploy to home directory (e.g., `~/.claude/`)
 
 ```yaml
-target: user
+scope: user
 ```
 
-**Note**: This field controls *scope*, not *platform*. Use `targets` (plural) to filter platforms.
+**Note**: This field controls *deployment scope*, not *platform*. Use `targets` (plural) to filter platforms.
+
 
 ### targets
 
@@ -119,32 +118,6 @@ Platform support:
 | Antigravity | ⚠️ Limited support |
 | Codex | ❌ Ignored |
 
-### arguments
-
-**Type**: `Argument[]`  
-**Default**: None
-
-Arguments for action/command prompts. Used to generate parameter documentation.
-
-```yaml
-arguments:
-  - name: target_file
-    description: File to generate tests for
-    required: true
-  - name: framework
-    description: Test framework to use
-    required: false
-    default: vitest
-```
-
-#### Argument Object
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `name` | string | Yes | Argument name (used as $name placeholder) |
-| `description` | string | No | Human-readable description |
-| `required` | boolean | No | Whether argument is required (default: false) |
-| `default` | string | No | Default value if not provided |
 
 ### alwaysApply
 
@@ -168,45 +141,35 @@ Used by Cursor adapter to set the `alwaysApply` field in rules.
 # Required
 description: Generate comprehensive unit tests
 
-# Scope
-target: project            # project | user
-targets: [claude-code, cursor, antigravity]  # platform filter
+# Scope (where to deploy)
+scope: project             # project | user
+
+# Platform filter (which adapters to use)
+targets: [claude-code, cursor, antigravity]
 
 # Conditional application (for policies)
-apply: ["**/*.ts", "**/*.tsx"]
-alwaysApply: false
+apply: "**/*.ts"           # Single glob pattern (string, not array)
 
-# Arguments (for actions/commands)
-arguments:
-  - name: target_file
-    description: File or function to test
-    required: true
-  - name: coverage
-    description: Minimum coverage target
-    required: false
-    default: "80"
+# Optional: Always apply this rule
+alwaysApply: false
 ---
 
 # Generate Unit Tests
 
 Generate comprehensive unit tests for the specified file.
 
-## Arguments
-
-- `$target_file`: The file or function to generate tests for
-- `$coverage`: Minimum coverage percentage (default: 80%)
-
 ## Requirements
 
 1. Use the project's existing test framework
 2. Follow existing test naming conventions
 3. Include edge cases and error handling tests
-4. Aim for $coverage% code coverage
+4. Aim for high code coverage
 
 ## Output
 
 Create test files in the appropriate `__tests__` or `*.test.ts` location.
 ```
+
 
 ---
 
@@ -243,30 +206,31 @@ Nested directories are supported:
 
 ## Placeholder Variables
 
-In the body content, you can use placeholder variables:
+In the body content, you can use placeholder variables that are **passed through** to the output:
 
 | Placeholder | Description |
 |-------------|-------------|
-| `$ARGUMENTS` | All arguments as a single string |
+| `$ARGUMENTS` | All arguments as a single string (for Action/Agent) |
 | `$1` - `$9` | Positional arguments |
-| `$name` | Named argument (from `arguments` list) |
+
+These are **reserved** placeholders that are not processed by Calvin - they're passed through unchanged to the target platform. The platform's AI assistant will interpret them at runtime.
 
 Example:
 
 ```markdown
 ---
 description: Search codebase
-arguments:
-  - name: query
-    required: true
 ---
 
 # Search Codebase
 
-Search for: $query
+Search for: $1
 
-Arguments: $ARGUMENTS
+All arguments: $ARGUMENTS
 ```
+
+**Note**: Only Action and Agent kinds include `$ARGUMENTS` in their output. Policies do not.
+
 
 ---
 
@@ -303,9 +267,34 @@ Arguments: $ARGUMENTS
 - Arguments documented in output
 - `Usage: /prompts:id` header added
 
+### Platform transformation flow
+
+```mermaid
+graph TD
+    Input[Generic Frontmatter] --> P_Claude[Claude Code]
+    Input --> P_Cursor[Cursor]
+    Input --> P_VSCode[VS Code]
+    Input --> P_AG[Antigravity]
+    Input --> P_Codex[Codex]
+
+    P_Claude --> O_Claude[Stripped + Headers]
+    P_Cursor --> O_Cursor[Cursor Format<br/>apply->globs]
+    P_VSCode --> O_VSCode[Merged File<br/>Header: applyTo]
+    P_AG --> O_AG[Split by Kind<br/>.agent/rules & workflows]
+    P_Codex --> O_Codex[User Scope Only]
+
+    style Input fill:#f9f,stroke:#333
+    style O_Claude fill:#ccf,stroke:#333
+    style O_Cursor fill:#ccf,stroke:#333
+    style O_VSCode fill:#ccf,stroke:#333
+    style O_AG fill:#ccf,stroke:#333
+    style O_Codex fill:#ccf,stroke:#333
+```
+
 ---
 
 ## Validation
+
 
 Calvin validates frontmatter during `deploy` and `check`:
 

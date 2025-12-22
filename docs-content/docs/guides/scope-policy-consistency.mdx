@@ -67,6 +67,24 @@ let scope_policy = if use_home {
 };
 ```
 
+```mermaid
+flowchart TD
+    Start([Start Diff]) --> CheckConfig{Check config.deploy.target}
+    CheckConfig -- Home --> UseHome[Use Home]
+    CheckConfig -- Project --> UseProject[Use Project]
+    CheckConfig -- Unset --> CheckFlag{Check --home flag}
+    
+    CheckFlag -- Yes --> UseHome
+    CheckFlag -- No --> UseProject
+    
+    UseHome --> PolicyUser[Policy: UserOnly]
+    UseProject --> PolicyProject[Policy: ProjectOnly]
+    
+    PolicyUser --> Filter[Filter: Asset Scope == User]
+    PolicyProject --> Filter2[Filter: Asset Scope == Project]
+```
+
+
 ### `cmd_deploy` (current, unfixed)
 
 ```rust
@@ -77,6 +95,20 @@ let scope_policy = if home {
     ScopePolicy::Keep       // ← Keeps both scopes
 };
 ```
+
+```mermaid
+flowchart TD
+    Start([Start Deploy]) --> CheckFlag{Check --home flag}
+    
+    CheckFlag -- Yes --> PolicyForce[Policy: ForceUser]
+    CheckFlag -- No --> PolicyKeep[Policy: Keep]
+    
+    PolicyForce --> ForceAction[Action: Force all to User Scope]
+    PolicyKeep --> KeepAction[Action: Respect Asset Scope]
+    
+    style Start fill:#f96,stroke:#333,stroke-dasharray: 5 5
+```
+
 
 ### Inconsistency Matrix
 

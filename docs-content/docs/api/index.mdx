@@ -9,6 +9,34 @@ description: Calvin API documentation for CLI commands, library usage, and front
 
 This section contains API documentation for Calvin.
 
+### System Architecture
+
+```mermaid
+graph TD
+    User((User))
+    
+    subgraph "Calvin System"
+        CLI[Calvin CLI]
+        Lib[Calvin Library]
+    end
+    
+    subgraph "Input"
+        PP[.promptpack/<br/>source of truth]
+    end
+    
+    subgraph "Output"
+        Targets[Target Platforms<br/>Claude, Cursor, etc.]
+    end
+    
+    User -- "calvin deploy" --> CLI
+    User -- "import calvin" --> Lib
+    
+    CLI --> Lib
+    Lib -- "Read" --> PP
+    Lib -- "Compile & Sync" --> Targets
+```
+
+
 ## Index
 
 | Document | Description |
@@ -38,25 +66,22 @@ calvin version          # Show version info
 Calvin can be used as a Rust library:
 
 ```rust
-use calvin::{Config, compile_assets, DeployResult};
-use calvin::application::{DeployUseCase, DeployOptions};
-use calvin::infrastructure::{LocalFs, FsAssetRepository};
+use calvin::presentation::factory::create_deploy_use_case;
+use calvin::application::DeployOptions;
+use calvin::Scope;
 
-// Load configuration
-let config = Config::load_or_default(Some(&project_root));
+// Create use case with all dependencies wired up
+let use_case = create_deploy_use_case();
 
-// Create a deploy use case
-let deploy = DeployUseCase::builder()
-    .source(&source_path)
-    .destination(&dest_path)
-    .targets(config.enabled_targets())
-    .config(&config)
-    .build();
+// Configure options
+let options = DeployOptions::new(".promptpack")
+    .with_scope(Scope::Project);
 
 // Execute deployment
-let result = deploy.execute()?;
-println!("Deployed {} files", result.written_count());
+let result = use_case.execute(&options);
+println!("Deployed {} files", result.written.len());
 ```
+
 
 ### PromptPack Structure
 
@@ -80,14 +105,11 @@ println!("Deployed {} files", result.written_count());
 ```yaml
 ---
 description: Short description (required)
-target: user | project              # Deploy scope (default: project)
+scope: project | user               # Deploy scope (default: project)
 targets: [claude-code, cursor]      # Platform filter (default: all)
-apply: ["**/*.ts", "**/*.js"]       # Glob patterns for rules
-arguments:                          # Command arguments
-  - name: target_file
-    description: File to process
-    required: true
+apply: "**/*.ts"                    # Glob pattern for rules (string)
 ---
 ```
+
 
 See [Frontmatter Spec](/api/frontmatter) for complete specification.
