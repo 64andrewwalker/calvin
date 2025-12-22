@@ -80,6 +80,12 @@ jobs:
           
           # 复制 docs 目录内容到 content/docs/
           cp -r calvin/docs-content/docs/* fumadocs/content/docs/
+          
+          # 复制图片到 public 目录 (静态资源需要通过 public 目录访问)
+          mkdir -p fumadocs/public/docs/images
+          if [ -d "calvin/docs-content/docs/images" ]; then
+            cp -r calvin/docs-content/docs/images/* fumadocs/public/docs/images/
+          fi
 
       - name: Build static site
         working-directory: fumadocs
