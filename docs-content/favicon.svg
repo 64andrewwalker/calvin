@@ -1,6 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <!-- Calvin Logo - Interwoven curves with orange center -->
-  <g transform="translate(0,100) scale(0.01667,-0.01667)">
+  <!-- Calvin Favicon - with white circular background -->
+  
+  <!-- White circular background for visibility -->
+  <circle cx="50" cy="50" r="48" fill="#ffffff"/>
+  
+  <!-- Logo scaled down to fit inside the circle -->
+  <g transform="translate(10, 90) scale(0.01333, -0.01333)">
     <!-- Black interwoven curves -->
     <path fill="#1a1a1a" d="M2815 5535 c-127 -17 -171 -27 -309 -72 -197 -63 -439 -193 -591
 -317 -51 -41 -266 -242 -525 -491 -80 -77 -233 -223 -339 -325 -311 -298 -427
