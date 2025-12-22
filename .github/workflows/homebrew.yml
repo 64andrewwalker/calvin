@@ -1,0 +1,110 @@
+name: Update Homebrew Formula
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to update (e.g., 0.3.0)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  update-formula:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Get version
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Updating formula to version $VERSION"
+          
+      - name: Download and get checksums
+        id: checksums
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          BASE_URL="https://github.com/${{ github.repository }}/releases/download/v${VERSION}"
+          
+          # Download and checksum each platform
+          curl -sL "${BASE_URL}/calvin-aarch64-apple-darwin.tar.gz" | sha256sum | cut -d' ' -f1 > sha_macos_arm
+          curl -sL "${BASE_URL}/calvin-x86_64-apple-darwin.tar.gz" | sha256sum | cut -d' ' -f1 > sha_macos_intel
+          curl -sL "${BASE_URL}/calvin-aarch64-unknown-linux-gnu.tar.gz" | sha256sum | cut -d' ' -f1 > sha_linux_arm
+          curl -sL "${BASE_URL}/calvin-x86_64-unknown-linux-gnu.tar.gz" | sha256sum | cut -d' ' -f1 > sha_linux_intel
+          
+          echo "macos_arm=$(cat sha_macos_arm)" >> $GITHUB_OUTPUT
+          echo "macos_intel=$(cat sha_macos_intel)" >> $GITHUB_OUTPUT
+          echo "linux_arm=$(cat sha_linux_arm)" >> $GITHUB_OUTPUT
+          echo "linux_intel=$(cat sha_linux_intel)" >> $GITHUB_OUTPUT
+          
+      - name: Update Formula
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          
+          cat > Formula/calvin.rb << 'EOF'
+          # typed: false
+          # frozen_string_literal: true
+
+          class Calvin < Formula
+            desc "PromptOps compiler - write once, compile to all AI coding assistants"
+            homepage "https://github.com/64andrewwalker/calvin"
+            version "VERSION_PLACEHOLDER"
+            license "MIT"
+
+            on_macos do
+              on_arm do
+                url "https://github.com/64andrewwalker/calvin/releases/download/v#{version}/calvin-aarch64-apple-darwin.tar.gz"
+                sha256 "SHA_MACOS_ARM_PLACEHOLDER"
+              end
+              on_intel do
+                url "https://github.com/64andrewwalker/calvin/releases/download/v#{version}/calvin-x86_64-apple-darwin.tar.gz"
+                sha256 "SHA_MACOS_INTEL_PLACEHOLDER"
+              end
+            end
+
+            on_linux do
+              on_arm do
+                url "https://github.com/64andrewwalker/calvin/releases/download/v#{version}/calvin-aarch64-unknown-linux-gnu.tar.gz"
+                sha256 "SHA_LINUX_ARM_PLACEHOLDER"
+              end
+              on_intel do
+                url "https://github.com/64andrewwalker/calvin/releases/download/v#{version}/calvin-x86_64-unknown-linux-gnu.tar.gz"
+                sha256 "SHA_LINUX_INTEL_PLACEHOLDER"
+              end
+            end
+
+            def install
+              bin.install "calvin"
+            end
+
+            test do
+              assert_match "calvin #{version}", shell_output("#{bin}/calvin --version")
+            end
+          end
+          EOF
+          
+          # Replace placeholders
+          sed -i "s/VERSION_PLACEHOLDER/${VERSION}/g" Formula/calvin.rb
+          sed -i "s/SHA_MACOS_ARM_PLACEHOLDER/${{ steps.checksums.outputs.macos_arm }}/g" Formula/calvin.rb
+          sed -i "s/SHA_MACOS_INTEL_PLACEHOLDER/${{ steps.checksums.outputs.macos_intel }}/g" Formula/calvin.rb
+          sed -i "s/SHA_LINUX_ARM_PLACEHOLDER/${{ steps.checksums.outputs.linux_arm }}/g" Formula/calvin.rb
+          sed -i "s/SHA_LINUX_INTEL_PLACEHOLDER/${{ steps.checksums.outputs.linux_intel }}/g" Formula/calvin.rb
+          
+          cat Formula/calvin.rb
+          
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/calvin.rb
+          git diff --staged --quiet || git commit -m "chore: update homebrew formula to v${{ steps.version.outputs.version }}"
+          git push
