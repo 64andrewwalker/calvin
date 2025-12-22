@@ -86,6 +86,17 @@ jobs:
           if [ -d "calvin/docs-content/docs/images" ]; then
             cp -r calvin/docs-content/docs/images/* fumadocs/public/docs/images/
           fi
+          
+          # 复制 logo、logo-dark 和 favicon 到 public 目录根
+          if [ -f "calvin/docs-content/logo.svg" ]; then
+            cp calvin/docs-content/logo.svg fumadocs/public/logo.svg
+          fi
+          if [ -f "calvin/docs-content/logo-dark.svg" ]; then
+            cp calvin/docs-content/logo-dark.svg fumadocs/public/logo-dark.svg
+          fi
+          if [ -f "calvin/docs-content/favicon.svg" ]; then
+            cp calvin/docs-content/favicon.svg fumadocs/public/favicon.svg
+          fi
 
       - name: Build static site
         working-directory: fumadocs

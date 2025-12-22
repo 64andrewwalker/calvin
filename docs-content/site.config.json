@@ -2,6 +2,8 @@
     "name": "Calvin",
     "description": "The universal PromptPack compiler for AI coding assistants",
     "logo": {
+        "image": "/logo.svg",
+        "imageDark": "/logo-dark.svg",
         "text": "Calvin"
     },
     "nav": [
