@@ -1,0 +1,72 @@
+---
+title: Calvin
+description: The universal PromptPack compiler for AI coding assistants
+---
+
+import { Card, Cards } from 'fumadocs-ui/components/card';
+import { Callout } from 'fumadocs-ui/components/callout';
+
+# Calvin
+
+<Callout type="info">
+**Write once, deploy everywhere.** Calvin compiles a unified `.promptpack/` specification into native configurations for multiple AI coding assistants.
+</Callout>
+
+## Why Calvin?
+
+Calvin solves the fragmentation problem in AI-assisted development. Instead of maintaining separate configurations for each AI tool (Claude Code, Cursor, VS Code Copilot, Antigravity, Codex), you write once in a standard format and deploy everywhere.
+
+## Quick Start
+
+```bash
+# Install Calvin
+brew install 64andrewwalker/tap/calvin
+
+# Initialize a new project
+calvin init
+
+# Deploy to all enabled targets
+calvin deploy
+
+# Watch for changes
+calvin watch
+```
+
+## Supported Platforms
+
+| Platform | Status | Description |
+|----------|--------|-------------|
+| Claude Code | ✅ Stable | Anthropic's CLI-based coding assistant |
+| Cursor | ✅ Stable | AI-first code editor |
+| VS Code | ✅ Stable | GitHub Copilot Chat integration |
+| Antigravity | 🧪 Beta | Google's agent-first IDE |
+| Codex | 🔬 Experimental | OpenAI's CLI coding agent |
+
+## Documentation
+
+<Cards>
+  <Card
+    title="API Reference"
+    description="Technical specifications, library API, and frontmatter format"
+    href="/api"
+  />
+  <Card
+    title="Guides"
+    description="Best practices, troubleshooting, and advanced usage"
+    href="/guides"
+  />
+</Cards>
+
+## Key Features
+
+- **🔄 Universal Compilation** — One source, multiple targets
+- **🔒 Security First** — Built-in deny lists and audit commands  
+- **📦 Lockfile Support** — Track changes and detect conflicts
+- **👁️ Watch Mode** — Auto-deploy on file changes
+- **🏠 Scope Control** — Deploy to project or user directories
+
+## Links
+
+- [GitHub Repository](https://github.com/64andrewwalker/calvin)
+- [Issue Tracker](https://github.com/64andrewwalker/calvin/issues)
+

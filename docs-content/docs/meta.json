@@ -1,0 +1,12 @@
+{
+    "title": "Calvin",
+    "description": "The universal PromptPack compiler for AI coding assistants",
+    "root": true,
+    "pages": [
+        "---Getting Started---",
+        "index",
+        "---Reference---",
+        "api",
+        "guides"
+    ]
+}

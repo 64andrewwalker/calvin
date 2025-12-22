@@ -1,0 +1,11 @@
+{
+    "title": "Guides",
+    "description": "Best practices and troubleshooting",
+    "pages": [
+        "index",
+        "scope-guide",
+        "pitfall-mitigations",
+        "scope-policy-consistency",
+        "test-variants-rationale"
+    ]
+}

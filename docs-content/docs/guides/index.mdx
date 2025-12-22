@@ -1,0 +1,51 @@
+---
+title: Guides
+description: Best practices, troubleshooting, and advanced usage guides for Calvin
+---
+
+# Guides
+
+This section contains best practices, troubleshooting guides, and advanced usage documentation for Calvin.
+
+## Available Guides
+
+| Guide | Description |
+|-------|-------------|
+| [Scope and Deploy Target](/guides/scope-guide) | Understanding deployment scopes and targets |
+| [Pitfall Mitigations](/guides/pitfall-mitigations) | Critical architectural decisions to prevent issues |
+| [Scope Policy Consistency](/guides/scope-policy-consistency) | Analysis of scope policy handling |
+| [Test Variants Rationale](/guides/test-variants-rationale) | Rationale and coverage for test variants |
+
+## Quick Tips
+
+### Choosing the Right Scope
+
+- Use `target: project` for team-shared rules and project-specific configurations
+- Use `target: user` for personal preferences and global workflows
+
+### Common Workflows
+
+```bash
+# Deploy to project (default)
+calvin deploy
+
+# Deploy to home directory
+calvin deploy --home
+
+# Preview changes before deploying
+calvin diff
+
+# Watch for changes and auto-deploy
+calvin watch
+
+# Check configuration for issues
+calvin check
+```
+
+### Troubleshooting
+
+If you encounter issues:
+
+1. Run `calvin check` to validate your configuration
+2. Use `calvin diff` to preview what would change
+3. Check the [Pitfall Mitigations](/guides/pitfall-mitigations) guide for common issues

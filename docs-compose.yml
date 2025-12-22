@@ -1,0 +1,18 @@
+# Docker Compose for local documentation preview
+# Usage: docker compose -f docs-compose.yml up
+# Then visit http://localhost:3000
+
+services:
+  docs:
+    build:
+      context: ../fumadocs
+      dockerfile: Dockerfile
+      target: dev
+    container_name: calvin-docs-preview
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./docs-content:/app/external-content:ro
+    environment:
+      - NODE_ENV=development
+      - WATCHPACK_POLLING=true

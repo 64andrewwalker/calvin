@@ -1,0 +1,24 @@
+{
+    "name": "Calvin",
+    "description": "The universal PromptPack compiler for AI coding assistants",
+    "logo": {
+        "text": "Calvin"
+    },
+    "nav": [
+        {
+            "label": "Docs",
+            "href": "/docs"
+        },
+        {
+            "label": "API",
+            "href": "/docs/api"
+        },
+        {
+            "label": "Guides",
+            "href": "/docs/guides"
+        }
+    ],
+    "social": {
+        "github": "https://github.com/64andrewwalker/calvin"
+    }
+}
