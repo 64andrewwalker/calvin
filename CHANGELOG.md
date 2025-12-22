@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0](https://github.com/64andrewwalker/calvin/compare/v0.3.0...v0.4.0) (2025-12-22)
+
+
+### Features
+
+* add Homebrew formula and auto-update workflow ([f115bc8](https://github.com/64andrewwalker/calvin/commit/f115bc8ef8c295ce7a4f2fe59de224f7af57d828))
+* **ci:** add release-please for automated changelog ([1c63183](https://github.com/64andrewwalker/calvin/commit/1c6318348277ea4db2bde3848a758d2c456a94ec))
+
+
+### Bug Fixes
+
+* **ci:** use gh CLI to download release assets for checksums ([a450e85](https://github.com/64andrewwalker/calvin/commit/a450e856dad361045fe37fe5757c7e7797d40efb))
+
 ## [0.3.0] - 2025-12-23
 
 ### Added
