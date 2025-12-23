@@ -88,11 +88,17 @@ pub mod icons {
     pub const WARNING: &str = "⚠";
     pub const PROGRESS: &str = "●";
     pub const PENDING: &str = "○";
+    pub const PARTIAL: &str = "◐";    // 新增：部分选中
+    pub const SELECTED: &str = "●";   // 新增：多选框选中（与 PROGRESS 相同）
+    pub const UNSELECTED: &str = "○"; // 新增：多选框未选中（与 PENDING 相同）
     pub const ARROW: &str = "↳";
     pub const WATCH: &str = "⟳";
     pub const DEPLOY: &str = "📦";
     pub const CHECK: &str = "🔍";
     pub const REMOTE: &str = "📡";
+    pub const CLEAN: &str = "🧹";     // 新增：清理命令
+    pub const EXPAND: &str = "▼";     // 新增：已展开
+    pub const COLLAPSE: &str = "▶";   // 新增：已折叠
 }
 
 /// ASCII 降级 (当 supports_unicode = false)
@@ -102,7 +108,12 @@ pub mod icons_ascii {
     pub const WARNING: &str = "[WARN]";
     pub const PROGRESS: &str = "[..]";
     pub const PENDING: &str = "[ ]";
+    pub const PARTIAL: &str = "[-]";
+    pub const SELECTED: &str = "[x]";
+    pub const UNSELECTED: &str = "[ ]";
     pub const ARROW: &str = "[>]";
+    pub const EXPAND: &str = "[v]";
+    pub const COLLAPSE: &str = "[>]";
 }
 ```
 
@@ -213,6 +224,7 @@ const SPINNER_FRAMES_ASCII: &[char] = &['-', '\\', '|', '/'];
 ```
 
 **使用场景**:
+
 - `calvin deploy`: 扫描阶段、编译阶段
 - `calvin check`: 扫描阶段、各检查项
 - `calvin deploy --remote`: SSH 连接阶段
@@ -249,6 +261,7 @@ impl ProgressBar {
 ```
 
 **使用场景**:
+
 - `calvin deploy`: 写入阶段
 - `calvin deploy --remote`: 文件传输阶段
 
@@ -288,6 +301,7 @@ impl StatusList {
 ```
 
 **渲染示例**:
+
 ```
   ✓ actions/review.md         → .claude/, .cursor/
   ✓ actions/test.md           → .claude/, .cursor/
@@ -296,6 +310,7 @@ impl StatusList {
 ```
 
 **使用场景**:
+
 - `calvin deploy`: 文件编译列表
 - `calvin check`: 检查项列表
 - `calvin deploy --remote`: 文件传输列表
@@ -331,6 +346,7 @@ impl Box {
 ```
 
 **渲染示例**:
+
 ```
 ╭─────────────────────────────────────────────────╮
 │  ✓ Deploy Complete                              │
@@ -363,6 +379,7 @@ impl CommandHeader {
 ```
 
 **使用示例**:
+
 ```rust
 let mut header = CommandHeader::new("📦", "Calvin Deploy");
 header.add("Source", ".promptpack/");
@@ -371,6 +388,7 @@ header.add("Mode", "Interactive");
 ```
 
 **渲染输出**:
+
 ```
 📦 Calvin Deploy
 Source: .promptpack/
@@ -403,6 +421,7 @@ impl ResultSummary {
 ```
 
 **渲染输出**:
+
 ```
 ╭─────────────────────────────────────────────────╮
 │  ✓ Deploy Complete                              │
@@ -461,6 +480,7 @@ impl CheckItem {
 ```
 
 **渲染输出**:
+
 ```
 Claude Code
   ✓ commands - 36 user commands installed
@@ -487,6 +507,7 @@ Claude Code
 | 结果 | 多个 `println!` | `ResultSummary` | 无 |
 
 **目标流程**:
+
 ```
 📦 Calvin Deploy
 Source: .promptpack/
@@ -528,6 +549,7 @@ Mode: Interactive
 | 完成摘要 | 同上 | `ResultSummary` (含传输统计) | 无 |
 
 **目标流程**:
+
 ```
 📦 Calvin Deploy
 Source: .promptpack/
@@ -571,6 +593,7 @@ Speed: 1.2 MB/s  |  ETA: 3s
 | 最终状态 | emoji + 文本 | 状态消息 | 无 |
 
 **目标流程**:
+
 ```
 🔍 Calvin Check
 Mode: Balanced
@@ -610,6 +633,7 @@ Summary: 8 passed, 1 warning, 0 errors
 | 退出 | `println!("👋 Shutting down...")` | 关闭消息 | 无 |
 
 **目标流程**:
+
 ```
 👀 Calvin Watch
 Source: .promptpack/
@@ -642,11 +666,13 @@ Source: .promptpack/
 **当前实现**: 使用 `dialoguer::Select`
 
 **目标增强**:
+
 - 使用 `Box` 组件包裹 banner
 - 菜单项保持 dialoguer 但统一样式
 - 添加更清晰的退出提示
 
 **目标流程**:
+
 ```
 ╭─────────────────────────────────────────────────╮
 │                                                 │
@@ -673,6 +699,7 @@ Use ↑↓ to navigate, Enter to select
 #### 6.5.2 已有项目菜单 (第 86-137 行)
 
 **目标流程**:
+
 ```
 ╭─────────────────────────────────────────────────╮
 │                                                 │
@@ -700,28 +727,32 @@ Use ↑↓ to navigate, Enter to select
 #### 6.5.3 Setup Wizard (第 139-161 行)
 
 **阶段分解**:
+
 - Step 1: 目标选择 (MultiSelect)
 - Step 2: 模板选择 (MultiSelect)
 - Step 3: 安全模式 (Select)
 - 完成摘要
 
 **目标流程**:
-```
+
+```text
 Great! Let's set up Calvin in 3 quick steps.
 
 ╭─ Step 1 of 3 ───────────────────────────────────╮
 │  Which AI assistants do you use?                │
 ╰─────────────────────────────────────────────────╯
 
-  [x] Claude Code       Anthropic's coding assistant
-  [x] Cursor            AI-first code editor
-  [ ] VS Code Copilot   GitHub's AI pair programmer
-  [ ] Antigravity       Google's Gemini-powered agent
-  [ ] Codex             OpenAI's CLI tool
+  ● Claude Code       Anthropic's coding assistant
+  ● Cursor            AI-first code editor
+  ○ VS Code Copilot   GitHub's AI pair programmer
+  ○ Antigravity       Google's Gemini-powered agent
+  ○ Codex             OpenAI's CLI tool
 
-TIP: You can change this later in .promptpack/config.toml
+───────────────────────────────────────────────────
+  ● = selected    ○ = not selected
+───────────────────────────────────────────────────
 
-(Space to toggle, Enter to confirm)
+  (Space to toggle, Enter to confirm)
 ```
 
 ---

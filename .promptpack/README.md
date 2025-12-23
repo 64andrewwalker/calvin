@@ -4,7 +4,7 @@
 
 ## 结构
 
-```
+```tree
 .promptpack/
 ├── 0-discovery/          # 发现阶段 - 项目分析、文档同步
 ├── 1-planning/           # 规划阶段 - 架构设计、技术选型
