@@ -130,29 +130,58 @@ fn run_interactive_clean(
     fs: &LocalFs,
     ui: &UiContext,
 ) -> Result<()> {
-    // Build tree from lockfile entries
-    let entries: Vec<(String, PathBuf)> = lockfile
-        .entries()
-        .map(|(key, _entry)| {
-            let path_str = if let Some((_, p)) = Lockfile::parse_key(key) {
-                p.to_string()
-            } else {
-                key.to_string()
-            };
+    use calvin::domain::services::has_calvin_signature;
 
-            // Expand home directory if needed
-            let path = if path_str.starts_with("~/") {
-                fs.expand_home(&PathBuf::from(&path_str))
-            } else {
-                PathBuf::from(&path_str)
-            };
+    // Build tree from lockfile entries, filtering out non-cleanable files
+    let mut entries: Vec<(String, PathBuf)> = Vec::new();
+    let mut skipped_count = 0;
 
-            (key.to_string(), path)
-        })
-        .collect();
+    for (key, _entry) in lockfile.entries() {
+        let path_str = if let Some((_, p)) = Lockfile::parse_key(key) {
+            p.to_string()
+        } else {
+            continue;
+        };
+
+        // Expand home directory if needed
+        let path = if path_str.starts_with("~/") {
+            fs.expand_home(&PathBuf::from(&path_str))
+        } else {
+            PathBuf::from(&path_str)
+        };
+
+        // Filter out files that cannot be cleaned (unless force mode)
+        if !force {
+            // Skip missing files
+            if !fs.exists(&path) {
+                skipped_count += 1;
+                continue;
+            }
+
+            // Skip files without Calvin signature
+            if let Ok(content) = fs.read(&path) {
+                if !has_calvin_signature(&content) {
+                    skipped_count += 1;
+                    continue;
+                }
+            } else {
+                skipped_count += 1;
+                continue;
+            }
+        }
+
+        entries.push((key.to_string(), path));
+    }
 
     if entries.is_empty() {
-        println!("No files to clean.");
+        if skipped_count > 0 {
+            println!(
+                "No cleanable files found ({} files skipped - missing or not managed by Calvin).",
+                skipped_count
+            );
+        } else {
+            println!("No files to clean.");
+        }
         return Ok(());
     }
 
