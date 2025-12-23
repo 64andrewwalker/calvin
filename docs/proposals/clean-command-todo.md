@@ -193,9 +193,11 @@
 - [x] `calvin clean --dry-run` 预览不删除
 - [x] `calvin clean --home --yes` 删除 home 部署
 - [x] `calvin clean --project --yes` 删除 project 部署
+- [x] `calvin clean --all --yes` 删除所有部署
 - [x] 锁文件同步更新
 - [x] 所有单元测试通过
 - [x] 所有集成测试通过
+- [x] 主菜单有 clean 选项
 
 ### Phase 2 完成条件 ✅
 

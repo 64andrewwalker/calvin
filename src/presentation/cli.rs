@@ -171,12 +171,16 @@ pub enum Commands {
         source: PathBuf,
 
         /// Clean only home directory deployments
-        #[arg(long, conflicts_with = "project")]
+        #[arg(long, conflicts_with_all = ["project", "all"])]
         home: bool,
 
         /// Clean only project directory deployments
-        #[arg(long)]
+        #[arg(long, conflicts_with = "all")]
         project: bool,
+
+        /// Clean all deployments (home + project)
+        #[arg(long)]
+        all: bool,
 
         /// Dry run - show what would be deleted without deleting
         #[arg(long)]
@@ -426,6 +430,7 @@ mod tests {
         if let Some(Commands::Clean {
             home,
             project,
+            all,
             dry_run,
             yes,
             force,
@@ -434,6 +439,7 @@ mod tests {
         {
             assert!(!home);
             assert!(!project);
+            assert!(!all);
             assert!(!dry_run);
             assert!(!yes);
             assert!(!force);
@@ -498,6 +504,35 @@ mod tests {
     fn test_cli_parse_clean_home_project_conflict() {
         // --home and --project are mutually exclusive
         let result = Cli::try_parse_from(["calvin", "clean", "--home", "--project"]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_cli_parse_clean_all() {
+        let cli = Cli::try_parse_from(["calvin", "clean", "--all"]).unwrap();
+        if let Some(Commands::Clean {
+            home, project, all, ..
+        }) = cli.command
+        {
+            assert!(!home);
+            assert!(!project);
+            assert!(all);
+        } else {
+            panic!("Expected Clean command");
+        }
+    }
+
+    #[test]
+    fn test_cli_parse_clean_all_home_conflict() {
+        // --all and --home are mutually exclusive
+        let result = Cli::try_parse_from(["calvin", "clean", "--all", "--home"]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_cli_parse_clean_all_project_conflict() {
+        // --all and --project are mutually exclusive
+        let result = Cli::try_parse_from(["calvin", "clean", "--all", "--project"]);
         assert!(result.is_err());
     }
 }

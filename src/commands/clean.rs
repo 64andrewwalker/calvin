@@ -24,6 +24,7 @@ pub fn cmd_clean(
     source: &Path,
     home: bool,
     project: bool,
+    all: bool,
     dry_run: bool,
     yes: bool,
     force: bool,
@@ -39,12 +40,20 @@ pub fn cmd_clean(
     let ui = UiContext::new(json, verbose, color, no_animation, &config);
 
     // Determine scope
-    let scope = match (home, project) {
-        (true, false) => Some(Scope::User),
-        (false, true) => Some(Scope::Project),
-        (false, false) => None, // All scopes or interactive
-        (true, true) => unreachable!("clap conflicts_with should prevent this"),
+    // --all means clean both home and project (no scope filter)
+    // --home means clean only home
+    // --project means clean only project
+    // None of the above: interactive mode (unless --yes or --dry-run)
+    let scope = match (home, project, all) {
+        (true, false, false) => Some(Scope::User),
+        (false, true, false) => Some(Scope::Project),
+        (false, false, true) => None,  // All scopes, non-interactive
+        (false, false, false) => None, // Interactive mode
+        _ => unreachable!("clap conflicts_with should prevent this"),
     };
+
+    // Determine if a scope was explicitly specified (for interactive mode detection)
+    let scope_specified = home || project || all;
 
     // Build use case dependencies
     let lockfile_repo = TomlLockfileRepository::new();
@@ -84,9 +93,9 @@ pub fn cmd_clean(
     }
 
     // Check if we should use interactive mode
-    // Interactive mode: no scope specified, not json, is a TTY, not --yes
+    // Interactive mode: no scope explicitly specified, not json, is a TTY, not --yes
     let is_interactive =
-        scope.is_none() && !json && std::io::stdin().is_terminal() && !yes && !dry_run;
+        !scope_specified && !json && std::io::stdin().is_terminal() && !yes && !dry_run;
 
     if is_interactive {
         return run_interactive_clean(&lockfile, &lockfile_path, force, &fs, &ui);

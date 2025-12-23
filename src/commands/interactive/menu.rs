@@ -146,6 +146,7 @@ pub fn interactive_existing_project(
             &source,
             false, // home
             false, // project
+            false, // all
             false, // dry_run
             false, // yes - let interactive mode handle
             false, // force

@@ -167,6 +167,7 @@ calvin clean [OPTIONS]
 | `--source <PATH>` | `-s` | Path to `.promptpack` directory (default: `.promptpack`) |
 | `--home` | - | Clean only home directory deployments (~/) |
 | `--project` | - | Clean only project directory deployments (./) |
+| `--all` | - | Clean all deployments (home + project) |
 | `--dry-run` | - | Preview what would be deleted without deleting |
 | `--yes` | `-y` | Non-interactive; skip confirmation prompt |
 | `--force` | `-f` | Force delete even if files were modified |
@@ -184,11 +185,13 @@ calvin clean [OPTIONS]
 |--------|--------|
 | `--home` | Files deployed to `~/` (home directory) |
 | `--project` | Files deployed to `.` (project directory) |
-| (neither) | All files in lockfile |
+| `--all` | All files in lockfile (home + project) |
+| (none) | Interactive mode with tree menu |
 
 **Examples:**
 ```bash
-calvin clean                        # Preview all deployments
+calvin clean                        # Interactive mode with tree menu
+calvin clean --all --yes            # Delete all deployments
 calvin clean --home --yes           # Delete all home deployments
 calvin clean --project --dry-run    # Preview project deployment cleanup
 calvin clean --force --yes          # Force delete all (skip checks)
