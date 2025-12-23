@@ -104,11 +104,24 @@ impl TargetAdapter for VSCodeAdapter {
     }
 
     fn post_compile(&self, assets: &[Asset]) -> Result<Vec<OutputFile>, AdapterError> {
+        use crate::domain::value_objects::Scope;
+
         let mut outputs = Vec::new();
 
-        // Generate AGENTS.md summary index
-        let agents_content = generate_agents_md(assets);
-        outputs.push(OutputFile::new("AGENTS.md", agents_content, self.target()));
+        // Only generate AGENTS.md for project-scope deployments
+        // AGENTS.md is a project-level index file that should be in the project root
+        // For home scope deployments, we skip it to avoid creating ~/AGENTS.md
+        let has_project_scope_assets = assets.iter().any(|a| a.scope() == Scope::Project);
+
+        if has_project_scope_assets {
+            let project_assets: Vec<_> = assets
+                .iter()
+                .filter(|a| a.scope() == Scope::Project)
+                .cloned()
+                .collect();
+            let agents_content = generate_agents_md(&project_assets);
+            outputs.push(OutputFile::new("AGENTS.md", agents_content, self.target()));
+        }
 
         Ok(outputs)
     }

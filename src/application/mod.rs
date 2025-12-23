@@ -19,6 +19,7 @@
 //! - `compile_assets` - Compile PromptAssets to OutputFiles using adapters
 
 pub mod check;
+pub mod clean;
 pub mod compiler;
 pub mod deploy;
 pub mod diff;
@@ -26,6 +27,7 @@ pub mod pipeline;
 pub mod watch;
 
 pub use check::{CheckItem, CheckOptions, CheckResult, CheckStatus, CheckUseCase};
+pub use clean::{CleanOptions, CleanResult, CleanUseCase, SkipReason, SkippedFile};
 pub use compiler::compile_assets;
 pub use deploy::{DeployOptions, DeployOutputOptions, DeployResult, DeployUseCase};
 pub use diff::{ChangeType, DiffEntry, DiffOptions, DiffResult, DiffUseCase};

@@ -11,6 +11,7 @@ This section contains best practices, troubleshooting guides, and advanced usage
 
 | Guide | Description |
 |-------|-------------|
+| [Clean Command](/guides/clean-command) | Remove deployed files safely and efficiently |
 | [Scope and Deploy Target](/guides/scope-guide) | Understanding deployment scopes and targets |
 | [Pitfall Mitigations](/guides/pitfall-mitigations) | Critical architectural decisions to prevent issues |
 | [Scope Policy Consistency](/guides/scope-policy-consistency) | Analysis of scope policy handling |
@@ -40,6 +41,12 @@ calvin watch
 
 # Check configuration for issues
 calvin check
+
+# Clean deployed files (interactive)
+calvin clean
+
+# Clean all home deployments
+calvin clean --home --yes
 ```
 
 ### Troubleshooting

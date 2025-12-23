@@ -1,0 +1,200 @@
+//! Clean result types
+
+use std::path::PathBuf;
+
+/// Error that occurred during clean operation
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CleanError {
+    /// I/O error when accessing a file
+    IoError {
+        /// Path to the file
+        path: PathBuf,
+        /// Error message
+        message: String,
+    },
+    /// Error related to lockfile operations
+    LockfileError {
+        /// Error message
+        message: String,
+    },
+}
+
+impl std::fmt::Display for CleanError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CleanError::IoError { path, message } => {
+                write!(f, "I/O error at {}: {}", path.display(), message)
+            }
+            CleanError::LockfileError { message } => {
+                write!(f, "Lockfile error: {}", message)
+            }
+        }
+    }
+}
+
+impl CleanError {
+    /// Create a new I/O error
+    pub fn io_error(path: PathBuf, message: impl Into<String>) -> Self {
+        CleanError::IoError {
+            path,
+            message: message.into(),
+        }
+    }
+
+    /// Create a new lockfile error
+    pub fn lockfile_error(message: impl Into<String>) -> Self {
+        CleanError::LockfileError {
+            message: message.into(),
+        }
+    }
+}
+
+/// Reason why a file was skipped during clean
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SkipReason {
+    /// File was modified (hash mismatch)
+    Modified,
+    /// File is missing
+    Missing,
+    /// File doesn't have Calvin signature
+    NoSignature,
+    /// Permission denied
+    PermissionDenied,
+    /// Remote deployment (not supported yet)
+    Remote,
+}
+
+impl std::fmt::Display for SkipReason {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SkipReason::Modified => write!(f, "modified"),
+            SkipReason::Missing => write!(f, "missing"),
+            SkipReason::NoSignature => write!(f, "no signature"),
+            SkipReason::PermissionDenied => write!(f, "permission denied"),
+            SkipReason::Remote => write!(f, "remote deployment"),
+        }
+    }
+}
+
+/// A file that was skipped during clean
+#[derive(Debug, Clone)]
+pub struct SkippedFile {
+    /// Path to the file
+    pub path: PathBuf,
+    /// Reason for skipping
+    pub reason: SkipReason,
+    /// Original lockfile key (for lockfile updates)
+    pub key: String,
+}
+
+impl SkippedFile {
+    pub fn new(path: PathBuf, reason: SkipReason, key: String) -> Self {
+        Self { path, reason, key }
+    }
+}
+
+/// A file that was deleted during clean
+#[derive(Debug, Clone)]
+pub struct DeletedFile {
+    /// Expanded absolute path to the file
+    pub path: PathBuf,
+    /// Original lockfile key (used for lockfile updates)
+    pub key: String,
+}
+
+impl DeletedFile {
+    pub fn new(path: PathBuf, key: String) -> Self {
+        Self { path, key }
+    }
+}
+
+/// Result of a clean operation
+#[derive(Debug, Clone, Default)]
+pub struct CleanResult {
+    /// Files that were deleted (or would be deleted in dry run)
+    pub deleted: Vec<DeletedFile>,
+    /// Files that were skipped
+    pub skipped: Vec<SkippedFile>,
+    /// Errors that occurred (typed)
+    pub errors: Vec<CleanError>,
+}
+
+impl CleanResult {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Add a deleted file
+    pub fn add_deleted(&mut self, path: PathBuf, key: String) {
+        self.deleted.push(DeletedFile::new(path, key));
+    }
+
+    /// Add a skipped file
+    pub fn add_skipped(&mut self, path: PathBuf, reason: SkipReason, key: String) {
+        self.skipped.push(SkippedFile::new(path, reason, key));
+    }
+
+    /// Add a typed error
+    pub fn add_error(&mut self, error: CleanError) {
+        self.errors.push(error);
+    }
+
+    /// Get total count of files considered
+    pub fn total_count(&self) -> usize {
+        self.deleted.len() + self.skipped.len()
+    }
+
+    /// Get error count
+    pub fn error_count(&self) -> usize {
+        self.errors.len()
+    }
+
+    /// Check if operation was successful
+    pub fn is_success(&self) -> bool {
+        self.errors.is_empty()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn clean_error_io_displays_correctly() {
+        let err = CleanError::io_error(PathBuf::from("/test/file.md"), "Permission denied");
+        assert_eq!(
+            format!("{}", err),
+            "I/O error at /test/file.md: Permission denied"
+        );
+    }
+
+    #[test]
+    fn clean_error_lockfile_displays_correctly() {
+        let err = CleanError::lockfile_error("Failed to parse lockfile");
+        assert_eq!(
+            format!("{}", err),
+            "Lockfile error: Failed to parse lockfile"
+        );
+    }
+
+    #[test]
+    fn clean_result_error_count() {
+        let mut result = CleanResult::new();
+        assert_eq!(result.error_count(), 0);
+
+        result.add_error(CleanError::io_error(PathBuf::from("/test.md"), "error"));
+        assert_eq!(result.error_count(), 1);
+
+        result.add_error(CleanError::lockfile_error("another error"));
+        assert_eq!(result.error_count(), 2);
+    }
+
+    #[test]
+    fn clean_result_is_success() {
+        let mut result = CleanResult::new();
+        assert!(result.is_success());
+
+        result.add_error(CleanError::lockfile_error("error"));
+        assert!(!result.is_success());
+    }
+}

@@ -3,6 +3,7 @@
     "description": "Best practices and troubleshooting",
     "pages": [
         "index",
+        "clean-command",
         "scope-guide",
         "pitfall-mitigations",
         "scope-policy-consistency",
