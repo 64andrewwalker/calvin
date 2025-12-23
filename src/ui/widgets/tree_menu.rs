@@ -1401,4 +1401,679 @@ mod tests {
             "Should contain ASCII selected icon"
         );
     }
+
+    // === Phase 1: Edge Case Tests for Refactoring ===
+
+    // --- TreeNode Edge Cases ---
+
+    #[test]
+    fn node_deep_nesting_selection_propagates() {
+        // Build 4-level tree: root -> level1 -> level2 -> leaf
+        let mut root = TreeNode::new("Root");
+        let mut level1 = TreeNode::new("Level1");
+        let mut level2 = TreeNode::new("Level2");
+        level2.add_child(TreeNode::leaf(
+            "deep.md",
+            PathBuf::from("deep.md"),
+            "home:deep.md".to_string(),
+        ));
+        level1.add_child(level2);
+        root.add_child(level1);
+
+        // Select root should cascade down all levels
+        root.select();
+
+        assert_eq!(root.state, SelectionState::Selected);
+        assert_eq!(root.children[0].state, SelectionState::Selected); // level1
+        assert_eq!(root.children[0].children[0].state, SelectionState::Selected); // level2
+        assert_eq!(
+            root.children[0].children[0].children[0].state,
+            SelectionState::Selected
+        ); // leaf
+    }
+
+    #[test]
+    fn node_deep_nesting_partial_propagates_up() {
+        // Build 4-level tree with 2 leaves
+        let mut root = TreeNode::new("Root");
+        let mut level1 = TreeNode::new("Level1");
+        let mut level2 = TreeNode::new("Level2");
+        level2.add_child(TreeNode::leaf(
+            "a.md",
+            PathBuf::from("a.md"),
+            "home:a.md".to_string(),
+        ));
+        level2.add_child(TreeNode::leaf(
+            "b.md",
+            PathBuf::from("b.md"),
+            "home:b.md".to_string(),
+        ));
+        level1.add_child(level2);
+        root.add_child(level1);
+
+        // Select only one leaf
+        root.children[0].children[0].children[0].select();
+
+        // Propagate upward
+        root.children[0].children[0].update_state_from_children();
+        root.children[0].update_state_from_children();
+        root.update_state_from_children();
+
+        assert_eq!(root.state, SelectionState::Partial);
+        assert_eq!(root.children[0].state, SelectionState::Partial);
+        assert_eq!(root.children[0].children[0].state, SelectionState::Partial);
+    }
+
+    #[test]
+    fn node_update_state_from_children_no_children() {
+        let mut leaf = TreeNode::leaf(
+            "test.md",
+            PathBuf::from("test.md"),
+            "home:test.md".to_string(),
+        );
+
+        // Should return false and not change state
+        let changed = leaf.update_state_from_children();
+        assert!(!changed);
+        assert_eq!(leaf.state, SelectionState::Unselected);
+    }
+
+    #[test]
+    fn node_selected_paths_empty_tree() {
+        let root = TreeNode::new("Empty");
+        let paths = root.selected_paths();
+        assert!(paths.is_empty());
+    }
+
+    #[test]
+    fn node_selected_keys_deeply_nested() {
+        let mut root = TreeNode::new("Root");
+        let mut level1 = TreeNode::new("Level1");
+        let mut level2 = TreeNode::new("Level2");
+        level2.add_child(TreeNode::leaf(
+            "deep.md",
+            PathBuf::from("deep.md"),
+            "home:deep.md".to_string(),
+        ));
+        level1.add_child(level2);
+        root.add_child(level1);
+
+        root.select();
+        let keys = root.selected_keys();
+
+        assert_eq!(keys.len(), 1);
+        assert_eq!(keys[0], "home:deep.md");
+    }
+
+    #[test]
+    fn node_total_count_deeply_nested() {
+        let mut root = TreeNode::new("Root");
+        let mut level1 = TreeNode::new("Level1");
+        let mut level2a = TreeNode::new("Level2a");
+        let mut level2b = TreeNode::new("Level2b");
+
+        level2a.add_child(TreeNode::leaf(
+            "a.md",
+            PathBuf::from("a.md"),
+            "a".to_string(),
+        ));
+        level2a.add_child(TreeNode::leaf(
+            "b.md",
+            PathBuf::from("b.md"),
+            "b".to_string(),
+        ));
+        level2b.add_child(TreeNode::leaf(
+            "c.md",
+            PathBuf::from("c.md"),
+            "c".to_string(),
+        ));
+
+        level1.add_child(level2a);
+        level1.add_child(level2b);
+        root.add_child(level1);
+
+        assert_eq!(root.total_count(), 3);
+    }
+
+    #[test]
+    fn node_invert_on_leaf() {
+        let mut leaf = TreeNode::leaf("a.md", PathBuf::from("a.md"), "home:a.md".to_string());
+
+        // Initially unselected
+        assert_eq!(leaf.state, SelectionState::Unselected);
+
+        // Invert should select
+        leaf.invert();
+        assert_eq!(leaf.state, SelectionState::Selected);
+
+        // Invert again should deselect
+        leaf.invert();
+        assert_eq!(leaf.state, SelectionState::Unselected);
+    }
+
+    // --- TreeMenu Edge Cases ---
+
+    #[test]
+    fn menu_empty_tree() {
+        let root = TreeNode::new("Empty");
+        let menu = TreeMenu::new(root);
+
+        assert_eq!(menu.flattened_nodes().len(), 1); // Just root
+                                                     // A non-leaf node with no children still counts as 1 in total_count
+                                                     // (because is_leaf returns true when children is empty)
+        assert_eq!(menu.total_count(), 1);
+        assert_eq!(menu.selected_count(), 0);
+    }
+
+    #[test]
+    fn menu_cursor_stays_valid_after_collapse() {
+        let mut root = TreeNode::new("Root");
+        root.expanded = true;
+        let mut child = TreeNode::new("Child");
+        child.expanded = true;
+        child.add_child(TreeNode::leaf(
+            "a.md",
+            PathBuf::from("a.md"),
+            "a".to_string(),
+        ));
+        child.add_child(TreeNode::leaf(
+            "b.md",
+            PathBuf::from("b.md"),
+            "b".to_string(),
+        ));
+        root.add_child(child);
+
+        let mut menu = TreeMenu::new(root);
+
+        // Move cursor to b.md (index 3: Root, Child, a.md, b.md)
+        menu.handle_action(TreeAction::Down);
+        menu.handle_action(TreeAction::Down);
+        menu.handle_action(TreeAction::Down);
+        assert_eq!(menu.cursor_position(), 3);
+
+        // Now collapse Child (at index 1)
+        menu.cursor = 1;
+        menu.handle_action(TreeAction::Collapse);
+
+        // Cursor should be clamped to valid range
+        assert!(menu.cursor_position() < menu.flattened_nodes().len());
+    }
+
+    #[test]
+    fn menu_toggle_on_collapsed_parent_selects_hidden_children() {
+        let mut root = TreeNode::new("Root");
+        root.expanded = true;
+        let mut child = TreeNode::new("Child");
+        // Child is collapsed
+        child.add_child(TreeNode::leaf(
+            "a.md",
+            PathBuf::from("a.md"),
+            "a".to_string(),
+        ));
+        child.add_child(TreeNode::leaf(
+            "b.md",
+            PathBuf::from("b.md"),
+            "b".to_string(),
+        ));
+        root.add_child(child);
+
+        let mut menu = TreeMenu::new(root);
+
+        // Move to Child and toggle
+        menu.handle_action(TreeAction::Down);
+        menu.handle_action(TreeAction::Toggle);
+
+        // Both hidden children should be selected
+        assert_eq!(menu.selected_count(), 2);
+    }
+
+    #[test]
+    fn menu_expand_leaf_no_effect() {
+        let mut root = TreeNode::new("Root");
+        root.expanded = true;
+        root.add_child(TreeNode::leaf(
+            "a.md",
+            PathBuf::from("a.md"),
+            "a".to_string(),
+        ));
+
+        let mut menu = TreeMenu::new(root);
+
+        // Move to leaf
+        menu.handle_action(TreeAction::Down);
+
+        // Try to expand - should have no effect
+        let flattened_before = menu.flattened_nodes().len();
+        menu.handle_action(TreeAction::Expand);
+        let flattened_after = menu.flattened_nodes().len();
+
+        assert_eq!(flattened_before, flattened_after);
+    }
+
+    #[test]
+    fn menu_collapse_already_collapsed_no_effect() {
+        let mut root = TreeNode::new("Root");
+        root.expanded = true;
+        let child = TreeNode::new("Child"); // Already collapsed
+        root.add_child(child);
+
+        let mut menu = TreeMenu::new(root);
+
+        // Move to child
+        menu.handle_action(TreeAction::Down);
+
+        // Try to collapse - should have no effect
+        let flattened_before = menu.flattened_nodes().len();
+        menu.handle_action(TreeAction::Collapse);
+        let flattened_after = menu.flattened_nodes().len();
+
+        assert_eq!(flattened_before, flattened_after);
+    }
+
+    #[test]
+    fn menu_selected_keys_after_bulk_operations() {
+        let root = create_test_tree();
+        let mut menu = TreeMenu::new(root);
+
+        // SelectAll then SelectNone should result in empty
+        menu.handle_action(TreeAction::SelectAll);
+        assert_eq!(menu.selected_count(), 3);
+
+        menu.handle_action(TreeAction::SelectNone);
+        assert_eq!(menu.selected_count(), 0);
+        assert!(menu.selected_keys().is_empty());
+    }
+
+    #[test]
+    fn menu_flattened_order_matches_tree_order() {
+        let mut root = TreeNode::new("Root");
+        root.expanded = true;
+        let mut home = TreeNode::new("Home");
+        home.expanded = true;
+        home.add_child(TreeNode::leaf(
+            "a.md",
+            PathBuf::from("a.md"),
+            "a".to_string(),
+        ));
+        home.add_child(TreeNode::leaf(
+            "b.md",
+            PathBuf::from("b.md"),
+            "b".to_string(),
+        ));
+        root.add_child(home);
+
+        let menu = TreeMenu::new(root);
+        let nodes = menu.flattened_nodes();
+
+        // DFS order: Root, Home, a.md, b.md
+        assert_eq!(nodes[0].label, "Root");
+        assert_eq!(nodes[1].label, "Home");
+        assert_eq!(nodes[2].label, "a.md");
+        assert_eq!(nodes[3].label, "b.md");
+    }
+
+    // --- Render Edge Cases ---
+
+    #[test]
+    fn render_partial_icon_unicode() {
+        let mut root = TreeNode::new("Root");
+        root.expanded = true;
+        root.add_child(TreeNode::leaf(
+            "a.md",
+            PathBuf::from("a.md"),
+            "a".to_string(),
+        ));
+        root.add_child(TreeNode::leaf(
+            "b.md",
+            PathBuf::from("b.md"),
+            "b".to_string(),
+        ));
+        root.children[0].select();
+        root.update_state_from_children();
+
+        let menu = TreeMenu::new(root);
+        let rendered = menu.render(true);
+
+        assert!(rendered.contains("◐"), "Should contain partial icon");
+    }
+
+    #[test]
+    fn render_partial_icon_ascii() {
+        let mut root = TreeNode::new("Root");
+        root.expanded = true;
+        root.add_child(TreeNode::leaf(
+            "a.md",
+            PathBuf::from("a.md"),
+            "a".to_string(),
+        ));
+        root.add_child(TreeNode::leaf(
+            "b.md",
+            PathBuf::from("b.md"),
+            "b".to_string(),
+        ));
+        root.children[0].select();
+        root.update_state_from_children();
+
+        let menu = TreeMenu::new(root);
+        let rendered = menu.render(false);
+
+        // ASCII partial icon is [-] per theme.rs
+        assert!(
+            rendered.contains("[-]"),
+            "Should contain ASCII partial icon [-]"
+        );
+    }
+
+    #[test]
+    fn render_deep_indentation() {
+        // Create 5-level tree
+        let mut root = TreeNode::new("Root");
+        root.expanded = true;
+        let mut l1 = TreeNode::new("L1");
+        l1.expanded = true;
+        let mut l2 = TreeNode::new("L2");
+        l2.expanded = true;
+        let mut l3 = TreeNode::new("L3");
+        l3.expanded = true;
+        let mut l4 = TreeNode::new("L4");
+        l4.expanded = true;
+        l4.add_child(TreeNode::leaf(
+            "deep.md",
+            PathBuf::from("deep.md"),
+            "d".to_string(),
+        ));
+        l3.add_child(l4);
+        l2.add_child(l3);
+        l1.add_child(l2);
+        root.add_child(l1);
+
+        let menu = TreeMenu::new(root);
+        let rendered = menu.render(true);
+
+        // The deepest node should have 5 levels of indentation (10 spaces)
+        // Format: "  " cursor + depth * "  " indent
+        let deep_line = rendered.lines().last().unwrap();
+        assert!(
+            deep_line.contains("          "), // 10 spaces of indentation
+            "Deep node should have 5 levels of indentation: '{}'",
+            deep_line
+        );
+    }
+
+    #[test]
+    fn render_long_label_not_truncated() {
+        let long_label = "this-is-a-very-long-file-name-that-should-not-be-truncated.md";
+        let mut root = TreeNode::new("Root");
+        root.expanded = true;
+        root.add_child(TreeNode::leaf(
+            long_label,
+            PathBuf::from(long_label),
+            "key".to_string(),
+        ));
+
+        let menu = TreeMenu::new(root);
+        let rendered = menu.render(true);
+
+        assert!(
+            rendered.contains(long_label),
+            "Long label should appear in full"
+        );
+    }
+
+    #[test]
+    fn render_status_bar_zero_selected() {
+        let root = create_test_tree();
+        let menu = TreeMenu::new(root);
+
+        let status = menu.render_status_bar(true);
+        assert!(status.contains("0/3"), "Should show 0/3 selected");
+    }
+
+    #[test]
+    fn render_collapsed_vs_expanded_icon() {
+        let mut root = TreeNode::new("Root");
+        root.expanded = true;
+        let mut child = TreeNode::new("Child");
+        child.add_child(TreeNode::leaf(
+            "a.md",
+            PathBuf::from("a.md"),
+            "a".to_string(),
+        ));
+        root.add_child(child);
+
+        let mut menu = TreeMenu::new(root);
+
+        // Child is collapsed - should show ▶
+        let rendered_collapsed = menu.render(true);
+        assert!(
+            rendered_collapsed.contains("▶"),
+            "Collapsed should show ▶: {}",
+            rendered_collapsed
+        );
+
+        // Expand child
+        menu.handle_action(TreeAction::Down);
+        menu.handle_action(TreeAction::Expand);
+
+        let rendered_expanded = menu.render(true);
+        assert!(
+            rendered_expanded.contains("▼"),
+            "Expanded should show ▼: {}",
+            rendered_expanded
+        );
+    }
+
+    // --- Input Edge Cases ---
+
+    #[test]
+    fn key_to_action_arrow_keys() {
+        use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+        assert_eq!(
+            key_to_action(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE)),
+            Some(TreeAction::Up)
+        );
+        assert_eq!(
+            key_to_action(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE)),
+            Some(TreeAction::Down)
+        );
+        assert_eq!(
+            key_to_action(KeyEvent::new(KeyCode::Left, KeyModifiers::NONE)),
+            Some(TreeAction::Collapse)
+        );
+        assert_eq!(
+            key_to_action(KeyEvent::new(KeyCode::Right, KeyModifiers::NONE)),
+            Some(TreeAction::Expand)
+        );
+    }
+
+    #[test]
+    fn key_to_action_vim_keys() {
+        use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+        assert_eq!(
+            key_to_action(KeyEvent::new(KeyCode::Char('k'), KeyModifiers::NONE)),
+            Some(TreeAction::Up)
+        );
+        assert_eq!(
+            key_to_action(KeyEvent::new(KeyCode::Char('j'), KeyModifiers::NONE)),
+            Some(TreeAction::Down)
+        );
+        assert_eq!(
+            key_to_action(KeyEvent::new(KeyCode::Char('h'), KeyModifiers::NONE)),
+            Some(TreeAction::Collapse)
+        );
+        assert_eq!(
+            key_to_action(KeyEvent::new(KeyCode::Char('l'), KeyModifiers::NONE)),
+            Some(TreeAction::Expand)
+        );
+    }
+
+    #[test]
+    fn key_to_action_bulk_shortcuts() {
+        use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+        assert_eq!(
+            key_to_action(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE)),
+            Some(TreeAction::SelectAll)
+        );
+        assert_eq!(
+            key_to_action(KeyEvent::new(KeyCode::Char('n'), KeyModifiers::NONE)),
+            Some(TreeAction::SelectNone)
+        );
+        assert_eq!(
+            key_to_action(KeyEvent::new(KeyCode::Char('i'), KeyModifiers::NONE)),
+            Some(TreeAction::Invert)
+        );
+    }
+
+    #[test]
+    fn key_to_action_quit_keys() {
+        use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+        assert_eq!(
+            key_to_action(KeyEvent::new(KeyCode::Char('q'), KeyModifiers::NONE)),
+            Some(TreeAction::Quit)
+        );
+        assert_eq!(
+            key_to_action(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE)),
+            Some(TreeAction::Quit)
+        );
+    }
+
+    #[test]
+    fn key_to_action_unknown_key() {
+        use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+        assert_eq!(
+            key_to_action(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::NONE)),
+            None
+        );
+        assert_eq!(
+            key_to_action(KeyEvent::new(KeyCode::F(1), KeyModifiers::NONE)),
+            None
+        );
+    }
+
+    // --- Builder Edge Cases ---
+
+    #[test]
+    fn builder_empty_entries() {
+        let entries: Vec<(String, PathBuf)> = vec![];
+        let root = build_tree_from_lockfile(entries);
+
+        assert_eq!(root.label, "Deployments");
+        assert!(root.children.is_empty());
+        // Root with no children is considered a leaf with count 1
+        assert_eq!(root.total_count(), 1);
+    }
+
+    #[test]
+    fn builder_home_only() {
+        let entries = vec![(
+            "home:~/.claude/test.md".to_string(),
+            PathBuf::from("/Users/test/.claude/test.md"),
+        )];
+
+        let root = build_tree_from_lockfile(entries);
+
+        assert_eq!(root.children.len(), 1);
+        assert_eq!(root.children[0].label, "Home (~/)");
+    }
+
+    #[test]
+    fn builder_project_only() {
+        let entries = vec![(
+            "project:.cursor/test.md".to_string(),
+            PathBuf::from(".cursor/test.md"),
+        )];
+
+        let root = build_tree_from_lockfile(entries);
+
+        assert_eq!(root.children.len(), 1);
+        assert_eq!(root.children[0].label, "Project (./)");
+    }
+
+    #[test]
+    fn builder_unknown_target_path() {
+        let entries = vec![(
+            "home:~/unknown/test.md".to_string(),
+            PathBuf::from("/Users/test/unknown/test.md"),
+        )];
+
+        let root = build_tree_from_lockfile(entries);
+
+        // Should have Home -> other -> test.md
+        assert_eq!(root.children.len(), 1);
+        assert_eq!(root.children[0].children[0].label, "other");
+    }
+
+    #[test]
+    fn builder_infer_all_targets() {
+        // Test all target inference patterns
+        assert_eq!(
+            infer_target_from_path(&PathBuf::from("/Users/test/.claude/commands/test.md")),
+            "claude-code"
+        );
+        assert_eq!(
+            infer_target_from_path(&PathBuf::from("/Users/test/.cursor/rules/test.mdc")),
+            "cursor"
+        );
+        assert_eq!(
+            infer_target_from_path(&PathBuf::from("/Users/test/.vscode/instructions/test.md")),
+            "vscode"
+        );
+        assert_eq!(
+            infer_target_from_path(&PathBuf::from("/Users/test/.codex/prompts/test.md")),
+            "codex"
+        );
+        assert_eq!(
+            infer_target_from_path(&PathBuf::from(
+                "/Users/test/.gemini/antigravity/workflows/test.md"
+            )),
+            "antigravity"
+        );
+        assert_eq!(
+            infer_target_from_path(&PathBuf::from("/project/AGENTS.md")),
+            "agents-md"
+        );
+        assert_eq!(
+            infer_target_from_path(&PathBuf::from("/project/CLAUDE.md")),
+            "agents-md"
+        );
+        assert_eq!(
+            infer_target_from_path(&PathBuf::from("/project/GEMINI.md")),
+            "agents-md"
+        );
+        assert_eq!(
+            infer_target_from_path(&PathBuf::from("/Users/test/random/file.md")),
+            "other"
+        );
+    }
+
+    #[test]
+    fn builder_mixed_targets_sorted() {
+        let entries = vec![
+            (
+                "home:~/.vscode/a.md".to_string(),
+                PathBuf::from("/Users/test/.vscode/a.md"),
+            ),
+            (
+                "home:~/.claude/b.md".to_string(),
+                PathBuf::from("/Users/test/.claude/b.md"),
+            ),
+            (
+                "home:~/.cursor/c.md".to_string(),
+                PathBuf::from("/Users/test/.cursor/c.md"),
+            ),
+        ];
+
+        let root = build_tree_from_lockfile(entries);
+
+        // Home should have 3 target children, sorted alphabetically
+        let home = &root.children[0];
+        assert_eq!(home.children[0].label, "claude-code");
+        assert_eq!(home.children[1].label, "cursor");
+        assert_eq!(home.children[2].label, "vscode");
+    }
 }
