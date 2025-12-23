@@ -1,0 +1,308 @@
+---
+title: Clean API
+description: Technical reference for the clean command and CleanUseCase
+---
+
+# Clean Command API Reference
+
+This document provides technical details for the `calvin clean` command and its underlying API.
+
+## CLI Reference
+
+### Synopsis
+
+```bash
+calvin clean [OPTIONS]
+```
+
+### Options
+
+| Option | Short | Default | Description |
+|--------|-------|---------|-------------|
+| `--source <PATH>` | `-s` | `.promptpack` | Path to .promptpack directory |
+| `--home` | - | - | Clean only home directory deployments |
+| `--project` | - | - | Clean only project directory deployments |
+| `--all` | - | - | Clean all deployments (home + project) |
+| `--dry-run` | - | - | Preview without deleting |
+| `--yes` | `-y` | - | Skip confirmation prompt |
+| `--force` | `-f` | - | Force delete modified files |
+| `--json` | - | - | Output NDJSON format |
+
+### Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success (all files cleaned or nothing to clean) |
+| 1 | Partial failure (some files failed to delete) |
+| 2 | Invalid arguments |
+
+### Behavior Matrix
+
+| Flags | Behavior |
+|-------|----------|
+| (none) | Interactive tree menu |
+| `--home` | Non-interactive, home scope only |
+| `--project` | Non-interactive, project scope only |
+| `--all` | Non-interactive, all scopes |
+| `--dry-run` | Preview mode, no deletion |
+
+### Conflicts
+
+The following options are mutually exclusive:
+- `--home` and `--project`
+- `--home` and `--all`
+- `--project` and `--all`
+
+## JSON Output Format
+
+When using `--json`, output is NDJSON (newline-delimited JSON):
+
+### Events
+
+#### clean_start
+
+Emitted at the start of the operation.
+
+```json
+{
+  "type": "clean_start",
+  "scope": "User" | "Project" | "all",
+  "file_count": 5
+}
+```
+
+#### file_deleted
+
+Emitted for each successfully deleted file.
+
+```json
+{
+  "type": "file_deleted",
+  "path": "~/.claude/commands/workflow.md",
+  "key": "home:~/.claude/commands/workflow.md"
+}
+```
+
+#### file_skipped
+
+Emitted for each skipped file.
+
+```json
+{
+  "type": "file_skipped",
+  "path": "~/.cursor/rules/style.mdc",
+  "key": "home:~/.cursor/rules/style.mdc",
+  "reason": "modified" | "missing" | "no signature" | "permission denied" | "remote deployment"
+}
+```
+
+#### clean_complete
+
+Emitted at the end of the operation.
+
+```json
+{
+  "type": "clean_complete",
+  "deleted": 3,
+  "skipped": 2,
+  "errors": 0
+}
+```
+
+## Rust API
+
+### CleanUseCase
+
+The core clean logic is implemented in `CleanUseCase`:
+
+```rust
+use calvin::application::clean::{CleanOptions, CleanResult, CleanUseCase};
+use calvin::infrastructure::{LocalFs, TomlLockfileRepository};
+
+// Create dependencies
+let lockfile_repo = TomlLockfileRepository::new();
+let fs = LocalFs::new();
+
+// Create use case
+let use_case = CleanUseCase::new(lockfile_repo, fs);
+
+// Configure options
+let options = CleanOptions::new()
+    .with_scope(Some(Scope::User))
+    .with_dry_run(false)
+    .with_force(false);
+
+// Preview (dry run internally)
+let preview = use_case.execute(&lockfile_path, &options);
+
+// Execute with confirmation
+let result = use_case.execute_confirmed(&lockfile_path, &options);
+```
+
+### CleanOptions
+
+Builder for clean operation options:
+
+```rust
+pub struct CleanOptions {
+    pub scope: Option<Scope>,         // None = all scopes
+    pub dry_run: bool,                 // Preview only
+    pub force: bool,                   // Skip safety checks
+    pub selected_keys: Option<HashSet<String>>,  // Specific keys only
+}
+
+impl CleanOptions {
+    pub fn new() -> Self;
+    pub fn with_scope(self, scope: Option<Scope>) -> Self;
+    pub fn with_dry_run(self, dry_run: bool) -> Self;
+    pub fn with_force(self, force: bool) -> Self;
+    pub fn with_selected_keys(self, keys: Vec<String>) -> Self;
+}
+```
+
+### CleanResult
+
+Result of a clean operation:
+
+```rust
+pub struct CleanResult {
+    pub deleted: Vec<DeletedFile>,     // Successfully deleted
+    pub skipped: Vec<SkippedFile>,     // Skipped with reason
+    pub errors: Vec<CleanError>,       // Errors encountered
+}
+
+impl CleanResult {
+    pub fn new() -> Self;
+    pub fn total_count(&self) -> usize;
+    pub fn error_count(&self) -> usize;
+    pub fn is_success(&self) -> bool;
+}
+```
+
+### CleanError
+
+Typed error enum for clean operations:
+
+```rust
+pub enum CleanError {
+    IoError {
+        path: PathBuf,
+        message: String,
+    },
+    LockfileError {
+        message: String,
+    },
+}
+
+impl CleanError {
+    pub fn io_error(path: PathBuf, message: impl Into<String>) -> Self;
+    pub fn lockfile_error(message: impl Into<String>) -> Self;
+}
+```
+
+### SkipReason
+
+Why a file was skipped:
+
+```rust
+pub enum SkipReason {
+    Modified,         // Hash mismatch
+    Missing,          // File doesn't exist
+    NoSignature,      // No Calvin signature
+    PermissionDenied, // Can't delete
+    Remote,           // Remote deployment
+}
+```
+
+## Lockfile Integration
+
+### Key Format
+
+Lockfile keys have the format `scope:path`:
+
+```toml
+[files."home:~/.claude/commands/workflow.md"]
+hash = "sha256:abc123..."
+
+[files."project:.cursor/rules/style.mdc"]
+hash = "sha256:def456..."
+```
+
+### After Clean
+
+The lockfile is updated to remove:
+- Successfully deleted entries
+- Missing file entries
+- Files without Calvin signature
+
+Entries are kept for:
+- Modified files (user may want to track)
+- Permission denied (transient error)
+- Remote deployments
+
+## Safety Mechanisms
+
+### 1. Signature Check
+
+Files must contain one of these signatures:
+
+```
+<!-- Generated by Calvin. DO NOT EDIT. -->
+<!-- Generated by Calvin v{version}. DO NOT EDIT. -->
+# Generated by Calvin. DO NOT EDIT.
+```
+
+### 2. Hash Verification
+
+File content is hashed and compared against the lockfile:
+
+```rust
+let hash = format!("sha256:{:x}", Sha256::digest(&content));
+if hash != lockfile_hash {
+    // File modified, skip unless --force
+}
+```
+
+### 3. Lockfile Scope Filtering
+
+```rust
+// Filter entries by scope
+let entries = match scope {
+    Some(Scope::User) => lockfile.keys_for_scope(Scope::User),
+    Some(Scope::Project) => lockfile.keys_for_scope(Scope::Project),
+    None => lockfile.entries(),
+};
+```
+
+## Interactive Mode API
+
+The tree menu is powered by the `TreeMenu` widget:
+
+```rust
+use calvin::ui::widgets::tree_menu::{
+    build_tree_from_lockfile,
+    run_interactive,
+    TreeMenu,
+};
+
+// Build tree from lockfile entries
+let entries: Vec<(String, PathBuf)> = /* ... */;
+let root = build_tree_from_lockfile(entries);
+
+// Create menu
+let mut menu = TreeMenu::new(root);
+
+// Run interactive loop
+match run_interactive(&mut menu, supports_unicode) {
+    Ok(Some(selected_keys)) => { /* User confirmed */ }
+    Ok(None) => { /* User cancelled */ }
+    Err(e) => { /* Error */ }
+}
+```
+
+## See Also
+
+- [Clean Command Guide](/guides/clean-command) - User-focused guide
+- [Scope Guide](/guides/scope-guide) - Understanding scopes
+- [Frontmatter Reference](/api/frontmatter) - Asset configuration
+

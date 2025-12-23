@@ -3,6 +3,7 @@
     "description": "Technical specifications and library API",
     "pages": [
         "index",
+        "clean",
         "frontmatter",
         "library",
         "versioning",
