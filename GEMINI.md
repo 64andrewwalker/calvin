@@ -1,64 +1,193 @@
-# Calvin - Project Context
+# Calvin Development Guide
 
-## Project Overview
+> For AI coding assistants working on this codebase.
 
-**Calvin** is a PromptOps compiler and synchronization tool written in Rust. It serves as a "single source of truth" for AI coding assistant configurations. It compiles "promptpacks" (Markdown-based rules and commands) into platform-specific configuration files for tools like Claude Code, Cursor, GitHub Copilot, Antigravity, and Codex.
+## What is Calvin?
 
-**Key Features:**
-*   **Single Source of Truth:** Maintain prompts in `.promptpack/`.
-*   **Multi-Platform Compilation:** Supports Claude, Cursor, VS Code, etc.
-*   **Architecture:** Strict Clean Architecture (Presentation → Application → Domain ← Infrastructure).
-*   **Security:** Auto-generates deny lists and blocks risky MCP servers.
+Calvin is a PromptOps compiler. It takes a `.promptpack/` directory of Markdown files and compiles them into platform-specific outputs for Claude Code, Cursor, VSCode, Antigravity, and Codex.
 
-## Building and Running
+**Core command**: `calvin deploy` - compiles and writes outputs to project.
 
-The project is a standard Rust binary.
+## Quick Start for Developers
 
-### Key Commands
+```bash
+# Build
+cargo build
 
-*   **Build (Debug):** `cargo build`
-*   **Build (Release):** `cargo build --release`
-*   **Test:** `cargo test` (Runs all tests, including unit and integration)
-*   **Format:** `cargo fmt`
-*   **Lint:** `cargo clippy` (Ensure no warnings)
-*   **Run CLI:** `cargo run -- <COMMAND>` (e.g., `cargo run -- deploy`)
+# Test (must pass before committing)
+cargo test
 
-### Common Usage (CLI)
+# Format (required)
+cargo fmt
 
-*   `calvin deploy`: Compiles and writes outputs to the project.
-*   `calvin check`: Validates configuration and security.
-*   `calvin diff`: Previews changes without writing.
-*   `calvin watch`: Watches for file changes and auto-recompiles.
+# Lint
+cargo clippy
+```
 
-## Development Conventions
+## Architecture
 
-**Strict adherence to these conventions is required.**
+Calvin uses **Clean Architecture** with 4 layers:
 
-### Architecture & Structure
-The codebase follows **Clean Architecture** with four distinct layers:
-1.  **Domain** (`src/domain/`): Pure business logic. **No I/O dependencies.** Defines traits (ports).
-2.  **Application** (`src/application/`): Use cases and orchestration. Depends on Domain.
-3.  **Infrastructure** (`src/infrastructure/`): Adapters, file system, external integrations. Implements Domain ports.
-4.  **Presentation** (`src/presentation/`, `src/commands/`, `src/ui/`): CLI entry points and user interaction.
+```
+Presentation → Application → Domain ← Infrastructure
+```
 
-*   **Dependency Rule:** Dependencies only point inward. Domain depends on nothing.
-*   **File Size:** Keep files under **400 lines**. Use `calvin-no-split` if a larger file is justified.
+### Directory Structure
 
-### Coding Standards
-*   **TDD:** Write tests first. All features must be tested.
-*   **Formatting:** Use `cargo fmt`.
-*   **Paths:** Use `PathBuf` instead of strings for file paths.
-*   **Error Handling:** Use `anyhow::Result` for CLI/Application layers, custom errors for Domain.
-*   **Documentation:** Update `docs/` when changing behavior (Architecture, API, CLI reference).
+```
+src/
+├── main.rs              # CLI entry point
+├── lib.rs               # Library exports
+├── domain/              # Core business logic (no I/O)
+│   ├── entities/        # Asset, OutputFile, Lockfile
+│   ├── services/        # Compiler, Planner, OrphanDetector
+│   ├── policies/        # ScopePolicy, SecurityPolicy
+│   ├── value_objects/   # Scope, Target, Hash
+│   └── ports/           # Trait definitions
+├── application/         # Use cases (orchestration)
+│   ├── deploy/          # DeployUseCase
+│   ├── watch/           # WatchUseCase, file watching
+│   ├── check.rs         # CheckUseCase
+│   └── diff.rs          # DiffUseCase
+├── infrastructure/      # External integrations
+│   ├── adapters/        # Claude, Cursor, VSCode, etc.
+│   ├── sync/            # Local/Remote file sync
+│   └── fs/              # FileSystem implementations
+├── commands/            # CLI command handlers
+├── ui/                  # Terminal UI components
+├── presentation/        # CLI definitions, factories
+├── config/              # Config loading
+├── security/            # Security checks
+├── models.rs            # PromptAsset, Frontmatter
+└── parser.rs            # YAML frontmatter parsing
+```
 
-### Key Files & Directories
-*   `src/main.rs`: CLI entry point.
-*   `src/lib.rs`: Library exports.
-*   `src/domain/ports/`: Trait definitions (contracts).
-*   `src/infrastructure/adapters/`: Platform-specific implementations.
-*   `.promptpack/`: Default directory for source prompts.
-*   `AGENTS.md`: Detailed developer guide (refer to this for in-depth rules).
+## Key Documents
 
-### CI/CD
-*   **CI:** GitHub Actions (`.github/workflows/ci.yml`) runs tests, coverage (Linux), and linting on Ubuntu, Windows, and macOS.
-*   **Coverage:** 70% threshold required (enforced on Linux).
+| Document | When to Read |
+|----------|--------------|
+| `docs/architecture/overview.md` | Understanding design goals |
+| `docs/architecture/layers.md` | Understanding layer responsibilities |
+| `docs/architecture/directory.md` | Finding where code lives |
+| `docs/api/frontmatter.md` | Working with source file format |
+| `docs/target-platforms.md` | Adding new platform adapters |
+| `spec.md` | Original product specification |
+
+## Development Principles
+
+1. **TDD always** - Write tests first, then implement. All features must have tests before merging.
+
+2. **No god objects** - Keep files under 400 lines. Large files require `calvin-no-split` justification.
+
+3. **Domain purity** - `domain/` never imports `infrastructure/` or `application/`. It defines traits; others implement.
+
+4. **Update docs** - When changing behavior, update relevant docs in `docs/`. Architecture changes → `docs/architecture/`. API changes → `docs/api/`.
+
+5. **Suggest refactoring** - If a change would benefit from restructuring, say so. Don't silently accumulate debt.
+
+6. **Minimal changes** - Solve the problem at hand. Don't add features that weren't requested.
+
+7. **Security by default** - Never weaken security. Deny lists are mandatory, not optional.
+
+## Common Tasks
+
+### Adding a new CLI command
+
+1. Add enum variant to `src/presentation/cli.rs`
+2. Add handler in `src/commands/`
+3. Add match arm in `src/main.rs`
+4. Add tests
+
+### Adding a new platform adapter
+
+1. Create `src/infrastructure/adapters/<platform>.rs`
+2. Implement `TargetAdapter` trait from `domain/ports/`
+3. Register in `infrastructure/adapters/mod.rs`
+4. Add `Target` variant in `domain/value_objects/target.rs`
+5. Add tests
+
+### Modifying deploy behavior
+
+1. Read `src/application/deploy/use_case.rs` (main orchestration)
+2. Check `domain/services/planner.rs` for conflict detection
+3. Check `domain/services/compiler.rs` for output generation
+4. Run `cargo test deploy` after changes
+
+## Testing
+
+```bash
+# All tests
+cargo test
+
+# Specific module
+cargo test domain::services::compiler
+
+# With output
+cargo test -- --nocapture
+
+# Integration tests
+cargo test --test cli_deploy_cleanup
+```
+
+## Pre-commit Checklist
+
+1. `cargo fmt`
+2. `cargo clippy` - no warnings
+3. `cargo test` - all pass
+4. Files under 400 lines (or marked with `calvin-no-split`)
+
+## Code Style
+
+- Use `PathBuf` for file paths, not strings
+- Error handling: `anyhow::Result` for CLI, custom errors for domain
+- Prefer iterators over loops
+- Document public APIs with `///`
+
+## TDD Workflow
+
+```bash
+# 1. Write failing test
+cargo test my_new_feature -- --nocapture
+# Expected: FAIL
+
+# 2. Implement minimum code to pass
+# ...edit code...
+
+# 3. Run test again
+cargo test my_new_feature
+# Expected: PASS
+
+# 4. Refactor if needed, keep tests green
+```
+
+For TDD session examples, see `docs/archive/tdd-session-*.md`.
+
+## Documentation Sync
+
+When you change code, update corresponding docs:
+
+| Change Type | Update |
+|-------------|--------|
+| New CLI option | `docs/command-reference.md` |
+| Config change | `docs/configuration.md` |
+| New adapter | `docs/target-platforms.md` |
+| Architecture | `docs/architecture/*.md` |
+| API change | `docs/api/changelog.md` |
+
+## Critical Files
+
+Files that affect the whole system - change with extra care:
+
+- `src/lib.rs` - Public API exports
+- `src/main.rs` - CLI entry point
+- `domain/ports/*.rs` - Trait contracts
+- `Cargo.toml` - Dependencies
+
+## Asking for Help
+
+If stuck, check:
+
+1. `docs/architecture/` for design decisions
+2. `docs/archive/` for historical context
+3. `docs/guides/pitfall-mitigations.md` for known issues
+4. Existing tests for usage examples

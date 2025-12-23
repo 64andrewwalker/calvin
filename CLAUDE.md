@@ -186,8 +186,8 @@ Files that affect the whole system - change with extra care:
 ## Asking for Help
 
 If stuck, check:
+
 1. `docs/architecture/` for design decisions
 2. `docs/archive/` for historical context
 3. `docs/guides/pitfall-mitigations.md` for known issues
 4. Existing tests for usage examples
-
