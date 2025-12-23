@@ -1,7 +1,13 @@
 //! Integration tests for calvin clean command
 
+use std::path::Path;
 use std::process::Command;
 use tempfile::tempdir;
+
+/// Normalize path for use in lockfile keys (Windows uses backslashes)
+fn normalize_path_for_key(path: &Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
+}
 
 /// Get the path to the calvin binary
 fn bin() -> &'static str {
@@ -398,7 +404,7 @@ fn clean__with_already_deleted_files() {
 [files."project:{}"]
 hash = "sha256:somehash"
 "#,
-            missing_file.to_string_lossy()
+            normalize_path_for_key(&missing_file)
         ),
     )
     .unwrap();
@@ -463,7 +469,7 @@ hash = "{}"
 [files."home:~/.claude/commands/home-file.md"]
 hash = "sha256:homefilehash"
 "#,
-            project_file.to_string_lossy(),
+            normalize_path_for_key(&project_file),
             hash
         ),
     )
@@ -515,7 +521,7 @@ fn clean__with_file_without_signature() {
 [files."project:{}"]
 hash = "{}"
 "#,
-            file.to_string_lossy(),
+            normalize_path_for_key(&file),
             hash
         ),
     )
@@ -568,7 +574,7 @@ fn clean__with_force_deletes_unsigned_file() {
 [files."project:{}"]
 hash = "{}"
 "#,
-            file.to_string_lossy(),
+            normalize_path_for_key(&file),
             hash
         ),
     )
@@ -614,7 +620,7 @@ fn clean__with_modified_file() {
 [files."project:{}"]
 hash = "sha256:originalhashbeforemodification1234567890abcdef"
 "#,
-            file.to_string_lossy()
+            normalize_path_for_key(&file)
         ),
     )
     .unwrap();
