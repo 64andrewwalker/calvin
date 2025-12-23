@@ -1,3 +1,4 @@
+use crate::ui::theme::CalvinTheme;
 use calvin::Target;
 use is_terminal::IsTerminal;
 use std::path::Path;
@@ -75,8 +76,11 @@ pub fn select_targets_interactive_with_save(
         })
         .collect();
 
+    // Use CalvinTheme for ●/○ icons
+    let theme = CalvinTheme::new(crate::ui::terminal::detect_capabilities().supports_unicode);
+
     println!("\nSelect target platforms (use space to toggle, enter to confirm):");
-    let selection = MultiSelect::new()
+    let selection = MultiSelect::with_theme(&theme)
         .items(&items)
         .defaults(&defaults)
         .interact()

@@ -71,7 +71,10 @@ fn select_templates(ui: &crate::ui::context::UiContext) -> Result<Vec<TemplateCh
         "(empty)           Start with blank templates",
     ];
 
-    let selection = MultiSelect::new()
+    // Use CalvinTheme for ●/○ icons
+    let theme = crate::ui::theme::CalvinTheme::new(ui.unicode);
+
+    let selection = MultiSelect::with_theme(&theme)
         .items(&items)
         .defaults(&[true, true, false, false, false])
         .interact()?;

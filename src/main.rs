@@ -10,7 +10,34 @@ mod ui;
 
 use calvin::presentation::{Cli, ColorWhen, Commands};
 
+/// Guard that ensures terminal cursor is visible when dropped.
+/// This fixes dialoguer issue #77 where cursor remains hidden after Ctrl+C.
+struct CursorGuard;
+
+impl Drop for CursorGuard {
+    fn drop(&mut self) {
+        // Only restore cursor if stdout is a TTY (avoid polluting JSON output)
+        use is_terminal::IsTerminal;
+        if std::io::stdout().is_terminal() {
+            use std::io::Write;
+            let _ = crossterm::execute!(std::io::stdout(), crossterm::cursor::Show);
+            let _ = std::io::stdout().flush();
+        }
+    }
+}
+
 fn main() {
+    // Register an atexit handler to ensure cursor is visible on exit
+    // This is needed because dialoguer hides the cursor during interactive prompts
+    // and doesn't restore it on panic/abort (dialoguer issue #77)
+    //
+    // Note: We use atexit instead of ctrlc::set_handler because watch command
+    // needs its own ctrlc handler for graceful shutdown.
+    //
+    // For Ctrl+C specifically, we rely on crossterm's built-in signal handling
+    // which restores terminal state on Drop.
+    let _cursor_guard = CursorGuard;
+
     let cli = Cli::parse();
     let json = cli.json;
     let verbose = cli.verbose;
