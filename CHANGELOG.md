@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0](https://github.com/64andrewwalker/calvin/compare/v0.4.0...v0.5.0) (2025-12-23)
+
+
+### Features
+
+* **clean:** add --all option for non-interactive full cleanup ([ac2544a](https://github.com/64andrewwalker/calvin/commit/ac2544abab90ef116602e332020f8fe4b23a59c6))
+* **clean:** add TreeMenu widget and clean UI views ([271884a](https://github.com/64andrewwalker/calvin/commit/271884a5638817ef376890a5099724e9355e3ea9))
+* **clean:** filter non-cleanable files in interactive mode ([0fb523a](https://github.com/64andrewwalker/calvin/commit/0fb523a9b3d9a21b66a29f14ad6ac77fbd589ee4))
+* **clean:** implement API improvements following TDD ([84c5aad](https://github.com/64andrewwalker/calvin/commit/84c5aadc2887138d0c370c17f7e398e595c50a13))
+* **fuzz:** add 5 new fuzz targets for comprehensive coverage ([ac9d52d](https://github.com/64andrewwalker/calvin/commit/ac9d52d0557e914c8a16877db49a755d5192ca3f))
+* implement clean command with CLI options and tests ([f4a5b83](https://github.com/64andrewwalker/calvin/commit/f4a5b837fdded5e2be6aca7c7d03012af9666e84))
+* **ui:** add CalvinTheme with ●/○ icons and fix cursor restoration ([1700e4e](https://github.com/64andrewwalker/calvin/commit/1700e4e592eb303dc372f78ac6760af775930f1d))
+* update GEMINI.md to a comprehensive development guide and apply minor formatting adjustments to CLAUDE.md and AGENTS.md. ([ab44248](https://github.com/64andrewwalker/calvin/commit/ab44248ff6dca1b567aa0db14a5276332e36facc))
+
+
+### Bug Fixes
+
+* **clean:** remove orphan lockfile entries for missing/unsigned files ([37437ce](https://github.com/64andrewwalker/calvin/commit/37437ce6945251bb4785b88548f07a7deae9d45c))
+* **clean:** respect selected_keys for selective deletion ([3895539](https://github.com/64andrewwalker/calvin/commit/3895539a2f25b66920df68f7ea5596752103998f))
+* normalize paths in CleanUseCase tests for Windows CI ([967e3c0](https://github.com/64andrewwalker/calvin/commit/967e3c0b3b84e29ef6c37244a6eea4cc7bb6640f))
+* normalize paths in integration tests for Windows CI ([50faaec](https://github.com/64andrewwalker/calvin/commit/50faaecf0e387f7824cefa2280fe562f03111d32))
+* remove version from generated file headers/footers ([00506a7](https://github.com/64andrewwalker/calvin/commit/00506a7fd08175c56bccfb124e619f4755c3b01c))
+* **vscode:** only generate AGENTS.md for project scope deployments ([c5d8b3f](https://github.com/64andrewwalker/calvin/commit/c5d8b3f6dab86c278c92b84fa9846059a09d9596))
+
 ## [0.4.0](https://github.com/64andrewwalker/calvin/compare/v0.3.0...v0.4.0) (2025-12-22)
 
 
