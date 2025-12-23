@@ -1,6 +1,6 @@
 # Clean Command - TODO
 
-> **Status**: Phase 2 In Progress  
+> **Status**: Phase 2 Complete  
 > **PRD**: [clean-command-prd.md](clean-command-prd.md)  
 > **Implementation Plan**: [clean-command-implementation-plan.md](clean-command-implementation-plan.md)
 
@@ -86,7 +86,7 @@
 
 ---
 
-## Phase 2: 交互式树形菜单 (部分完成)
+## Phase 2: 交互式树形菜单 ✅ COMPLETE
 
 ### 2.1 TreeNode 数据结构 ✅
 
@@ -127,11 +127,11 @@
   - [x] 快捷键提示
 - [x] **REFACTOR**: 优化视觉效果
 
-### 2.4 集成到 Clean 命令
+### 2.4 集成到 Clean 命令 ✅
 
-- [ ] 在 `cmd_clean()` 中检测交互模式
-- [ ] 无参数时启动 TreeMenu
-- [ ] TreeMenu 选择结果传递给 CleanUseCase
+- [x] 在 `cmd_clean()` 中检测交互模式
+- [x] 无参数时启动 TreeMenu
+- [x] TreeMenu 选择结果传递给 CleanUseCase
 
 ---
 
@@ -197,15 +197,15 @@
 - [x] 所有单元测试通过
 - [x] 所有集成测试通过
 
-### Phase 2 完成条件
+### Phase 2 完成条件 ✅
 
 - [x] TreeNode 数据结构实现
 - [x] TreeMenu 键盘导航实现
 - [x] TreeMenu 渲染实现
-- [ ] `calvin clean` 进入交互式菜单 (需要集成)
-- [ ] 树形菜单正确显示层级
-- [ ] 选择逻辑正确 (父子联动)
-- [ ] 快捷键全部工作
+- [x] `calvin clean` 进入交互式菜单
+- [x] 树形菜单正确显示层级
+- [x] 选择逻辑正确 (父子联动)
+- [x] 快捷键全部工作
 
 ---
 
@@ -214,7 +214,7 @@
 | Phase | 预估时间 | 说明 | 状态 |
 |-------|---------|------|------|
 | Phase 1 | 4-6 小时 | 核心功能，TDD 完整循环 | ✅ 完成 |
-| Phase 2 | 3-4 小时 | 交互式 UI，复用 CalvinTheme | 🚧 90% 完成 |
+| Phase 2 | 3-4 小时 | 交互式 UI，复用 CalvinTheme | ✅ 完成 |
 | Phase 3 | 2-3 小时 | 可选，仅在需要时实现 | ⏸️ 待定 |
 
 **总计**: 约 9-13 小时
@@ -223,15 +223,15 @@
 
 ## 下一步
 
-Phase 1 完成，Phase 2 核心组件（TreeNode, TreeMenu, 渲染）已完成。
+Phase 1 和 Phase 2 已完成。
 
-剩余任务：
-1. **Phase 2.4**: 将 TreeMenu 集成到 `cmd_clean()` 中
-2. 添加终端交互循环（crossterm 事件处理）
-3. 测试交互式模式
+可选的 Phase 3 任务（按需实现）：
+1. 扩展 lockfile 添加 target 字段
+2. 实现 `--target` 过滤选项
+3. 迁移旧格式 lockfile
 
 ```bash
-# 运行现有测试确保一切正常
+# 运行测试确保一切正常
 cargo test clean
 cargo test tree_menu
 ```

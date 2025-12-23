@@ -49,8 +49,8 @@ pub fn render_clean_preview(
                 .render(supports_color),
         );
         out.push('\n');
-        for path in &result.deleted {
-            out.push_str(&format!("  - {}\n", path.display()));
+        for deleted in &result.deleted {
+            out.push_str(&format!("  - {}\n", deleted.path.display()));
         }
     }
 
@@ -146,7 +146,10 @@ mod tests {
     #[test]
     fn preview_lists_deleted_files() {
         let mut result = CleanResult::new();
-        result.add_deleted(PathBuf::from("/path/to/file.md"));
+        result.add_deleted(
+            PathBuf::from("/path/to/file.md"),
+            "home:/path/to/file.md".to_string(),
+        );
 
         let rendered = render_clean_preview(&result, false, false);
         assert!(rendered.contains("/path/to/file.md"));
@@ -156,7 +159,11 @@ mod tests {
     #[test]
     fn preview_lists_skipped_files() {
         let mut result = CleanResult::new();
-        result.add_skipped(PathBuf::from("/path/to/file.md"), SkipReason::Modified);
+        result.add_skipped(
+            PathBuf::from("/path/to/file.md"),
+            SkipReason::Modified,
+            "home:/path/to/file.md".to_string(),
+        );
 
         let rendered = render_clean_preview(&result, false, false);
         assert!(rendered.contains("/path/to/file.md"));
@@ -166,8 +173,8 @@ mod tests {
     #[test]
     fn summary_shows_deleted_count() {
         let mut result = CleanResult::new();
-        result.add_deleted(PathBuf::from("a"));
-        result.add_deleted(PathBuf::from("b"));
+        result.add_deleted(PathBuf::from("a"), "home:a".to_string());
+        result.add_deleted(PathBuf::from("b"), "home:b".to_string());
 
         let rendered = render_clean_result(&result, false, false, false);
         assert!(rendered.contains("2 files deleted"));
@@ -176,7 +183,7 @@ mod tests {
     #[test]
     fn summary_shows_dry_run_wording() {
         let mut result = CleanResult::new();
-        result.add_deleted(PathBuf::from("a"));
+        result.add_deleted(PathBuf::from("a"), "home:a".to_string());
 
         let rendered = render_clean_result(&result, true, false, false);
         assert!(rendered.contains("would be deleted"));

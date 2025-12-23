@@ -5,7 +5,7 @@
 
 #![allow(dead_code)] // Phase 2: Tree menu not yet integrated into clean command
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::ui::theme::{icons, icons_ascii};
 
@@ -492,6 +492,125 @@ impl TreeMenu {
     }
 }
 
+/// Convert a keyboard event to a TreeAction
+pub fn key_to_action(key: crossterm::event::KeyEvent) -> Option<TreeAction> {
+    use crossterm::event::KeyCode;
+
+    match key.code {
+        KeyCode::Up | KeyCode::Char('k') => Some(TreeAction::Up),
+        KeyCode::Down | KeyCode::Char('j') => Some(TreeAction::Down),
+        KeyCode::Char(' ') => Some(TreeAction::Toggle),
+        KeyCode::Right | KeyCode::Char('l') => Some(TreeAction::Expand),
+        KeyCode::Left | KeyCode::Char('h') | KeyCode::Backspace => Some(TreeAction::Collapse),
+        KeyCode::Char('a') => Some(TreeAction::SelectAll),
+        KeyCode::Char('n') => Some(TreeAction::SelectNone),
+        KeyCode::Char('i') => Some(TreeAction::Invert),
+        KeyCode::Char('q') | KeyCode::Esc => Some(TreeAction::Quit),
+        _ => None,
+    }
+}
+
+/// Run the tree menu interactively
+/// Returns the selected keys if confirmed, None if quit
+pub fn run_interactive(
+    menu: &mut TreeMenu,
+    supports_unicode: bool,
+) -> std::io::Result<Option<Vec<String>>> {
+    use crossterm::{
+        cursor,
+        event::{self, Event, KeyCode, KeyEventKind},
+        execute,
+        terminal::{self, ClearType},
+    };
+    use std::io::{stdout, Write};
+
+    // Enable raw mode
+    terminal::enable_raw_mode()?;
+    let mut stdout = stdout();
+
+    // Helper to render the full UI
+    let render_ui = |stdout: &mut std::io::Stdout, menu: &TreeMenu| -> std::io::Result<()> {
+        // Clear entire screen and move to top
+        execute!(
+            stdout,
+            terminal::Clear(ClearType::All),
+            cursor::MoveTo(0, 0)
+        )?;
+
+        // Header
+        println!("🧹 Calvin Clean\r");
+        println!("\r");
+
+        // Render tree
+        let rendered = menu.render(supports_unicode);
+        for line in rendered.lines() {
+            print!("{}\r\n", line);
+        }
+
+        // Separator
+        println!("───────────────────────────────────────────────────────────────\r");
+
+        // Status bar
+        let status = menu.render_status_bar(supports_unicode);
+        for line in status.lines() {
+            print!("{}\r\n", line);
+        }
+        println!("\r");
+
+        // Help bar
+        let help = menu.render_help_bar();
+        for line in help.lines() {
+            print!("{}\r\n", line);
+        }
+
+        stdout.flush()?;
+        Ok(())
+    };
+
+    // Hide cursor
+    execute!(stdout, cursor::Hide)?;
+
+    // Initial render
+    render_ui(&mut stdout, menu)?;
+
+    let result = loop {
+        // Wait for key event
+        if let Event::Key(key) = event::read()? {
+            if key.kind != KeyEventKind::Press {
+                continue;
+            }
+
+            // Enter always confirms selection
+            if key.code == KeyCode::Enter {
+                break Some(menu.selected_keys());
+            }
+
+            if let Some(action) = key_to_action(key) {
+                match action {
+                    TreeAction::Confirm => break Some(menu.selected_keys()),
+                    TreeAction::Quit => break None,
+                    _ => {
+                        menu.handle_action(action);
+                        // Redraw after action
+                        render_ui(&mut stdout, menu)?;
+                    }
+                }
+            }
+        }
+    };
+
+    // Restore terminal
+    execute!(
+        stdout,
+        cursor::Show,
+        terminal::Clear(ClearType::All),
+        cursor::MoveTo(0, 0)
+    )?;
+    terminal::disable_raw_mode()?;
+
+    Ok(result)
+}
+
 /// Render a single tree node
 fn render_tree_node(node: &FlattenedNode, is_active: bool, supports_unicode: bool) -> String {
     let indent = "  ".repeat(node.depth);
@@ -553,36 +672,105 @@ fn render_tree_node(node: &FlattenedNode, is_active: bool, supports_unicode: boo
 }
 
 /// Build a tree from lockfile entries
+///
+/// Groups entries by Scope → Target (inferred from path).
+/// Since the lockfile doesn't store target info, we infer from the path prefix.
 pub fn build_tree_from_lockfile(entries: impl IntoIterator<Item = (String, PathBuf)>) -> TreeNode {
+    use std::collections::HashMap;
+
     let mut root = TreeNode::new("Deployments");
     root.expanded = true;
 
-    let mut home_node = TreeNode::new("Home (~/)");
-    let mut project_node = TreeNode::new("Project (./)");
+    // Group by scope and target
+    let mut home_targets: HashMap<String, Vec<(String, PathBuf)>> = HashMap::new();
+    let mut project_targets: HashMap<String, Vec<(String, PathBuf)>> = HashMap::new();
 
     for (key, path) in entries {
-        let label = path
-            .file_name()
-            .map(|s| s.to_string_lossy().to_string())
-            .unwrap_or_else(|| path.display().to_string());
-
-        let leaf = TreeNode::leaf(label, path, key.clone());
+        // Infer target from path
+        let target = infer_target_from_path(&path);
 
         if key.starts_with("home:") {
-            home_node.add_child(leaf);
+            home_targets.entry(target).or_default().push((key, path));
         } else if key.starts_with("project:") {
-            project_node.add_child(leaf);
+            project_targets.entry(target).or_default().push((key, path));
         }
     }
 
-    if !home_node.children.is_empty() {
+    // Build Home scope
+    if !home_targets.is_empty() {
+        let mut home_node = TreeNode::new("Home (~/)".to_string());
+
+        // Sort targets alphabetically
+        let mut targets: Vec<_> = home_targets.into_iter().collect();
+        targets.sort_by(|a, b| a.0.cmp(&b.0));
+
+        for (target, files) in targets {
+            let mut target_node = TreeNode::new(target);
+
+            for (key, path) in files {
+                let label = path
+                    .file_name()
+                    .map(|s| s.to_string_lossy().to_string())
+                    .unwrap_or_else(|| path.display().to_string());
+                target_node.add_child(TreeNode::leaf(label, path, key));
+            }
+
+            home_node.add_child(target_node);
+        }
+
         root.add_child(home_node);
     }
-    if !project_node.children.is_empty() {
+
+    // Build Project scope
+    if !project_targets.is_empty() {
+        let mut project_node = TreeNode::new("Project (./)".to_string());
+
+        // Sort targets alphabetically
+        let mut targets: Vec<_> = project_targets.into_iter().collect();
+        targets.sort_by(|a, b| a.0.cmp(&b.0));
+
+        for (target, files) in targets {
+            let mut target_node = TreeNode::new(target);
+
+            for (key, path) in files {
+                let label = path
+                    .file_name()
+                    .map(|s| s.to_string_lossy().to_string())
+                    .unwrap_or_else(|| path.display().to_string());
+                target_node.add_child(TreeNode::leaf(label, path, key));
+            }
+
+            project_node.add_child(target_node);
+        }
+
         root.add_child(project_node);
     }
 
     root
+}
+
+/// Infer target platform from file path
+fn infer_target_from_path(path: &Path) -> String {
+    let path_str = path.to_string_lossy();
+
+    if path_str.contains(".claude/") || path_str.contains(".claude\\") {
+        "claude-code".to_string()
+    } else if path_str.contains(".cursor/") || path_str.contains(".cursor\\") {
+        "cursor".to_string()
+    } else if path_str.contains(".vscode/") || path_str.contains(".vscode\\") {
+        "vscode".to_string()
+    } else if path_str.contains(".codex/") || path_str.contains(".codex\\") {
+        "codex".to_string()
+    } else if path_str.contains(".gemini/") || path_str.contains(".gemini\\") {
+        "antigravity".to_string()
+    } else if path_str.contains("AGENTS.md")
+        || path_str.contains("CLAUDE.md")
+        || path_str.contains("GEMINI.md")
+    {
+        "agents-md".to_string()
+    } else {
+        "other".to_string()
+    }
 }
 
 #[cfg(test)]
@@ -1064,6 +1252,65 @@ mod tests {
 
         assert_eq!(root.children.len(), 2);
         assert_eq!(root.total_count(), 2);
+    }
+
+    #[test]
+    fn render_tree_structure_with_real_entries() {
+        // Create entries with various targets for each scope
+        let entries = vec![
+            // Claude-code home entries
+            (
+                "home:~/.claude/commands/test1.md".to_string(),
+                PathBuf::from("/Users/test/.claude/commands/test1.md"),
+            ),
+            (
+                "home:~/.claude/commands/test2.md".to_string(),
+                PathBuf::from("/Users/test/.claude/commands/test2.md"),
+            ),
+            // Cursor home entries
+            (
+                "home:~/.cursor/rules/prompt1.mdc".to_string(),
+                PathBuf::from("/Users/test/.cursor/rules/prompt1.mdc"),
+            ),
+            // VSCode home entries
+            (
+                "home:~/.vscode/instructions/task.instructions.md".to_string(),
+                PathBuf::from("/Users/test/.vscode/instructions/task.instructions.md"),
+            ),
+            // Codex home entries
+            (
+                "home:~/.codex/prompts/help.md".to_string(),
+                PathBuf::from("/Users/test/.codex/prompts/help.md"),
+            ),
+            // Antigravity home entries
+            (
+                "home:~/.gemini/antigravity/global_workflows/flow.md".to_string(),
+                PathBuf::from("/Users/test/.gemini/antigravity/global_workflows/flow.md"),
+            ),
+            // Project entries
+            (
+                "project:.cursor/rules/local.mdc".to_string(),
+                PathBuf::from(".cursor/rules/local.mdc"),
+            ),
+        ];
+
+        let root = build_tree_from_lockfile(entries);
+        let mut menu = TreeMenu::new(root);
+
+        // Expand Home node to show targets
+        menu.handle_action(TreeAction::Down); // Move to Home
+        menu.handle_action(TreeAction::Expand); // Expand Home
+
+        // Print the rendered tree
+        println!("\n=== Tree Menu Structure ===\n");
+        let rendered = menu.render(true);
+        println!("{}", rendered);
+        println!("───────────────────────────────────────────────────────────────");
+        println!("{}", menu.render_status_bar(true));
+        println!("\n{}", menu.render_help_bar());
+
+        // Verify tree structure
+        assert_eq!(menu.total_count(), 7);
     }
 
     // === TDD: Phase 2.3 - Rendering ===

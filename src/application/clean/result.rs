@@ -36,11 +36,28 @@ pub struct SkippedFile {
     pub path: PathBuf,
     /// Reason for skipping
     pub reason: SkipReason,
+    /// Original lockfile key (for lockfile updates)
+    pub key: String,
 }
 
 impl SkippedFile {
-    pub fn new(path: PathBuf, reason: SkipReason) -> Self {
-        Self { path, reason }
+    pub fn new(path: PathBuf, reason: SkipReason, key: String) -> Self {
+        Self { path, reason, key }
+    }
+}
+
+/// A file that was deleted during clean
+#[derive(Debug, Clone)]
+pub struct DeletedFile {
+    /// Expanded absolute path to the file
+    pub path: PathBuf,
+    /// Original lockfile key (used for lockfile updates)
+    pub key: String,
+}
+
+impl DeletedFile {
+    pub fn new(path: PathBuf, key: String) -> Self {
+        Self { path, key }
     }
 }
 
@@ -48,7 +65,7 @@ impl SkippedFile {
 #[derive(Debug, Clone, Default)]
 pub struct CleanResult {
     /// Files that were deleted (or would be deleted in dry run)
-    pub deleted: Vec<PathBuf>,
+    pub deleted: Vec<DeletedFile>,
     /// Files that were skipped
     pub skipped: Vec<SkippedFile>,
     /// Errors that occurred
@@ -61,13 +78,13 @@ impl CleanResult {
     }
 
     /// Add a deleted file
-    pub fn add_deleted(&mut self, path: PathBuf) {
-        self.deleted.push(path);
+    pub fn add_deleted(&mut self, path: PathBuf, key: String) {
+        self.deleted.push(DeletedFile::new(path, key));
     }
 
     /// Add a skipped file
-    pub fn add_skipped(&mut self, path: PathBuf, reason: SkipReason) {
-        self.skipped.push(SkippedFile::new(path, reason));
+    pub fn add_skipped(&mut self, path: PathBuf, reason: SkipReason, key: String) {
+        self.skipped.push(SkippedFile::new(path, reason, key));
     }
 
     /// Add an error

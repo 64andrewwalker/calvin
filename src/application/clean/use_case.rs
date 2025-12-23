@@ -49,27 +49,34 @@ where
         let lockfile = self.lockfile_repo.load_or_new(lockfile_path);
         let result = self.process_lockfile(&lockfile, options, !options.dry_run);
 
-        // Update lockfile to remove deleted entries
-        if !options.dry_run && !result.deleted.is_empty() {
+        // Update lockfile to remove entries
+        if !options.dry_run {
             let mut updated_lockfile = lockfile.clone();
-            for path in &result.deleted {
-                // Find the key for this path
-                if let Some(scope) = options.scope {
-                    let key = Lockfile::make_key(scope, &path.display().to_string());
-                    updated_lockfile.remove(&key);
-                } else {
-                    // Try both scopes
-                    let home_key = Lockfile::make_key(Scope::User, &path.display().to_string());
-                    let project_key =
-                        Lockfile::make_key(Scope::Project, &path.display().to_string());
-                    updated_lockfile.remove(&home_key);
-                    updated_lockfile.remove(&project_key);
+
+            // Remove deleted file entries
+            for deleted_file in &result.deleted {
+                updated_lockfile.remove(&deleted_file.key);
+            }
+
+            // Also remove entries for:
+            // - Missing files (file doesn't exist anymore)
+            // - Files without Calvin signature (Calvin never generated them)
+            for skipped_file in &result.skipped {
+                match skipped_file.reason {
+                    SkipReason::Missing | SkipReason::NoSignature => {
+                        updated_lockfile.remove(&skipped_file.key);
+                    }
+                    // Keep entries for modified files (user might want to keep track)
+                    // Keep entries for permission denied (transient error)
+                    SkipReason::Modified | SkipReason::PermissionDenied | SkipReason::Remote => {}
                 }
             }
 
-            // Save updated lockfile
-            if let Err(e) = self.lockfile_repo.save(&updated_lockfile, lockfile_path) {
-                eprintln!("Warning: Failed to update lockfile: {}", e);
+            // Save updated lockfile if anything changed
+            if updated_lockfile.len() != lockfile.len() {
+                if let Err(e) = self.lockfile_repo.save(&updated_lockfile, lockfile_path) {
+                    eprintln!("Warning: Failed to update lockfile: {}", e);
+                }
             }
         }
 
@@ -118,7 +125,7 @@ where
 
             // Check if file exists
             if !self.fs.exists(&path) {
-                result.add_skipped(path, SkipReason::Missing);
+                result.add_skipped(path, SkipReason::Missing, key.to_string());
                 continue;
             }
 
@@ -126,14 +133,14 @@ where
             let content = match self.fs.read(&path) {
                 Ok(c) => c,
                 Err(_) => {
-                    result.add_skipped(path, SkipReason::PermissionDenied);
+                    result.add_skipped(path, SkipReason::PermissionDenied, key.to_string());
                     continue;
                 }
             };
 
             // Check signature (unless force)
             if !options.force && !has_calvin_signature(&content) {
-                result.add_skipped(path, SkipReason::NoSignature);
+                result.add_skipped(path, SkipReason::NoSignature, key.to_string());
                 continue;
             }
 
@@ -143,7 +150,7 @@ where
                 hasher.update(content.as_bytes());
                 let actual_hash = format!("sha256:{:x}", hasher.finalize());
                 if actual_hash != expected_hash {
-                    result.add_skipped(path, SkipReason::Modified);
+                    result.add_skipped(path, SkipReason::Modified, key.to_string());
                     continue;
                 }
             }
@@ -156,7 +163,8 @@ where
                 }
             }
 
-            result.add_deleted(path);
+            // Store path and original key for lockfile update
+            result.add_deleted(path, key.to_string());
         }
 
         result
