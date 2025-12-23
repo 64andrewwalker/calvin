@@ -13,7 +13,7 @@ use calvin::infrastructure::{LocalFs, TomlLockfileRepository};
 use calvin::presentation::ColorWhen;
 
 use crate::ui::context::UiContext;
-use crate::ui::primitives::icon::Icon;
+use crate::ui::views::clean::{render_clean_header, render_clean_preview, render_clean_result};
 
 /// Execute the clean command
 #[allow(clippy::too_many_arguments)]
@@ -34,6 +34,7 @@ pub fn cmd_clean(
 
     // Build UI context for proper icon rendering
     let ui = UiContext::new(json, verbose, color, no_animation, &config);
+
     // Determine scope
     let scope = match (home, project) {
         (true, false) => Some(Scope::User),
@@ -114,19 +115,26 @@ pub fn cmd_clean(
             result.skipped.len()
         );
     } else {
+        // Render header
+        print!(
+            "{}",
+            render_clean_header(
+                source,
+                scope,
+                dry_run,
+                ui.caps.supports_color,
+                ui.caps.supports_unicode
+            )
+        );
+
         // Interactive mode - ask for confirmation unless --yes
         if !dry_run && !yes && !result.deleted.is_empty() {
             // Show preview
-            println!("\nFiles to be deleted:");
-            for path in &result.deleted {
-                println!("  - {}", path.display());
-            }
-            if !result.skipped.is_empty() {
-                println!("\nFiles to be skipped:");
-                for skipped in &result.skipped {
-                    println!("  - {} ({})", skipped.path.display(), skipped.reason);
-                }
-            }
+            println!();
+            print!(
+                "{}",
+                render_clean_preview(&result, ui.caps.supports_color, ui.caps.supports_unicode)
+            );
             println!();
 
             // Ask for confirmation
@@ -143,45 +151,55 @@ pub fn cmd_clean(
 
             // Actually execute the delete
             let result = use_case.execute_confirmed(&lockfile_path, &options);
-            let success_icon =
-                Icon::Success.colored(ui.caps.supports_color, ui.caps.supports_unicode);
-            println!(
-                "{} Cleaned {} files ({} skipped)",
-                success_icon,
-                result.deleted.len(),
-                result.skipped.len()
+            print!(
+                "{}",
+                render_clean_result(
+                    &result,
+                    false,
+                    ui.caps.supports_color,
+                    ui.caps.supports_unicode
+                )
             );
         } else if dry_run {
-            println!("\nDry run - no files will be deleted:\n");
-            for path in &result.deleted {
-                println!("  Would delete: {}", path.display());
-            }
-            for skipped in &result.skipped {
-                println!(
-                    "  Would skip: {} ({})",
-                    skipped.path.display(),
-                    skipped.reason
-                );
-            }
-            println!(
-                "\n{} files would be deleted, {} would be skipped",
-                result.deleted.len(),
-                result.skipped.len()
+            // Dry run mode
+            println!();
+            print!(
+                "{}",
+                render_clean_preview(&result, ui.caps.supports_color, ui.caps.supports_unicode)
+            );
+            println!();
+            print!(
+                "{}",
+                render_clean_result(
+                    &result,
+                    true,
+                    ui.caps.supports_color,
+                    ui.caps.supports_unicode
+                )
             );
         } else {
             // --yes mode or empty result
             if result.deleted.is_empty() && result.skipped.is_empty() {
-                println!("Nothing to clean.");
+                print!(
+                    "{}",
+                    render_clean_result(
+                        &result,
+                        false,
+                        ui.caps.supports_color,
+                        ui.caps.supports_unicode
+                    )
+                );
             } else {
                 // Execute confirmed
                 let result = use_case.execute_confirmed(&lockfile_path, &options);
-                let success_icon =
-                    Icon::Success.colored(ui.caps.supports_color, ui.caps.supports_unicode);
-                println!(
-                    "{} Cleaned {} files ({} skipped)",
-                    success_icon,
-                    result.deleted.len(),
-                    result.skipped.len()
+                print!(
+                    "{}",
+                    render_clean_result(
+                        &result,
+                        false,
+                        ui.caps.supports_color,
+                        ui.caps.supports_unicode
+                    )
                 );
             }
         }

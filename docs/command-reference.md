@@ -153,6 +153,57 @@ calvin diff [OPTIONS]
 
 ---
 
+### `calvin clean`
+
+Remove deployed files tracked in the lockfile.
+
+```bash
+calvin clean [OPTIONS]
+```
+
+**Options:**
+| Option | Short | Description |
+|--------|-------|-------------|
+| `--source <PATH>` | `-s` | Path to `.promptpack` directory (default: `.promptpack`) |
+| `--home` | - | Clean only home directory deployments (~/) |
+| `--project` | - | Clean only project directory deployments (./) |
+| `--dry-run` | - | Preview what would be deleted without deleting |
+| `--yes` | `-y` | Non-interactive; skip confirmation prompt |
+| `--force` | `-f` | Force delete even if files were modified |
+
+**Safety Features:**
+
+- Only deletes files tracked in the lockfile (`.calvin.lock`)
+- Verifies files have Calvin signature before deletion
+- Skips files that were modified after deployment (hash mismatch)
+- Updates lockfile after successful deletion
+
+**Behavior by Scope:**
+
+| Option | Cleans |
+|--------|--------|
+| `--home` | Files deployed to `~/` (home directory) |
+| `--project` | Files deployed to `.` (project directory) |
+| (neither) | All files in lockfile |
+
+**Examples:**
+```bash
+calvin clean                        # Preview all deployments
+calvin clean --home --yes           # Delete all home deployments
+calvin clean --project --dry-run    # Preview project deployment cleanup
+calvin clean --force --yes          # Force delete all (skip checks)
+```
+
+**JSON Output:**
+```json
+{"type":"clean_start","scope":"all","file_count":5}
+{"type":"file_deleted","path":"~/.claude/commands/workflow.md"}
+{"type":"file_skipped","path":"~/.cursor/rules/style.mdc","reason":"modified"}
+{"type":"clean_complete","deleted":3,"skipped":2}
+```
+
+---
+
 ### `calvin version`
 
 Show Calvin + adapter version information.
