@@ -34,7 +34,7 @@ pub use domain::ports::TargetAdapter;
 pub use error::{CalvinError, CalvinResult};
 pub use infrastructure::adapters::{all_adapters, get_adapter};
 pub use models::{AssetKind, Frontmatter, PromptAsset, Scope, Target};
-pub use parser::parse_frontmatter;
+pub use parser::{extract_frontmatter, parse_frontmatter};
 pub use security::{run_doctor, DoctorReport, DoctorSink};
 
 // Watch module re-exports (from application layer)

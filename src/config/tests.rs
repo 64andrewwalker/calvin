@@ -18,15 +18,15 @@ fn test_config_default() {
 #[test]
 fn test_security_mode_serde() {
     let yaml = "yolo";
-    let mode: SecurityMode = serde_yml::from_str(yaml).unwrap();
+    let mode: SecurityMode = serde_yaml_ng::from_str(yaml).unwrap();
     assert_eq!(mode, SecurityMode::Yolo);
 
     let yaml = "balanced";
-    let mode: SecurityMode = serde_yml::from_str(yaml).unwrap();
+    let mode: SecurityMode = serde_yaml_ng::from_str(yaml).unwrap();
     assert_eq!(mode, SecurityMode::Balanced);
 
     let yaml = "strict";
-    let mode: SecurityMode = serde_yml::from_str(yaml).unwrap();
+    let mode: SecurityMode = serde_yaml_ng::from_str(yaml).unwrap();
     assert_eq!(mode, SecurityMode::Strict);
 }
 
@@ -78,11 +78,11 @@ fn test_enabled_targets_filtered() {
 #[test]
 fn test_verbosity_serde() {
     let yaml = "quiet";
-    let v: Verbosity = serde_yml::from_str(yaml).unwrap();
+    let v: Verbosity = serde_yaml_ng::from_str(yaml).unwrap();
     assert_eq!(v, Verbosity::Quiet);
 
     let yaml = "verbose";
-    let v: Verbosity = serde_yml::from_str(yaml).unwrap();
+    let v: Verbosity = serde_yaml_ng::from_str(yaml).unwrap();
     assert_eq!(v, Verbosity::Verbose);
 }
 

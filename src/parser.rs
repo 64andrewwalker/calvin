@@ -77,7 +77,7 @@ pub fn extract_frontmatter(content: &str, file: &Path) -> CalvinResult<Extracted
 ///
 /// Validates that required fields are present.
 pub fn parse_frontmatter(yaml: &str, file: &Path) -> CalvinResult<Frontmatter> {
-    serde_yml::from_str(yaml).map_err(|e| CalvinError::InvalidFrontmatter {
+    serde_yaml_ng::from_str(yaml).map_err(|e| CalvinError::InvalidFrontmatter {
         file: file.to_path_buf(),
         message: format_yaml_frontmatter_error(yaml, &e),
     })
@@ -151,7 +151,7 @@ fn parse_directory_recursive(
     Ok(())
 }
 
-fn format_yaml_frontmatter_error(yaml: &str, err: &serde_yml::Error) -> String {
+fn format_yaml_frontmatter_error(yaml: &str, err: &serde_yaml_ng::Error) -> String {
     let mut message = String::new();
 
     let err_str = err.to_string();
@@ -169,7 +169,7 @@ fn format_yaml_frontmatter_error(yaml: &str, err: &serde_yml::Error) -> String {
     message
 }
 
-fn yaml_error_location(err: &serde_yml::Error) -> Option<(usize, usize)> {
+fn yaml_error_location(err: &serde_yaml_ng::Error) -> Option<(usize, usize)> {
     err.location()
         .map(|loc| (loc.line(), loc.column()))
         .or_else(|| {

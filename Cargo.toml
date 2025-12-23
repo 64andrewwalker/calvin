@@ -33,13 +33,13 @@ notify = { version = "8", default-features = false, features = ["macos_kqueue"] 
 serde = { version = "1", default-features = false, features = ["derive"] }
 serde_ignored = "0.1"
 serde_json = { version = "1", default-features = false, features = ["std"] }
-serde_yml = "0.0.12"
 sha2 = "0.10"
 similar = "2"
 tempfile = "3"
 thiserror = "2"
 toml = "0.8"
 unicode-width = "0.2"
+serde_yaml_ng = "0.10.0"
 
 [features]
 claude = []
