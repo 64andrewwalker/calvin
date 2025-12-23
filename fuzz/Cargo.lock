@@ -80,6 +80,9 @@ version = "0.0.0"
 dependencies = [
  "calvin",
  "libfuzzer-sys",
+ "serde",
+ "serde_json",
+ "toml",
 ]
 
 [[package]]

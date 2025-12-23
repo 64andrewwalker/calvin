@@ -37,6 +37,10 @@ pub use models::{AssetKind, Frontmatter, PromptAsset, Scope, Target};
 pub use parser::{extract_frontmatter, parse_frontmatter};
 pub use security::{run_doctor, DoctorReport, DoctorSink};
 
+// Re-export for fuzz testing
+pub use domain::value_objects::parse_lockfile_key;
+pub use serde_yaml_ng;
+
 // Watch module re-exports (from application layer)
 pub use application::watch::{
     parse_incremental, IncrementalCache, WatchEvent, WatchOptions, WatchUseCase,

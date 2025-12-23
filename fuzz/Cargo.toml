@@ -9,6 +9,9 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
 
 [dependencies.calvin]
 path = ".."
@@ -16,6 +19,41 @@ path = ".."
 [[bin]]
 name = "fuzz_target_1"
 path = "fuzz_targets/fuzz_target_1.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_config_toml"
+path = "fuzz_targets/fuzz_config_toml.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_lockfile_toml"
+path = "fuzz_targets/fuzz_lockfile_toml.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_lockfile_key"
+path = "fuzz_targets/fuzz_lockfile_key.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_json_settings"
+path = "fuzz_targets/fuzz_json_settings.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_target_enum"
+path = "fuzz_targets/fuzz_target_enum.rs"
 test = false
 doc = false
 bench = false
