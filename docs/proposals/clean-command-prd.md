@@ -144,7 +144,7 @@ calvin clean --home --yes
 
 ### 输出示例
 
-```
+```text
 📋 Calvin Clean
 
 Current deployments:
@@ -179,7 +179,7 @@ Current deployments:
 2. 对比 `config.toml` 中的 `targets.enabled`
 3. 如果存在已部署但未启用的 target：
 
-```
+```text
 ⚠️  Detected disabled targets with existing deployments:
     - cursor (27 files in home, 27 files in project)
     - codex (27 files in home)
@@ -188,8 +188,8 @@ These targets are no longer in your enabled list.
 ? Clean up files for disabled targets? [Y/n]
 ```
 
-4. 用户确认后执行清理
-5. 使用 `--yes` 可跳过确认
+1. 用户确认后执行清理
+2. 使用 `--yes` 可跳过确认
 
 ## Technical Considerations
 
@@ -225,6 +225,321 @@ These targets are no longer in your enabled list.
 
 4. **是否记录清理日志？**
    - 便于审计和回滚
+
+## Edge Cases & Failure Scenarios
+
+### EC-1: 多项目共享 Home 目录部署
+
+**场景**：项目 A 和项目 B 都向 `~/.claude/commands/` 部署了不同的文件。
+
+**问题**：
+
+- 用户在项目 A 执行 `calvin clean --home`
+- 项目 A 的锁文件只记录了项目 A 部署的文件
+- 项目 B 的部署不会被影响（正确）
+- 但如果两个项目部署了**同名文件**？
+
+**决策点**：
+
+- 方案 A：每个项目独立管理，后部署者覆盖先部署者
+- 方案 B：检测冲突，拒绝覆盖（需要全局锁文件）
+- 方案 C：在文件签名中记录来源项目，清理时校验
+
+**建议**：方案 A（当前行为），但在文档中明确说明风险。
+
+---
+
+### EC-2: 锁文件丢失或损坏
+
+**场景**：用户删除了 `.calvin.lock`，或锁文件被意外损坏。
+
+**问题**：`calvin clean` 无法知道哪些文件是由 Calvin 管理的。
+
+**处理方案**：
+
+1. 检测锁文件不存在时，显示明确的错误信息
+2. 提供 `--scan` 选项：扫描目标目录中带有 Calvin 签名的文件
+3. 将扫描结果呈现给用户确认后执行
+
+**输出示例**：
+
+```text
+⚠️  Lockfile not found: .promptpack/.calvin.lock
+
+Calvin cannot determine which files it manages.
+
+Options:
+  1. Run `calvin deploy` first to regenerate the lockfile
+  2. Use `calvin clean --scan` to find files with Calvin signature
+  3. Manually delete files in target directories
+```
+
+---
+
+### EC-3: 文件被用户手动修改
+
+**场景**：用户编辑了 Calvin 部署的文件（hash 不匹配）。
+
+**问题**：
+
+- 这个文件还应该被 clean 吗？
+- 用户可能忘记了自己做过修改
+
+**处理方案**：
+
+1. 默认：检测 hash 不匹配时，**跳过**并警告
+2. `--force`：强制删除，即使 hash 不匹配
+3. 交互模式：单独询问每个修改过的文件
+
+**输出示例**：
+
+```text
+⚠️  Modified files detected (2 files):
+    - ~/.claude/commands/my-workflow.md (modified 2 days ago)
+    - ~/.cursor/rules/coding-style/rule.md (modified today)
+
+These files have been changed since Calvin deployed them.
+? How to handle modified files?
+  > Skip modified files (keep user changes)
+    Delete anyway (discard user changes)
+    Ask for each file
+```
+
+---
+
+### EC-4: 锁文件记录的文件已不存在
+
+**场景**：用户手动删除了某些 Calvin 部署的文件。
+
+**问题**：锁文件仍记录这些文件，但文件已不存在。
+
+**处理方案**：
+
+1. 静默跳过不存在的文件
+2. 从锁文件中移除这些记录（保持一致性）
+3. 在报告中显示 "Already missing: X files"
+
+---
+
+### EC-5: 权限问题导致删除失败
+
+**场景**：某些文件由于权限不足无法删除。
+
+**问题**：部分文件删除成功，部分失败。
+
+**处理方案**：
+
+1. 继续处理其他文件，收集所有失败
+2. 最后汇总报告失败的文件及原因
+3. 锁文件只移除成功删除的条目
+4. 建议用户手动处理失败的文件
+
+**输出示例**：
+
+```text
+✓ Cleaned 52/54 files
+
+✗ Failed to delete 2 files:
+    - ~/.claude/commands/protected.md: Permission denied
+    - ~/.cursor/rules/readonly/rule.md: Read-only file system
+
+Lockfile updated (52 entries removed, 2 retained)
+```
+
+---
+
+### EC-6: Asset Scope 变更
+
+**场景**：用户将某个 asset 的 scope 从 `user` 改为 `project`（或反过来）。
+
+**问题**：
+
+- 旧 scope 的文件变成孤儿
+- 新 scope 需要新部署
+
+**处理方案**：
+
+1. `calvin deploy` 已有的 `--cleanup` 逻辑应该处理这种情况
+2. 孤儿检测需要考虑 scope 变化
+3. `clean` 命令不需要特殊处理（按锁文件清理即可）
+
+---
+
+### EC-7: Remote 部署的清理
+
+**场景**：用户使用 `calvin deploy --remote user@server:/path` 部署到远程服务器。
+
+**问题**：`calvin clean` 是否需要支持清理远程？
+
+**决策点**：
+
+- 方案 A：Phase 1 不支持，只支持本地清理
+- 方案 B：支持 `calvin clean --remote user@server`
+
+**建议**：Phase 1 暂不支持，锁文件中 remote 部署用 `remote:` 前缀标识，clean 时跳过并提示。
+
+---
+
+### EC-8: Watch 模式运行时执行 Clean
+
+**场景**：`calvin watch` 正在运行，用户在另一个终端执行 `calvin clean`。
+
+**问题**：
+
+- Watch 会检测到文件删除，可能触发重新同步
+- 锁文件可能被两边同时修改
+
+**处理方案**：
+
+1. 使用文件锁防止并发修改锁文件
+2. `clean` 开始前检测是否有 watch 进程
+3. 如果检测到，警告用户并建议先停止 watch
+
+---
+
+### EC-9: `enabled = []` 空列表
+
+**场景**：用户将 `config.toml` 中的 `targets.enabled` 设为空列表。
+
+**问题**：
+
+- 这是否意味着"禁用所有 target"？
+- `deploy` 应该如何处理？
+- 自动清理检测应该触发吗？
+
+**处理方案**：
+
+1. `enabled = []` 表示"不部署到任何 target"
+2. 如果锁文件中有已部署的 targets，触发清理提示
+3. 与 `enabled` 字段缺失不同（缺失 = 使用默认值 = all）
+
+---
+
+### EC-10: 清理后的回滚需求
+
+**场景**：用户执行 clean 后发现误删，想要恢复。
+
+**问题**：已删除的文件无法恢复。
+
+**处理方案**：
+
+- 方案 A：删除前自动备份到 `.calvin/backup/`
+- 方案 B：依赖 `calvin deploy` 重新部署（推荐）
+- 方案 C：仅 `--dry-run` 足够，不提供回滚
+
+**建议**：方案 B，在 clean 完成后提示 "Run `calvin deploy` to re-deploy"。
+
+---
+
+### EC-11: 跨版本锁文件兼容
+
+**场景**：用户升级 Calvin 版本，锁文件格式可能变化。
+
+**问题**：
+
+- 旧版锁文件缺少 `target` 字段
+- 新版 clean 无法按 target 过滤
+
+**处理方案**：
+
+1. 实现锁文件版本号（`format_version`）
+2. 旧格式自动迁移（在需要时）
+3. 缺失字段使用合理的默认值或跳过该功能
+
+---
+
+### EC-12: 文件路径冲突
+
+**场景**：用户手动创建了与 Calvin 部署路径相同的文件（无 Calvin 签名）。
+
+**问题**：
+
+- 锁文件记录了这个路径
+- 但文件不包含 Calvin 签名（可能是用户覆盖的）
+
+**处理方案**：
+
+1. 签名验证失败 → 视为"用户修改"场景
+2. 默认跳过，除非 `--force`
+3. 从锁文件移除该条目（文件不再由 Calvin 管理）
+
+---
+
+### EC-13: Symlink 处理
+
+**场景**：
+
+- Calvin 部署的文件是 symlink
+- 或目标目录本身是 symlink
+
+**处理方案**：
+
+1. 删除 symlink 本身，不跟随链接
+2. 如果目标目录是 symlink，使用 resolved 路径
+3. 在锁文件中记录 canonical path
+
+---
+
+### EC-14: 重复检测疲劳
+
+**场景**：用户禁用了某个 target，每次 deploy 都被询问是否清理，但每次都选择"跳过"。
+
+**问题**：重复提示造成骚扰。
+
+**处理方案**：
+
+1. 记录用户选择到锁文件（`skip_cleanup_for = ["cursor"]`）
+2. 下次 deploy 不再提示该 target
+3. 直到用户重新 enable 该 target 或手动执行 clean
+
+---
+
+### EC-15: Target 从未部署
+
+**场景**：用户执行 `calvin clean --target cursor`，但从未部署过 Cursor。
+
+**处理方案**：
+
+1. 检测锁文件中没有 cursor 的记录
+2. 显示信息："No Cursor deployments found. Nothing to clean."
+3. 正常退出（exit code 0）
+
+---
+
+### EC-16: 部分 Target 清理失败
+
+**场景**：清理多个 targets 时，Cursor 成功但 Claude 失败。
+
+**处理方案**：
+
+1. 继续处理其他 targets
+2. 汇总所有结果
+3. 如果有任何失败，exit code 非零
+4. 锁文件只更新成功的部分
+
+---
+
+### EC-17: CI/CD 环境下的清理
+
+**场景**：在 CI 中执行 `calvin clean` 用于清理测试环境。
+
+**需求**：
+
+1. 支持 `--yes` 跳过所有确认
+2. 支持 `--json` 输出机器可解析的结果
+3. 明确的 exit codes（0=成功, 1=部分失败, 2=完全失败）
+
+---
+
+## Decision Matrix
+
+| Edge Case | 默认行为 | `--force` 行为 | 需要用户确认 |
+|-----------|---------|---------------|-------------|
+| EC-3: 文件被修改 | 跳过 | 删除 | 是（交互模式） |
+| EC-4: 文件已不存在 | 静默跳过 | 同左 | 否 |
+| EC-5: 权限不足 | 跳过+报告 | 同左 | 否 |
+| EC-7: Remote 部署 | 跳过+提示 | 同左 | 否 |
+| EC-12: 无签名 | 跳过 | 删除 | 是 |
 
 ## Success Metrics
 
