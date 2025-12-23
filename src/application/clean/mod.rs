@@ -13,5 +13,5 @@ mod result;
 mod use_case;
 
 pub use options::CleanOptions;
-pub use result::{CleanResult, SkipReason, SkippedFile};
+pub use result::{CleanError, CleanResult, SkipReason, SkippedFile};
 pub use use_case::CleanUseCase;

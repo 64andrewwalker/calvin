@@ -2,6 +2,53 @@
 
 use std::path::PathBuf;
 
+/// Error that occurred during clean operation
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CleanError {
+    /// I/O error when accessing a file
+    IoError {
+        /// Path to the file
+        path: PathBuf,
+        /// Error message
+        message: String,
+    },
+    /// Error related to lockfile operations
+    LockfileError {
+        /// Error message
+        message: String,
+    },
+}
+
+impl std::fmt::Display for CleanError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CleanError::IoError { path, message } => {
+                write!(f, "I/O error at {}: {}", path.display(), message)
+            }
+            CleanError::LockfileError { message } => {
+                write!(f, "Lockfile error: {}", message)
+            }
+        }
+    }
+}
+
+impl CleanError {
+    /// Create a new I/O error
+    pub fn io_error(path: PathBuf, message: impl Into<String>) -> Self {
+        CleanError::IoError {
+            path,
+            message: message.into(),
+        }
+    }
+
+    /// Create a new lockfile error
+    pub fn lockfile_error(message: impl Into<String>) -> Self {
+        CleanError::LockfileError {
+            message: message.into(),
+        }
+    }
+}
+
 /// Reason why a file was skipped during clean
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SkipReason {
@@ -68,8 +115,8 @@ pub struct CleanResult {
     pub deleted: Vec<DeletedFile>,
     /// Files that were skipped
     pub skipped: Vec<SkippedFile>,
-    /// Errors that occurred
-    pub errors: Vec<String>,
+    /// Errors that occurred (typed)
+    pub errors: Vec<CleanError>,
 }
 
 impl CleanResult {
@@ -87,8 +134,8 @@ impl CleanResult {
         self.skipped.push(SkippedFile::new(path, reason, key));
     }
 
-    /// Add an error
-    pub fn add_error(&mut self, error: String) {
+    /// Add a typed error
+    pub fn add_error(&mut self, error: CleanError) {
         self.errors.push(error);
     }
 
@@ -97,8 +144,57 @@ impl CleanResult {
         self.deleted.len() + self.skipped.len()
     }
 
+    /// Get error count
+    pub fn error_count(&self) -> usize {
+        self.errors.len()
+    }
+
     /// Check if operation was successful
     pub fn is_success(&self) -> bool {
         self.errors.is_empty()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn clean_error_io_displays_correctly() {
+        let err = CleanError::io_error(PathBuf::from("/test/file.md"), "Permission denied");
+        assert_eq!(
+            format!("{}", err),
+            "I/O error at /test/file.md: Permission denied"
+        );
+    }
+
+    #[test]
+    fn clean_error_lockfile_displays_correctly() {
+        let err = CleanError::lockfile_error("Failed to parse lockfile");
+        assert_eq!(
+            format!("{}", err),
+            "Lockfile error: Failed to parse lockfile"
+        );
+    }
+
+    #[test]
+    fn clean_result_error_count() {
+        let mut result = CleanResult::new();
+        assert_eq!(result.error_count(), 0);
+
+        result.add_error(CleanError::io_error(PathBuf::from("/test.md"), "error"));
+        assert_eq!(result.error_count(), 1);
+
+        result.add_error(CleanError::lockfile_error("another error"));
+        assert_eq!(result.error_count(), 2);
+    }
+
+    #[test]
+    fn clean_result_is_success() {
+        let mut result = CleanResult::new();
+        assert!(result.is_success());
+
+        result.add_error(CleanError::lockfile_error("error"));
+        assert!(!result.is_success());
     }
 }

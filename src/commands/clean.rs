@@ -111,11 +111,12 @@ pub fn cmd_clean(
     let use_case = CleanUseCase::new(lockfile_repo, fs);
     let result = use_case.execute(&lockfile_path, &options);
 
-    // Output results
-    if json {
+    // Output results and track if we had errors
+    let has_errors = if json {
         output_json(&result, scope);
+        !result.is_success()
     } else {
-        output_interactive(
+        let confirmed_result = output_interactive(
             &result,
             source,
             scope,
@@ -126,6 +127,12 @@ pub fn cmd_clean(
             &use_case,
             &ui,
         );
+        confirmed_result.map(|r| !r.is_success()).unwrap_or(false)
+    };
+
+    // Exit with code 1 if there were errors
+    if has_errors {
+        std::process::exit(1);
     }
 
     Ok(())
@@ -260,26 +267,33 @@ fn output_json(result: &CleanResult, scope: Option<Scope>) {
         result.total_count()
     );
     for deleted in &result.deleted {
+        // Escape path for JSON
+        let path_str = deleted.path.display().to_string().replace('\\', "\\\\");
+        let key_str = deleted.key.replace('\\', "\\\\").replace('"', "\\\"");
         println!(
-            r#"{{"type":"file_deleted","path":"{}"}}"#,
-            deleted.path.display()
+            r#"{{"type":"file_deleted","path":"{}","key":"{}"}}"#,
+            path_str, key_str
         );
     }
     for skipped in &result.skipped {
+        // Escape path for JSON
+        let path_str = skipped.path.display().to_string().replace('\\', "\\\\");
+        let key_str = skipped.key.replace('\\', "\\\\").replace('"', "\\\"");
         println!(
-            r#"{{"type":"file_skipped","path":"{}","reason":"{}"}}"#,
-            skipped.path.display(),
-            skipped.reason
+            r#"{{"type":"file_skipped","path":"{}","key":"{}","reason":"{}"}}"#,
+            path_str, key_str, skipped.reason
         );
     }
     println!(
-        r#"{{"type":"clean_complete","deleted":{},"skipped":{}}}"#,
+        r#"{{"type":"clean_complete","deleted":{},"skipped":{},"errors":{}}}"#,
         result.deleted.len(),
-        result.skipped.len()
+        result.skipped.len(),
+        result.error_count()
     );
 }
 
 /// Output interactive results
+/// Returns the final CleanResult after confirmation/execution
 #[allow(clippy::too_many_arguments)]
 fn output_interactive<LR, FS>(
     result: &CleanResult,
@@ -291,7 +305,8 @@ fn output_interactive<LR, FS>(
     options: &CleanOptions,
     use_case: &CleanUseCase<LR, FS>,
     ui: &UiContext,
-) where
+) -> Option<CleanResult>
+where
     LR: LockfileRepository,
     FS: FileSystem,
 {
@@ -327,20 +342,21 @@ fn output_interactive<LR, FS>(
 
         if !confirmed {
             println!("Aborted.");
-            return;
+            return None;
         }
 
         // Actually execute the delete
-        let result = use_case.execute_confirmed(lockfile_path, options);
+        let final_result = use_case.execute_confirmed(lockfile_path, options);
         print!(
             "{}",
             render_clean_result(
-                &result,
+                &final_result,
                 false,
                 ui.caps.supports_color,
                 ui.caps.supports_unicode
             )
         );
+        Some(final_result)
     } else if dry_run {
         // Dry run mode
         println!();
@@ -358,6 +374,7 @@ fn output_interactive<LR, FS>(
                 ui.caps.supports_unicode
             )
         );
+        Some(result.clone())
     } else {
         // --yes mode or empty result
         if result.deleted.is_empty() && result.skipped.is_empty() {
@@ -370,18 +387,20 @@ fn output_interactive<LR, FS>(
                     ui.caps.supports_unicode
                 )
             );
+            Some(result.clone())
         } else {
             // Execute confirmed
-            let result = use_case.execute_confirmed(lockfile_path, options);
+            let final_result = use_case.execute_confirmed(lockfile_path, options);
             print!(
                 "{}",
                 render_clean_result(
-                    &result,
+                    &final_result,
                     false,
                     ui.caps.supports_color,
                     ui.caps.supports_unicode
                 )
             );
+            Some(final_result)
         }
     }
 }

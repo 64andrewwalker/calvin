@@ -237,6 +237,64 @@ fn clean_json_output() {
     }
 }
 
+#[test]
+fn clean_json_output_includes_key_field() {
+    let dir = create_deployed_project();
+
+    let output = Command::new(bin())
+        .current_dir(dir.path())
+        .args(["clean", "--project", "--yes", "--json"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success(), "clean --json should succeed");
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut has_file_deleted = false;
+    let mut has_key_field = false;
+
+    for line in stdout.lines() {
+        if line.contains("\"type\":\"file_deleted\"") {
+            has_file_deleted = true;
+            if line.contains("\"key\":") {
+                has_key_field = true;
+            }
+        }
+    }
+
+    // If we have deleted events, they should include key field
+    if has_file_deleted {
+        assert!(
+            has_key_field,
+            "file_deleted events should include key field for programmatic use"
+        );
+    }
+}
+
+#[test]
+fn clean_json_complete_includes_errors_count() {
+    let dir = create_deployed_project();
+
+    let output = Command::new(bin())
+        .current_dir(dir.path())
+        .args(["clean", "--project", "--yes", "--json"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success(), "clean --json should succeed");
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    for line in stdout.lines() {
+        if line.contains("\"type\":\"clean_complete\"") {
+            assert!(
+                line.contains("\"errors\":"),
+                "clean_complete should include errors count"
+            );
+        }
+    }
+}
+
 // === Test Variants: Input Boundaries ===
 // Using double underscore to mark variant tests per test-variants spec
 

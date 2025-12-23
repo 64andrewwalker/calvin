@@ -200,9 +200,9 @@ calvin clean --force --yes          # Force delete all (skip checks)
 **JSON Output:**
 ```json
 {"type":"clean_start","scope":"all","file_count":5}
-{"type":"file_deleted","path":"~/.claude/commands/workflow.md"}
-{"type":"file_skipped","path":"~/.cursor/rules/style.mdc","reason":"modified"}
-{"type":"clean_complete","deleted":3,"skipped":2}
+{"type":"file_deleted","path":"~/.claude/commands/workflow.md","key":"home:~/.claude/commands/workflow.md"}
+{"type":"file_skipped","path":"~/.cursor/rules/style.mdc","key":"home:~/.cursor/rules/style.mdc","reason":"modified"}
+{"type":"clean_complete","deleted":3,"skipped":2,"errors":0}
 ```
 
 ---

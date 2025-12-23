@@ -12,7 +12,7 @@ use crate::domain::services::has_calvin_signature;
 use crate::domain::value_objects::Scope;
 
 use super::options::CleanOptions;
-use super::result::{CleanResult, SkipReason};
+use super::result::{CleanError, CleanResult, SkipReason};
 
 /// Clean use case - removes deployed files tracked in lockfile
 pub struct CleanUseCase<LR, FS>
@@ -165,7 +165,10 @@ where
             // Delete the file
             if actually_delete {
                 if let Err(e) = self.fs.remove(&path) {
-                    result.add_error(format!("Failed to delete {}: {}", path.display(), e));
+                    result.add_error(CleanError::io_error(
+                        path.clone(),
+                        format!("Failed to delete: {}", e),
+                    ));
                     continue;
                 }
             }

@@ -105,7 +105,7 @@ pub fn render_clean_result(
     if !result.errors.is_empty() {
         summary.add_stat("errors", result.errors.len());
         for error in &result.errors {
-            summary.add_warning(error);
+            summary.add_warning(format!("{}", error));
         }
     }
 

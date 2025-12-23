@@ -210,16 +210,18 @@ pub enum SkipReason {
 
 ### Improvement Opportunities
 
-| Priority | Item | Effort |
+All improvements have been implemented:
+
+| Priority | Item | Status |
 |----------|------|--------|
-| Low | Typed error enum instead of `Vec<String>` | 1h |
-| Low | Add `key` field to JSON file events | 15m |
-| Low | Add `errors` count to `clean_complete` JSON | 5m |
-| Low | Explicit exit code for partial failures | 15m |
+| Low | Typed error enum instead of `Vec<String>` | ✅ Implemented (`CleanError` enum) |
+| Low | Add `key` field to JSON file events | ✅ Implemented |
+| Low | Add `errors` count to `clean_complete` JSON | ✅ Implemented |
+| Low | Explicit exit code for partial failures | ✅ Implemented (exit 1 on errors) |
 
 ### Overall Rating
 
-**API Quality**: ⭐⭐⭐⭐ (4/5)
+**API Quality**: ⭐⭐⭐⭐⭐ (5/5)
 
-The API is well-designed and follows Rust and Calvin conventions. The suggested improvements are minor enhancements for completeness.
+The API is well-designed and follows Rust and Calvin conventions. All suggested improvements have been implemented.
 
