@@ -1,5 +1,7 @@
 //! Clean options
 
+use std::collections::HashSet;
+
 use crate::domain::value_objects::Scope;
 
 /// Options for the clean command
@@ -11,6 +13,9 @@ pub struct CleanOptions {
     pub dry_run: bool,
     /// Whether to force deletion even if files were modified
     pub force: bool,
+    /// Specific keys to delete (None = all matching keys)
+    /// When set, only files with these lockfile keys will be processed
+    pub selected_keys: Option<HashSet<String>>,
 }
 
 impl CleanOptions {
@@ -34,6 +39,12 @@ impl CleanOptions {
     /// Set force
     pub fn with_force(mut self, force: bool) -> Self {
         self.force = force;
+        self
+    }
+
+    /// Set selected keys for selective deletion
+    pub fn with_selected_keys(mut self, keys: Vec<String>) -> Self {
+        self.selected_keys = Some(keys.into_iter().collect());
         self
     }
 }

@@ -93,11 +93,10 @@ pub fn cmd_clean(
     }
 
     // Non-interactive mode
-    let options = CleanOptions {
-        scope,
-        dry_run,
-        force,
-    };
+    let options = CleanOptions::new()
+        .with_scope(scope)
+        .with_dry_run(dry_run)
+        .with_force(force);
 
     // Create use case and execute
     let use_case = CleanUseCase::new(lockfile_repo, fs);
@@ -182,18 +181,14 @@ fn run_interactive_clean(
                 return Ok(());
             }
 
-            // Execute deletion for selected keys
+            // Execute deletion for selected keys only
             let lockfile_repo = TomlLockfileRepository::new();
             let fs = LocalFs::new();
             let use_case = CleanUseCase::new(lockfile_repo, fs);
-            let options = CleanOptions {
-                scope: None,
-                dry_run: false,
-                force,
-            };
+            let options = CleanOptions::new()
+                .with_force(force)
+                .with_selected_keys(selected_keys);
 
-            // For now, execute the full clean and filter
-            // TODO: Implement selective deletion based on selected_keys
             let result = use_case.execute_confirmed(lockfile_path, &options);
 
             print!(
