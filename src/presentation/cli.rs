@@ -163,6 +163,33 @@ pub enum Commands {
         #[arg(short, long)]
         force: bool,
     },
+
+    /// Clean deployed files from lockfile
+    Clean {
+        /// Path to .promptpack directory
+        #[arg(short, long, default_value = ".promptpack")]
+        source: PathBuf,
+
+        /// Clean only home directory deployments
+        #[arg(long, conflicts_with = "project")]
+        home: bool,
+
+        /// Clean only project directory deployments
+        #[arg(long)]
+        project: bool,
+
+        /// Dry run - show what would be deleted without deleting
+        #[arg(long)]
+        dry_run: bool,
+
+        /// Skip confirmation prompt
+        #[arg(short, long)]
+        yes: bool,
+
+        /// Force delete even if files were modified
+        #[arg(short, long)]
+        force: bool,
+    },
 }
 
 #[cfg(test)]
@@ -391,5 +418,86 @@ mod tests {
         } else {
             panic!("Expected Init command");
         }
+    }
+
+    #[test]
+    fn test_cli_parse_clean() {
+        let cli = Cli::try_parse_from(["calvin", "clean"]).unwrap();
+        if let Some(Commands::Clean {
+            home,
+            project,
+            dry_run,
+            yes,
+            force,
+            ..
+        }) = cli.command
+        {
+            assert!(!home);
+            assert!(!project);
+            assert!(!dry_run);
+            assert!(!yes);
+            assert!(!force);
+        } else {
+            panic!("Expected Clean command");
+        }
+    }
+
+    #[test]
+    fn test_cli_parse_clean_home() {
+        let cli = Cli::try_parse_from(["calvin", "clean", "--home"]).unwrap();
+        if let Some(Commands::Clean { home, project, .. }) = cli.command {
+            assert!(home);
+            assert!(!project);
+        } else {
+            panic!("Expected Clean command");
+        }
+    }
+
+    #[test]
+    fn test_cli_parse_clean_project() {
+        let cli = Cli::try_parse_from(["calvin", "clean", "--project"]).unwrap();
+        if let Some(Commands::Clean { home, project, .. }) = cli.command {
+            assert!(!home);
+            assert!(project);
+        } else {
+            panic!("Expected Clean command");
+        }
+    }
+
+    #[test]
+    fn test_cli_parse_clean_dry_run() {
+        let cli = Cli::try_parse_from(["calvin", "clean", "--dry-run"]).unwrap();
+        if let Some(Commands::Clean { dry_run, .. }) = cli.command {
+            assert!(dry_run);
+        } else {
+            panic!("Expected Clean command");
+        }
+    }
+
+    #[test]
+    fn test_cli_parse_clean_yes() {
+        let cli = Cli::try_parse_from(["calvin", "clean", "--yes"]).unwrap();
+        if let Some(Commands::Clean { yes, .. }) = cli.command {
+            assert!(yes);
+        } else {
+            panic!("Expected Clean command");
+        }
+    }
+
+    #[test]
+    fn test_cli_parse_clean_force() {
+        let cli = Cli::try_parse_from(["calvin", "clean", "--force"]).unwrap();
+        if let Some(Commands::Clean { force, .. }) = cli.command {
+            assert!(force);
+        } else {
+            panic!("Expected Clean command");
+        }
+    }
+
+    #[test]
+    fn test_cli_parse_clean_home_project_conflict() {
+        // --home and --project are mutually exclusive
+        let result = Cli::try_parse_from(["calvin", "clean", "--home", "--project"]);
+        assert!(result.is_err());
     }
 }

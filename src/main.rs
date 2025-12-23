@@ -125,6 +125,25 @@ fn dispatch(
             template,
             force,
         } => commands::init::cmd_init(&path, &template, force, json, verbose, color, no_animation),
+        Commands::Clean {
+            source,
+            home,
+            project,
+            dry_run,
+            yes,
+            force,
+        } => commands::clean::cmd_clean(
+            &source,
+            home,
+            project,
+            dry_run,
+            yes,
+            force,
+            json,
+            verbose,
+            color,
+            no_animation,
+        ),
     }
 }
 
