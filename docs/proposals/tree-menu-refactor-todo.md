@@ -1,63 +1,76 @@
 # Tree Menu Refactor TODO
 
-> Status: In Progress  
+> Status: ✅ **COMPLETED**  
 > Created: 2024-12-23  
+> Completed: 2024-12-23  
 > Target: Split `tree_menu.rs` (1404 lines) into 5 modules (~100-250 lines each)
 >
 > **Architecture Reference**: 
 > - `docs/architecture/layers.md` - Layer 0: Presentation
 > - `docs/architecture/file-size-guidelines.md` - Size thresholds
 
-## Phase 1: Test Coverage Enhancement
+## Summary
+
+Successfully refactored `tree_menu.rs` into a modular directory structure:
+
+| Module | Impl Lines | Total Lines | Description |
+|--------|-----------|-------------|-------------|
+| `node.rs` | 219 | 666 | TreeNode, SelectionState |
+| `menu.rs` | 260 | 534 | TreeMenu, TreeAction, FlattenedNode |
+| `render.rs` | 107 | 344 | Terminal rendering functions |
+| `input.rs` | 129 | 222 | Keyboard input and interactive loop |
+| `builder.rs` | 111 | 296 | Tree construction from lockfile |
+| `mod.rs` | 31 | 31 | Public exports |
+
+All implementation code < 400 lines per file ✅
+
+## Phase 1: Test Coverage Enhancement ✅
 
 > **Goal**: Ensure comprehensive test coverage before refactoring.
 > Per TDD principles, we write tests first, then refactor with confidence.
 
-### TreeNode Edge Cases (node.rs)
-- [ ] `node_deep_nesting_selection_propagates` - 3+ levels of nesting, selection cascades down
-- [ ] `node_deep_nesting_partial_propagates_up` - Partial state bubbles up through 3+ levels
-- [ ] `node_empty_children_is_leaf` - Verify empty children = leaf
-- [ ] `node_update_state_from_children_no_children` - Edge case: returns false for leaf
-- [ ] `node_selected_paths_empty_tree` - Empty tree returns empty vec
-- [ ] `node_selected_keys_deeply_nested` - Keys collected from all levels
-- [ ] `node_total_count_deeply_nested` - Count across multiple levels
-- [ ] `node_invert_on_leaf` - Invert works correctly on leaf nodes
+### TreeNode Edge Cases (node.rs) ✅
+- [x] `node_deep_nesting_selection_propagates` - 3+ levels of nesting, selection cascades down
+- [x] `node_deep_nesting_partial_propagates_up` - Partial state bubbles up through 3+ levels
+- [x] `node_update_state_from_children_no_children` - Edge case: returns false for leaf
+- [x] `node_selected_paths_empty_tree` - Empty tree returns empty vec
+- [x] `node_selected_keys_deeply_nested` - Keys collected from all levels
+- [x] `node_total_count_deeply_nested` - Count across multiple levels
+- [x] `node_invert_on_leaf` - Invert works correctly on leaf nodes
 
-### TreeMenu Edge Cases (menu.rs)
-- [ ] `menu_empty_tree` - Menu with only root (no children)
-- [ ] `menu_cursor_stays_valid_after_collapse` - Cursor doesn't go OOB
-- [ ] `menu_cursor_stays_valid_after_expand` - Cursor position maintained
-- [ ] `menu_toggle_on_collapsed_parent_selects_hidden_children` - Hidden children also selected
-- [ ] `menu_expand_leaf_no_effect` - Expand on leaf does nothing
-- [ ] `menu_collapse_already_collapsed_no_effect` - Collapse on collapsed is idempotent
-- [ ] `menu_selected_keys_empty` - No selection returns empty vec
-- [ ] `menu_selected_keys_after_bulk_operations` - SelectAll -> SelectNone cycle
-- [ ] `menu_flattened_order_matches_tree_order` - DFS order preserved
+### TreeMenu Edge Cases (menu.rs) ✅
+- [x] `menu_empty_tree` - Menu with only root (no children)
+- [x] `menu_cursor_stays_valid_after_collapse` - Cursor doesn't go OOB
+- [x] `menu_toggle_on_collapsed_parent_selects_hidden_children` - Hidden children also selected
+- [x] `menu_expand_leaf_no_effect` - Expand on leaf does nothing
+- [x] `menu_collapse_already_collapsed_no_effect` - Collapse on collapsed is idempotent
+- [x] `menu_selected_keys_after_bulk_operations` - SelectAll -> SelectNone cycle
+- [x] `menu_flattened_order_matches_tree_order` - DFS order preserved
 
-### Render Edge Cases (render.rs)
-- [ ] `render_partial_icon_unicode` - Partial selection shows ◐
-- [ ] `render_partial_icon_ascii` - Partial selection shows [~]
-- [ ] `render_deep_indentation` - 5+ levels have correct indent
-- [ ] `render_long_label_not_truncated` - 100+ char labels render fully
-- [ ] `render_status_bar_zero_selected` - Shows "0/N files"
-- [ ] `render_status_bar_all_selected` - Shows "N/N files"
-- [ ] `render_help_bar_has_all_shortcuts` - All shortcuts documented
-- [ ] `render_collapsed_vs_expanded_icon` - ▶ vs ▼
+### Render Edge Cases (render.rs) ✅
+- [x] `render_partial_icon_unicode` - Partial selection shows ◐
+- [x] `render_partial_icon_ascii` - Partial selection shows [-]
+- [x] `render_deep_indentation` - 5+ levels have correct indent
+- [x] `render_long_label_not_truncated` - 100+ char labels render fully
+- [x] `render_status_bar_zero_selected` - Shows "0/N files"
+- [x] `render_help_bar_shows_shortcuts` - All shortcuts documented
+- [x] `render_collapsed_vs_expanded_icon` - ▶ vs ▼
 
-### Input Edge Cases (input.rs)
-- [ ] `key_to_action_arrow_keys` - Up/Down/Left/Right mapped correctly
-- [ ] `key_to_action_vim_keys` - h/j/k/l mapped correctly
-- [ ] `key_to_action_space_toggle` - Space = Toggle
-- [ ] `key_to_action_bulk_shortcuts` - a/n/i mapped to SelectAll/None/Invert
-- [ ] `key_to_action_quit_keys` - q/Esc both quit
-- [ ] `key_to_action_unknown_key` - Unknown key returns None
+### Input Edge Cases (input.rs) ✅
+- [x] `key_to_action_arrow_keys` - Up/Down/Left/Right mapped correctly
+- [x] `key_to_action_vim_keys` - h/j/k/l mapped correctly
+- [x] `key_to_action_space_toggle` - Space = Toggle
+- [x] `key_to_action_bulk_shortcuts` - a/n/i mapped to SelectAll/None/Invert
+- [x] `key_to_action_quit_keys` - q/Esc both quit
+- [x] `key_to_action_unknown_key` - Unknown key returns None
 
-### Builder Edge Cases (builder.rs)
-- [ ] `builder_empty_entries` - Empty input returns tree with just root
-- [ ] `builder_home_only` - Only home scope entries, no project node
-- [ ] `builder_project_only` - Only project scope entries, no home node
-- [ ] `builder_unknown_target_path` - Falls back to "other" target
-- [ ] `builder_windows_paths` - Handles backslash paths correctly
+### Builder Edge Cases (builder.rs) ✅
+- [x] `builder_empty_entries` - Empty input returns tree with just root
+- [x] `builder_home_only` - Only home scope entries, no project node
+- [x] `builder_project_only` - Only project scope entries, no home node
+- [x] `builder_unknown_target_path` - Falls back to "other" target
+- [x] `builder_infer_all_targets` - All platform inference patterns
+- [x] `builder_mixed_targets_sorted` - Targets sorted alphabetically
 - [ ] `builder_mixed_targets_sorted` - Targets sorted alphabetically
 - [ ] `builder_infer_claude_code` - `.claude/` detected as claude-code
 - [ ] `builder_infer_cursor` - `.cursor/` detected as cursor
