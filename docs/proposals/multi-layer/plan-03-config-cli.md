@@ -258,7 +258,48 @@ pub enum Commands {
 }
 ```
 
-### Task 3.6: Security Validation (PRD §8)
+### Task 3.6: Environment Variables for Sources (PRD §14.5)
+
+**支持的环境变量**：
+
+| 环境变量 | 配置等价 | 优先级 |
+|---------|---------|--------|
+| `CALVIN_SOURCES_USE_USER_LAYER` | `sources.use_user_layer` | 高于配置文件 |
+| `CALVIN_SOURCES_USER_LAYER_PATH` | `sources.user_layer_path` | 高于配置文件 |
+
+**File**: `src/config/loader.rs`
+
+```rust
+fn load_sources_config_with_env(base: SourcesConfig) -> SourcesConfig {
+    let mut config = base;
+    
+    if let Ok(val) = std::env::var("CALVIN_SOURCES_USE_USER_LAYER") {
+        config.use_user_layer = val.parse().unwrap_or(config.use_user_layer);
+    }
+    
+    if let Ok(val) = std::env::var("CALVIN_SOURCES_USER_LAYER_PATH") {
+        config.user_layer_path = PathBuf::from(val);
+    }
+    
+    config
+}
+```
+
+**Tests**:
+```rust
+#[test]
+fn env_var_overrides_config() {
+    std::env::set_var("CALVIN_SOURCES_USE_USER_LAYER", "false");
+    
+    let config = load_config();
+    
+    assert!(!config.sources.use_user_layer);
+    
+    std::env::remove_var("CALVIN_SOURCES_USE_USER_LAYER");
+}
+```
+
+### Task 3.7: Security Validation (PRD §8)
 
 **约束**：项目配置不能添加外部层路径
 

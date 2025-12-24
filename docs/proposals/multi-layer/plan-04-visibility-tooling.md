@@ -148,14 +148,31 @@ impl<'a> LayersView<'a> {
 }
 ```
 
-**CLI Integration**:
+**CLI Integration** (`src/presentation/cli.rs`):
 ```rust
 #[derive(Subcommand)]
 pub enum Commands {
     /// Show the layer stack
     Layers {
+        /// Output as JSON
         #[arg(long)]
         json: bool,
+    },
+    /// Show output provenance
+    Provenance {
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+        
+        /// Filter by output path pattern
+        #[arg(long)]
+        filter: Option<String>,
+    },
+    /// Migrate lockfile to new format
+    Migrate {
+        /// Show what would be done without making changes
+        #[arg(long)]
+        dry_run: bool,
     },
     // ...
 }

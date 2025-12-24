@@ -420,6 +420,31 @@ pub fn create_deploy_use_case(config: &Config) -> DeployUseCase {
 }
 ```
 
+### Task 2.5: Create Presentation Layer Files
+
+**Files to create**:
+- `src/commands/projects.rs` - CLI 命令处理器
+- `src/ui/views/projects.rs` - 视图渲染器
+
+**CLI Integration** (`src/presentation/cli.rs`):
+
+```rust
+#[derive(Subcommand)]
+pub enum Commands {
+    /// List all Calvin-managed projects
+    Projects {
+        /// Remove invalid projects from registry
+        #[arg(long)]
+        prune: bool,
+        
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+    // ...
+}
+```
+
 ### Task 2.6: Implement `calvin projects` Command
 
 **File**: `src/commands/projects.rs`

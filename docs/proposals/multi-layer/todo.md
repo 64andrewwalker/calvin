@@ -119,17 +119,25 @@
   - [ ] 支持 upsert 和 prune
   - [ ] 添加测试
 
-- [ ] **2.3** deploy 时自动注册
+- [ ] **2.3** 创建 RegistryUseCase (Application 层)
+  - [ ] `src/application/registry/use_case.rs`
+  - [ ] 添加测试
+
+- [ ] **2.4** deploy 时自动注册
   - [ ] 成功后更新 registry
   - [ ] 添加测试
 
-- [ ] **2.4** 实现 `calvin projects` 命令
+- [ ] **2.5** 创建 Presentation 层文件
+  - [ ] `src/commands/projects.rs`
+  - [ ] `src/ui/views/projects.rs`
+
+- [ ] **2.6** 实现 `calvin projects` 命令
   - [ ] 列出所有项目
   - [ ] 支持 `--prune` 清理失效
   - [ ] 添加 UI 渲染
   - [ ] 添加测试
 
-- [ ] **2.5** 实现 `calvin clean --all`
+- [ ] **2.7** 实现 `calvin clean --all`
   - [ ] 从 registry 读取所有项目
   - [ ] 批量清理
   - [ ] 添加测试
@@ -169,7 +177,12 @@
   - [ ] 创建用户层目录
   - [ ] 添加测试
 
-- [ ] **3.6** 安全验证 (PRD §8)
+- [ ] **3.6** 环境变量支持 (PRD §14.5)
+  - [ ] `CALVIN_SOURCES_USE_USER_LAYER`
+  - [ ] `CALVIN_SOURCES_USER_LAYER_PATH`
+  - [ ] 添加测试
+
+- [ ] **3.7** 安全验证 (PRD §8)
   - [ ] 项目配置不能添加 additional_layers
   - [ ] 项目配置不能修改 user_layer_path
   - [ ] 只允许禁用层
@@ -178,6 +191,7 @@
 **验收标准**:
 - 所有新 CLI 参数正常工作
 - 配置文件解析正确
+- 环境变量覆盖正确
 - 安全验证通过
 
 ---
@@ -208,12 +222,17 @@
   - [ ] 汇总结果
   - [ ] 添加测试
 
-- [ ] **4.5** 实现 `calvin migrate` 命令
+- [ ] **4.5** 添加 `--json` 输出支持
+  - [ ] `calvin layers --json`
+  - [ ] `calvin provenance --json`
+  - [ ] 添加测试
+
+- [ ] **4.6** 实现 `calvin migrate` 命令
   - [ ] 迁移 lockfile
   - [ ] 支持 `--dry-run`
   - [ ] 添加测试
 
-- [ ] **4.6** 更新文档
+- [ ] **4.7** 更新文档
   - [ ] `docs/configuration.md`
   - [ ] `docs/command-reference.md`
   - [ ] `CHANGELOG.md`

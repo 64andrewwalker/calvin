@@ -203,11 +203,97 @@ Only allowed in project config:
 
 ---
 
-## Action Items
+## Action Items (Completed)
 
-- [ ] Add Task 1.6 to plan-01 (Asset Layer Migration)
-- [ ] Add Remote Deploy note to plan-03
-- [ ] Add Watch Mode decision to design.md
-- [ ] Add Security Validation Task 3.6 to plan-03
-- [ ] Add explicit symlink test cases to plan-01 Task 1.2
+- [x] Add Task 1.6 to plan-01 (Asset Layer Migration)
+- [x] Add Task 1.7 to plan-01 (Symlink Handling)
+- [x] Add Remote Deploy note to plan-01
+- [x] Add Watch Mode decision to design.md
+- [x] Add Security Validation Task 3.6 to plan-03
+
+---
+
+## Third-Pass Verification
+
+### Open Questions (PRD §15)
+
+| Question | Status | Notes |
+|----------|--------|-------|
+| MCP 配置合并 | ⏸️ Deferred | Phase 5, 使用 asset 相同规则 |
+| Layer 继承链可视化 | ⏸️ Deferred | `calvin explain` 可选功能 |
+| Partial Override | ✅ Decided | 不支持，完全覆盖 |
+
+### Success Metrics (PRD §16) - Test Coverage
+
+| Metric | Test Coverage | Plan Reference |
+|--------|---------------|----------------|
+| 用户层跨项目生效 | ⚠️ Need test | todo.md Integration Tests |
+| 团队共享层 | ⚠️ Need test | todo.md Integration Tests |
+| 项目层覆盖 | ✅ Covered | plan-01 Task 1.3 tests |
+| 向后兼容 | ⚠️ Need test | plan-00 Task 0.6 |
+| `calvin projects` 工作 | ✅ Covered | plan-02 Task 2.6 |
+| `calvin clean --all` 工作 | ✅ Covered | plan-02 Task 2.7 |
+| 跨平台一致 | ⚠️ Need test | plan-00 Task 0.5 |
+
+### Appendix A (Full Example) - Verification
+
+PRD Appendix A 提供了完整的端到端示例，需要确保测试覆盖：
+
+- [ ] User setup: `calvin init --user` → plan-03 Task 3.5
+- [ ] Team config: `additional_layers = [...]` → plan-03 Task 3.1
+- [ ] Project override: Same ID 覆盖 → plan-01 Task 1.3
+- [ ] Deploy with verbose → plan-01 Task 1.5
+
+### Additional Missing Items Found
+
+1. **Environment Variable for Sources**
+   - PRD §14.5 mentions `CALVIN_SOURCES_USE_USER_LAYER`
+   - NOT in plan-03
+   
+2. **CLI help text**
+   - New flags need help text updates
+   - NOT explicitly in plans (implied in Phase 4 docs update)
+
+3. **JSON output for new commands**
+   - `calvin layers --json` mentioned in PRD §4.4
+   - `calvin projects --json` implied
+   - NOT explicitly in plans
+
+4. **`calvin projects --prune`**
+   - Mentioned in PRD §11.4
+   - IN plan-02 Task 2.6 ✅
+
+5. **`calvin explain <asset-id>`**
+   - PRD §15 Q2 suggests as optional
+   - NOT in current plans (deferred)
+
+### File Structure Validation
+
+Check if plans define where each new file goes:
+
+| New File | Plan | Layer | Notes |
+|----------|------|-------|-------|
+| `domain/entities/layer.rs` | plan-01 | Domain | ✅ |
+| `domain/entities/registry.rs` | plan-02 | Domain | ✅ |
+| `domain/services/layer_resolver.rs` | plan-01 | Domain | ✅ |
+| `domain/services/layer_merger.rs` | plan-01 | Domain | ✅ |
+| `domain/ports/layer_loader.rs` | plan-01 | Domain | ✅ |
+| `domain/ports/registry_repository.rs` | plan-02 | Domain | ✅ |
+| `infrastructure/layer/fs_loader.rs` | plan-01 | Infra | ✅ |
+| `infrastructure/repositories/registry.rs` | plan-02 | Infra | ✅ |
+| `application/registry/use_case.rs` | plan-02 | App | ✅ |
+| `commands/layers.rs` | plan-04 | Pres | ✅ |
+| `commands/projects.rs` | plan-02 | Pres | ⚠️ Not explicit |
+| `commands/provenance.rs` | plan-04 | Pres | ✅ |
+| `commands/migrate.rs` | plan-04 | Pres | ✅ |
+| `ui/views/layers.rs` | plan-04 | Pres | ✅ |
+| `ui/views/projects.rs` | plan-02 | Pres | ⚠️ Not explicit |
+| `ui/views/provenance.rs` | plan-04 | Pres | ✅ |
+| `config/types.rs` extension | plan-03 | Config | ✅ |
+
+### Remaining Action Items
+
+- [ ] Add env var `CALVIN_SOURCES_*` to plan-03
+- [ ] Add `--json` flag explicitly to plan-04 for `layers` and `projects`
+- [ ] Add `commands/projects.rs` and `ui/views/projects.rs` explicitly to plan-02
 
