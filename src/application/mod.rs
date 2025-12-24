@@ -28,6 +28,7 @@ pub mod watch;
 
 pub use check::{CheckItem, CheckOptions, CheckResult, CheckStatus, CheckUseCase};
 pub use clean::{CleanOptions, CleanResult, CleanUseCase, SkipReason, SkippedFile};
+#[allow(deprecated)]
 pub use compiler::compile_assets;
 pub use deploy::{DeployOptions, DeployOutputOptions, DeployResult, DeployUseCase};
 pub use diff::{ChangeType, DiffEntry, DiffOptions, DiffResult, DiffUseCase};
