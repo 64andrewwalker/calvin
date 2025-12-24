@@ -18,10 +18,7 @@ pub fn cmd_watch(
     use std::time::{SystemTime, UNIX_EPOCH};
 
     // Determine project root
-    let project_root = source
-        .parent()
-        .map(|p| p.to_path_buf())
-        .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+    let project_root = std::env::current_dir()?;
 
     // Load configuration
     let config_path = source.join("config.toml");

@@ -306,15 +306,43 @@ fn validate_project_sources_config(path: &Path, value: &toml::Value) -> CalvinRe
     Ok(())
 }
 
-fn merge_toml(base: &mut toml::Value, overlay: toml::Value) {
+fn merge_toml_deep(base: &mut toml::Value, overlay: toml::Value) {
     match (base, overlay) {
         (toml::Value::Table(base_table), toml::Value::Table(overlay_table)) => {
             for (k, v) in overlay_table {
                 match base_table.get_mut(&k) {
-                    Some(existing) => merge_toml(existing, v),
+                    Some(existing) => merge_toml_deep(existing, v),
                     None => {
                         base_table.insert(k, v);
                     }
+                }
+            }
+        }
+        (base_slot, overlay_value) => {
+            *base_slot = overlay_value;
+        }
+    }
+}
+
+/// Merge config TOML values following PRD §11.2 (section-level overrides).
+///
+/// Semantics:
+/// - Top-level sections are treated as atomic: the overlay replaces the base section entirely.
+/// - Exception: `[sources]` is merged deeply so project ignore flags can coexist with user paths.
+fn merge_toml(base: &mut toml::Value, overlay: toml::Value) {
+    match (base, overlay) {
+        (toml::Value::Table(base_table), toml::Value::Table(overlay_table)) => {
+            for (k, v) in overlay_table {
+                if k == "sources" {
+                    match base_table.get_mut(&k) {
+                        Some(existing) => merge_toml_deep(existing, v),
+                        None => {
+                            base_table.insert(k, v);
+                        }
+                    }
+                } else {
+                    // Section-level override (no deep merge).
+                    base_table.insert(k, v);
                 }
             }
         }
@@ -399,4 +427,73 @@ fn levenshtein(a: &str, b: &str) -> usize {
     }
 
     prev[b_bytes.len()]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn config_merge_section_override_drops_missing_keys() {
+        let user_toml = r#"
+[security]
+mode = "balanced"
+allow_naked = true
+"#;
+
+        let project_toml = r#"
+[security]
+mode = "strict"
+"#;
+
+        let mut merged: toml::Value = toml::Value::Table(toml::map::Map::new());
+        let user_value: toml::Value = toml::from_str(user_toml).unwrap();
+        let project_value: toml::Value = toml::from_str(project_toml).unwrap();
+
+        merge_toml(&mut merged, user_value);
+        merge_toml(&mut merged, project_value);
+
+        let config: Config = merged.try_into().unwrap();
+
+        assert_eq!(config.security.mode, SecurityMode::Strict);
+        assert!(
+            !config.security.allow_naked,
+            "PRD §11.2: higher-level section should fully override lower-level (no deep merge)"
+        );
+    }
+
+    #[test]
+    fn config_merge_sources_preserves_user_settings_when_project_sets_ignore_flags() {
+        let user_toml = r#"
+[sources]
+user_layer_path = "~/.calvin/.promptpack"
+additional_layers = ["~/team/.promptpack"]
+"#;
+
+        let project_toml = r#"
+[sources]
+ignore_user_layer = true
+"#;
+
+        let mut merged: toml::Value = toml::Value::Table(toml::map::Map::new());
+        let user_value: toml::Value = toml::from_str(user_toml).unwrap();
+        let project_value: toml::Value = toml::from_str(project_toml).unwrap();
+
+        merge_toml(&mut merged, user_value);
+        merge_toml(&mut merged, project_value);
+
+        let config: Config = merged.try_into().unwrap();
+
+        assert!(config.sources.ignore_user_layer);
+        assert_eq!(
+            config.sources.additional_layers.len(),
+            1,
+            "project ignore flags should not wipe user-configured additional layers"
+        );
+        assert_eq!(
+            config.sources.user_layer_path.as_deref(),
+            Some(Path::new("~/.calvin/.promptpack")),
+            "project ignore flags should not wipe user-configured user_layer_path"
+        );
+    }
 }

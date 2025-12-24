@@ -15,7 +15,7 @@ pub const DEBOUNCE_MS: u64 = 100;
 pub struct WatchOptions {
     /// Path to .promptpack directory
     pub source: PathBuf,
-    /// Project root (parent of source)
+    /// Project root (where project-scoped outputs + `calvin.lock` live)
     pub project_root: PathBuf,
     /// Enabled targets
     pub targets: Vec<Target>,

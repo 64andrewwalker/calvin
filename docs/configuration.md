@@ -5,8 +5,32 @@
 Calvin reads configuration from:
 
 1. **Built-in defaults** (lowest priority)
-2. **Project config**: `.promptpack/config.toml`
-3. **CLI arguments** (highest priority)
+2. **User config**: `~/.config/calvin/config.toml` (XDG)
+3. **Project config**: `.promptpack/config.toml`
+4. **Environment variables**: `CALVIN_*`
+5. **CLI arguments** (highest priority)
+
+### Merge Rules
+
+- Project config overrides user config at the **top-level section** granularity (no deep merge).
+- Exception: `[sources]` is merged so project ignore flags can coexist with user-defined paths.
+
+Example (PRD §11.2):
+
+```toml
+# ~/.config/calvin/config.toml
+[security]
+mode = "balanced"
+allow_naked = true
+
+# .promptpack/config.toml
+[security]
+mode = "strict"  # overrides the entire [security] section
+```
+
+Effective result:
+- `security.mode = strict` (project)
+- `security.allow_naked = false` (default, because project section overrides)
 
 ---
 

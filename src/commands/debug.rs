@@ -194,6 +194,8 @@ pub fn cmd_diff(source: &Path, home: bool, json: bool) -> Result<()> {
     use calvin::presentation::factory::create_diff_use_case;
     use std::fs;
 
+    let project_root = std::env::current_dir()?;
+
     // Load configuration
     let config_path = source.join("config.toml");
     let (config, warnings) = calvin::config::Config::load_with_warnings(&config_path)
@@ -224,14 +226,12 @@ pub fn cmd_diff(source: &Path, home: bool, json: bool) -> Result<()> {
 
     // Create and execute DiffUseCase
     let use_case = create_diff_use_case();
-    let options = DiffOptions::new(source).with_scope(scope);
+    let options = DiffOptions::new(source)
+        .with_scope(scope)
+        .with_project_root(&project_root);
     let result = use_case.execute(&options);
 
     // Determine compare root for reading existing content
-    let project_root = source
-        .parent()
-        .map(|p| p.to_path_buf())
-        .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
     let compare_root = if scope == Scope::User {
         dirs::home_dir().unwrap_or_default()
     } else {

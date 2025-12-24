@@ -247,13 +247,7 @@ impl WatchUseCase {
 
         let fs = LocalFs::new();
         let lockfile_repo = TomlLockfileRepository::new();
-        let project_root = self
-            .options
-            .source
-            .parent()
-            .filter(|p| !p.as_os_str().is_empty())
-            .map(|p| p.to_path_buf())
-            .unwrap_or_else(|| PathBuf::from("."));
+        let project_root = self.options.project_root.clone();
 
         let (lockfile_path, migration_note) =
             resolve_lockfile_path(&project_root, &self.options.source, &lockfile_repo);

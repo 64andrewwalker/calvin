@@ -140,6 +140,57 @@
 - 更新 init 模板为当前 schema：`targets.enabled`、有效的 `[sync]`、`[output]` 字段：`src/commands/init.rs`
 - 新增覆盖测试：`tests/cli_init_project_config_template.rs`
 
+### 1.9 Remote deploy 的 `~` 路径不展开（会创建字面量 `~` 目录）
+
+**现象**：
+- `calvin deploy --remote host:~/projects` 时，remote 侧的 SSH 命令会把路径包在单引号里（例如 `test -f '~/projects/file'`），导致 `~` **不会展开**，从而在远程产生字面量目录 `~` 或直接失败。
+
+**PRD 期望**：
+- PRD §11.8：支持 `~` 展开（远程场景至少不应因为 quoting 禁止 `~` 展开）。
+
+**根因**：
+- `src/infrastructure/sync/remote/mod.rs` 中远程路径拼接后直接做 `'...'` 单引号包裹，shell 的 tilde expansion 被抑制。
+
+**修复**：
+- RemoteDestination 在 remote_path 为 `~` / `~/...` 时，会通过一次 `ssh host "echo $HOME"` 获取远程 home（带缓存），并将 remote base path 展开为绝对路径后再进行安全引用。
+- 新增回归测试（无需真实网络，PATH 注入 fake ssh）：`tests/remote_tilde_expansion.rs`
+
+### 1.10 `calvin diff` / `calvin watch` 的 project_root 推导错误（`--source` 会污染输出根）
+
+**现象**：
+- 对外部 promptpack 使用 `--source /path/to/external/.promptpack` 时：
+  - `calvin diff` 会把 project_root 当成 `source.parent()`，从而认为当前项目“所有文件都是 new”
+  - `calvin watch` 会把输出和 `calvin.lock` 写到 external promptpack 的父目录，而不是当前项目目录
+
+**PRD 期望**：
+- PRD §4.4：`--source` 仅替换项目层路径，不应改变 project root。
+- PRD §9：lockfile 固定在项目根目录 `./calvin.lock`。
+
+**修复（架构级）**：
+- DiffUseCase 统一使用显式 `options.project_root`（不再从 source 推导）：`src/application/diff.rs`
+- CLI `calvin diff` / `calvin watch` 以 `std::env::current_dir()` 作为 project_root，并注入 options：
+  - `src/commands/debug.rs`
+  - `src/commands/watch.rs`
+- WatchUseCase 使用 `WatchOptions.project_root` 而非 `source.parent()`：`src/application/watch/use_case.rs`
+- 新增覆盖测试：
+  - `tests/cli_diff_source_external.rs`
+  - `tests/cli_watch_source_external.rs`
+
+### 1.11 XDG user config + project config 的合并语义（从 deep merge 改为 section override）
+
+**现象**：
+- `~/.config/calvin/config.toml` 与 `./.promptpack/config.toml` 同时存在时，旧实现递归深合并：
+  - user 的 `[security] allow_naked = true` 可能在 project 仅设置 `security.mode` 时被“残留”下来
+
+**PRD 期望**：
+- PRD §11.2：同名 section 高层级完全覆盖低层级（不做深合并）。
+
+**修复**：
+- `src/config/loader.rs`：对顶层 section 做原子覆盖（section-level override）。
+- 例外：`[sources]` 保持深合并（项目 config 的 ignore flags 需要与用户配置的路径共存）。
+- 新增单元测试（确保不回归）：
+  - `src/config/loader.rs`（`config_merge_section_override_drops_missing_keys` / `config_merge_sources_preserves_user_settings_when_project_sets_ignore_flags`）
+
 ## 2. 变更摘要（关键文件）
 
 - `src/commands/interactive/state.rs`：interactive state 基于 `LayerResolver`（尊重 user_layer_path/additional_layers）
@@ -152,6 +203,12 @@
 - `src/security/report.rs`：doctor/check 使用合并后的配置（不再只读项目 `.promptpack/config.toml`）
 - `src/commands/deploy/layer_config.rs`：deploy targets 选择复用 `merge_promptpack_layer_configs`，并在 interactive 模式下做 targets 确认
 - `src/commands/init.rs`：init 模板更新为当前 config schema（targets.enabled 等）
+- `src/infrastructure/sync/remote/mod.rs`：remote `~` 展开（基于远程 `$HOME`，并缓存）
+- `src/application/diff.rs`：diff 使用显式 `project_root`（不再从 source 推导）
+- `src/commands/debug.rs`：diff 注入 `project_root = current_dir`
+- `src/commands/watch.rs`：watch 注入 `project_root = current_dir`
+- `src/application/watch/use_case.rs`：watch 使用 `WatchOptions.project_root`
+- `src/config/loader.rs`：XDG user config + project config 合并改为 section override（sources 例外深合并）
 - 新增测试：
   - `tests/cli_interactive_user_layer_empty.rs`
   - `tests/cli_interactive_user_layer_path_config.rs`
@@ -161,6 +218,9 @@
   - `tests/cli_check_respects_user_layer_promptpack_security_config.rs`
   - `tests/cli_init_project_config_template.rs`
   - `tests/config_promptpack_layer_merge_section_override.rs`
+  - `tests/cli_diff_source_external.rs`
+  - `tests/cli_watch_source_external.rs`
+  - `tests/remote_tilde_expansion.rs`
 
 ## 3. 验证
 

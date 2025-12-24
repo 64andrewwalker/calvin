@@ -13,7 +13,7 @@
 //! calvin-no-split: This module keeps DiffUseCase, supporting types, and its unit tests together
 //! to make behavior changes easy to audit during the multi-layer migration. Refactor/split later.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::domain::entities::{Lockfile, OutputFile};
 use crate::domain::ports::{AssetRepository, FileSystem, LockfileRepository, TargetAdapter};
@@ -157,12 +157,7 @@ where
     pub fn execute(&self, options: &DiffOptions) -> DiffResult {
         let mut result = DiffResult::default();
 
-        // Determine project root (parent of source directory)
-        let project_root = options
-            .source
-            .parent()
-            .map(|p| p.to_path_buf())
-            .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+        let project_root = options.project_root.clone();
 
         // Step 1: Load assets
         let assets = match self.asset_repo.load_all(&options.source) {
@@ -201,6 +196,10 @@ where
             // Resolve path: expand ~ for home paths, join with project root for project paths
             let resolved_path = if path_str.starts_with('~') {
                 self.file_system.expand_home(output_path)
+            } else if project_root.as_os_str().is_empty()
+                || project_root.as_path() == Path::new(".")
+            {
+                output_path.to_path_buf()
             } else {
                 project_root.join(output_path)
             };
