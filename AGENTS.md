@@ -8,6 +8,8 @@ Calvin is a PromptOps compiler. It takes a `.promptpack/` directory of Markdown 
 
 **Core command**: `calvin deploy` - compiles and writes outputs to project.
 
+**Documentation**: https://64andrewwalker.github.io/calvin/
+
 ## Quick Start for Developers
 
 ```bash

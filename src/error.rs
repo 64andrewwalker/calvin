@@ -6,8 +6,12 @@
 //! - Clear description of what went wrong
 //! - Suggestion for how to fix it (when possible)
 //! - Link to relevant documentation
+//!
+//! **Note**: Documentation URLs are centralized in `src/docs.rs`.
+//! If the documentation site moves, update `docs::DOCS_BASE_URL`.
 
 use crate::config::levenshtein;
+use crate::docs;
 use std::path::PathBuf;
 use thiserror::Error;
 
@@ -18,7 +22,7 @@ pub type CalvinResult<T> = Result<T, CalvinError>;
 #[derive(Error, Debug)]
 pub enum CalvinError {
     /// Missing required field in frontmatter
-    #[error("missing required field '{field}' in {file}:{line}\n  → Fix: Add '{field}: <value>' to frontmatter\n  → Docs: https://calvin.dev/docs/frontmatter")]
+    #[error("missing required field '{field}' in {file}:{line}\n  → Fix: Add '{field}: <value>' to frontmatter\n  → Docs: https://64andrewwalker.github.io/calvin/docs/api/frontmatter")]
     MissingField {
         field: String,
         file: PathBuf,
@@ -30,11 +34,11 @@ pub enum CalvinError {
     InvalidFrontmatter { file: PathBuf, message: String },
 
     /// No frontmatter found (missing `---` delimiters)
-    #[error("no frontmatter found in {file}\n  → Fix: File must start with '---' delimiter\n  → Example:\n    ---\n    description: My asset\n    ---\n  → Docs: https://calvin.dev/docs/frontmatter")]
+    #[error("no frontmatter found in {file}\n  → Fix: File must start with '---' delimiter\n  → Example:\n    ---\n    description: My asset\n    ---\n  → Docs: https://64andrewwalker.github.io/calvin/docs/api/frontmatter")]
     NoFrontmatter { file: PathBuf },
 
     /// Frontmatter not properly closed
-    #[error("unclosed frontmatter in {file}\n  → Fix: Add closing '---' after frontmatter YAML\n  → Docs: https://calvin.dev/docs/frontmatter")]
+    #[error("unclosed frontmatter in {file}\n  → Fix: Add closing '---' after frontmatter YAML\n  → Docs: https://64andrewwalker.github.io/calvin/docs/api/frontmatter")]
     UnclosedFrontmatter { file: PathBuf },
 
     /// IO error
@@ -100,7 +104,7 @@ fn format_invalid_asset_kind(kind: &str, file: &Path) -> String {
     }
 
     msg.push_str("\n  → Valid kinds: policy, action, agent");
-    msg.push_str("\n  → Docs: https://calvin.dev/docs/frontmatter#kind");
+    msg.push_str(&format!("\n  → Docs: {}", docs::frontmatter_kind_url()));
 
     msg
 }

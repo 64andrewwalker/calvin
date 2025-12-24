@@ -21,6 +21,8 @@ pub mod presentation;
 
 // Core modules
 pub mod config;
+/// Documentation URL configuration - see [`docs::DOCS_BASE_URL`] for the base URL
+pub mod docs;
 pub mod error;
 pub mod models;
 pub mod parser;
