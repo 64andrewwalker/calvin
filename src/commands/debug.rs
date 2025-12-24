@@ -94,23 +94,91 @@ pub fn cmd_migrate(
         );
     }
 
-    // Placeholder for future migration logic
-    // Currently only version 1.0 exists.
+    // Lockfile migration (Phase 0): `.promptpack/.calvin.lock` → `./calvin.lock`
+    let old_lockfile = cwd.join(".promptpack/.calvin.lock");
+    let new_lockfile = cwd.join("calvin.lock");
+
+    let mut changes: Vec<serde_json::Value> = Vec::new();
+    if old_lockfile.exists() && !new_lockfile.exists() {
+        changes.push(serde_json::json!({
+            "type": "move_lockfile",
+            "from": old_lockfile.display().to_string(),
+            "to": new_lockfile.display().to_string(),
+        }));
+    }
+
+    if changes.is_empty() {
+        if json {
+            crate::ui::json::emit(serde_json::json!({
+                "event": "complete",
+                "command": "migrate",
+                "status": "success",
+                "message": "Already at latest version (1.0). No migration needed.",
+                "changes": []
+            }))?;
+        } else {
+            println!();
+            print!(
+                "{}",
+                crate::ui::views::migrate::render_migrate_complete(
+                    "Already at latest version (1.0). No migration needed.",
+                    ui.color,
+                    ui.unicode
+                )
+            );
+        }
+        return Ok(());
+    }
+
+    if dry_run {
+        if json {
+            crate::ui::json::emit(serde_json::json!({
+                "event": "complete",
+                "command": "migrate",
+                "status": "success",
+                "message": "Dry run - no changes made.",
+                "changes": changes
+            }))?;
+        } else {
+            println!();
+            print!(
+                "{}",
+                crate::ui::views::migrate::render_migrate_complete(
+                    "Dry run - no changes made.",
+                    ui.color,
+                    ui.unicode
+                )
+            );
+        }
+        return Ok(());
+    }
+
+    // Apply changes
+    if old_lockfile.exists() && !new_lockfile.exists() {
+        std::fs::create_dir_all(
+            new_lockfile
+                .parent()
+                .expect("calvin.lock parent must exist"),
+        )?;
+        let content = std::fs::read_to_string(&old_lockfile)?;
+        std::fs::write(&new_lockfile, content)?;
+        let _ = std::fs::remove_file(&old_lockfile);
+    }
 
     if json {
         crate::ui::json::emit(serde_json::json!({
             "event": "complete",
             "command": "migrate",
             "status": "success",
-            "message": "Already at latest version (1.0). No migration needed.",
-            "changes": []
+            "message": "Migration complete.",
+            "changes": changes
         }))?;
     } else {
         println!();
         print!(
             "{}",
             crate::ui::views::migrate::render_migrate_complete(
-                "Already at latest version (1.0). No migration needed.",
+                "Migration complete.",
                 ui.color,
                 ui.unicode
             )

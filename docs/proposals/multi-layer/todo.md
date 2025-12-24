@@ -206,35 +206,35 @@
 
 ### Tasks
 
-- [ ] **4.1** 实现 `calvin layers` 命令
-  - [ ] 显示层栈
-  - [ ] 显示每层 asset 数量
-  - [ ] 添加测试
+- [x] **4.1** 实现 `calvin layers` 命令
+  - [x] 显示层栈
+  - [x] 显示每层 asset 数量
+  - [x] 添加测试
 
-- [ ] **4.2** 实现 `calvin provenance` 命令
-  - [ ] 显示每个输出的来源
-  - [ ] 支持 `--json`
-  - [ ] 添加测试
+- [x] **4.2** 实现 `calvin provenance` 命令
+  - [x] 显示每个输出的来源
+  - [x] 支持 `--json`
+  - [x] 添加测试
 
-- [ ] **4.3** 更新 `calvin check` 支持多层
-  - [ ] 验证所有层
-  - [ ] 检测冲突
-  - [ ] 添加测试
+- [x] **4.3** 更新 `calvin check` 支持多层
+  - [x] 验证所有层
+  - [x] 检测冲突
+  - [x] 添加测试
 
-- [ ] **4.4** 实现 `calvin check --all`
-  - [ ] 检查所有注册项目
-  - [ ] 汇总结果
-  - [ ] 添加测试
+- [x] **4.4** 实现 `calvin check --all`
+  - [x] 检查所有注册项目
+  - [x] 汇总结果
+  - [x] 添加测试
 
-- [ ] **4.5** 添加 `--json` 输出支持
-  - [ ] `calvin layers --json`
-  - [ ] `calvin provenance --json`
-  - [ ] 添加测试
+- [x] **4.5** 添加 `--json` 输出支持
+  - [x] `calvin layers --json`
+  - [x] `calvin provenance --json`
+  - [x] 添加测试
 
-- [ ] **4.6** 实现 `calvin migrate` 命令
-  - [ ] 迁移 lockfile
-  - [ ] 支持 `--dry-run`
-  - [ ] 添加测试
+- [x] **4.6** 实现 `calvin migrate` 命令
+  - [x] 迁移 lockfile
+  - [x] 支持 `--dry-run`
+  - [x] 添加测试
 
 - [ ] **4.7** 更新文档
   - [ ] `docs/configuration.md`
@@ -284,6 +284,6 @@
 | 1 | ✅ Complete | 2025-12-24 | 2025-12-24 | Core layer system |
 | 2 | ✅ Complete | 2025-12-24 | 2025-12-24 | Global registry |
 | 3 | ✅ Complete | 2025-12-24 | 2025-12-24 | Config & CLI |
-| 4 | ⬜ Not Started | | | Visibility & tooling |
+| 4 | 🟡 In Progress | 2025-12-24 | | Visibility & tooling (docs pending) |
 
 Legend: ⬜ Not Started | 🟡 In Progress | ✅ Complete

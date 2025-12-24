@@ -105,7 +105,18 @@ fn dispatch(
         Commands::Check {
             mode,
             strict_warnings,
-        } => commands::check::cmd_check(&mode, strict_warnings, json, verbose, color, no_animation),
+            all,
+            all_layers,
+        } => commands::check::cmd_check(
+            &mode,
+            strict_warnings,
+            all,
+            all_layers,
+            json,
+            verbose,
+            color,
+            no_animation,
+        ),
         Commands::Explain { brief } => commands::explain::cmd_explain(brief, json, verbose),
         Commands::Watch { source, home } => {
             commands::watch::cmd_watch(&source, home, json, color, no_animation)
@@ -165,6 +176,14 @@ fn dispatch(
         Commands::Projects { prune } => {
             commands::projects::cmd_projects(prune, json, verbose, color, no_animation)
         }
+        Commands::Layers => commands::layers::cmd_layers(json, verbose, color, no_animation),
+        Commands::Provenance { filter } => commands::provenance::cmd_provenance(
+            filter.as_deref(),
+            json,
+            verbose,
+            color,
+            no_animation,
+        ),
     }
 }
 

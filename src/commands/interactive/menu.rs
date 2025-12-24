@@ -150,7 +150,16 @@ pub fn interactive_existing_project(
         }
         4 => commands::debug::cmd_diff(&source, false, false),
         5 => commands::watch::cmd_watch(&source, false, false, color, no_animation),
-        6 => commands::check::cmd_check("balanced", false, false, verbose, color, no_animation),
+        6 => commands::check::cmd_check(
+            "balanced",
+            false,
+            false,
+            false,
+            false,
+            verbose,
+            color,
+            no_animation,
+        ),
         7 => commands::clean::cmd_clean(
             &source,
             false, // home

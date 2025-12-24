@@ -4,9 +4,12 @@ use anyhow::Result;
 
 use calvin::presentation::ColorWhen;
 
+#[allow(clippy::too_many_arguments)]
 pub fn cmd_check(
     mode: &str,
     strict_warnings: bool,
+    all: bool,
+    all_layers: bool,
     json: bool,
     verbose: u8,
     color: Option<ColorWhen>,
@@ -21,6 +24,16 @@ pub fn cmd_check(
     let project_root = std::env::current_dir()?;
     let config = calvin::config::Config::load_or_default(Some(&project_root));
     let ui = crate::ui::context::UiContext::new(json, verbose, color, no_animation, &config);
+
+    let options = CheckOptions {
+        mode: security_mode,
+        strict_warnings,
+    };
+
+    if all {
+        let _ = execute_check_all(&project_root, options, all_layers, json, verbose)?;
+        return Ok(());
+    }
 
     if json {
         let mut out = std::io::stdout().lock();
@@ -51,17 +64,13 @@ pub fn cmd_check(
 
     // Create CheckUseCase
     let use_case = CheckUseCase::new(config.clone());
-    let options = CheckOptions {
-        mode: security_mode,
-        strict_warnings,
-    };
 
     let result = if json {
-        execute_json(&use_case, &project_root, options)?
+        execute_json(&use_case, &project_root, options, all_layers)?
     } else if ui.animation {
-        execute_animated(&use_case, &project_root, options, &ui)?
+        execute_animated(&use_case, &project_root, options, all_layers, &ui)?
     } else {
-        use_case.execute(&project_root, options)?
+        execute_single_project(&use_case, &project_root, options, all_layers)?
     };
 
     // Determine exit status
@@ -93,11 +102,12 @@ fn execute_json(
     use_case: &calvin::application::CheckUseCase,
     project_root: &std::path::Path,
     options: calvin::application::CheckOptions,
+    all_layers: bool,
 ) -> Result<calvin::application::CheckResult> {
     use calvin::application::CheckStatus;
 
     let mut out = std::io::stdout().lock();
-    use_case.execute_with_callback(project_root, options, |item| {
+    let mut result = use_case.execute_with_callback(project_root, options, |item| {
         let status = match item.status {
             CheckStatus::Pass => "pass",
             CheckStatus::Warning => "warning",
@@ -116,13 +126,20 @@ fn execute_json(
                 "details": item.details,
             }),
         );
-    })
+    })?;
+
+    if all_layers {
+        append_layer_checks_json(project_root, &mut result, &mut out)?;
+    }
+
+    Ok(result)
 }
 
 fn execute_animated(
     use_case: &calvin::application::CheckUseCase,
     project_root: &std::path::Path,
     options: calvin::application::CheckOptions,
+    all_layers: bool,
     ui: &crate::ui::context::UiContext,
 ) -> Result<calvin::application::CheckResult> {
     use crate::ui::components::stream::{ItemStatus, StreamOutput};
@@ -133,7 +150,7 @@ fn execute_animated(
     let mut region = LiveRegion::new();
     let mut stdout = std::io::stdout().lock();
 
-    let result = use_case.execute_with_callback(project_root, options, |item| {
+    let mut result = use_case.execute_with_callback(project_root, options, |item| {
         let index = list.len();
         list.add(format!(
             "{} {} - {}",
@@ -151,9 +168,323 @@ fn execute_animated(
         }
         let _ = region.update(&mut stdout, &list.render(ui.color, ui.unicode));
     })?;
+    if all_layers {
+        append_layer_checks_text(project_root, &mut result)?;
+    }
 
     let _ = region.clear(&mut stdout);
     Ok(result)
+}
+
+fn execute_single_project(
+    use_case: &calvin::application::CheckUseCase,
+    project_root: &std::path::Path,
+    options: calvin::application::CheckOptions,
+    all_layers: bool,
+) -> Result<calvin::application::CheckResult> {
+    let mut result = use_case.execute(project_root, options)?;
+    if all_layers {
+        append_layer_checks_text(project_root, &mut result)?;
+    }
+    Ok(result)
+}
+
+fn append_layer_checks_text(
+    project_root: &std::path::Path,
+    result: &mut calvin::application::CheckResult,
+) -> Result<()> {
+    let config = calvin::config::Config::load_or_default(Some(project_root));
+    let use_case = calvin::application::layers::LayerQueryUseCase::default();
+
+    match use_case.query(project_root, &config) {
+        Ok(layers) => {
+            result.passed += 1;
+            result.items.push(calvin::application::CheckItem {
+                platform: "layers".to_string(),
+                name: "layer_stack".to_string(),
+                status: calvin::application::CheckStatus::Pass,
+                message: format!("Resolved {} layers", layers.layers.len()),
+                recommendation: None,
+                details: vec![
+                    format!("merged_assets={}", layers.merged_asset_count),
+                    format!("overridden_assets={}", layers.overridden_asset_count),
+                ],
+            });
+        }
+        Err(e) => {
+            result.errors += 1;
+            result.items.push(calvin::application::CheckItem {
+                platform: "layers".to_string(),
+                name: "layer_stack".to_string(),
+                status: calvin::application::CheckStatus::Error,
+                message: format!("Failed to resolve layers: {}", e),
+                recommendation: None,
+                details: Vec::new(),
+            });
+        }
+    }
+
+    Ok(())
+}
+
+fn append_layer_checks_json(
+    project_root: &std::path::Path,
+    result: &mut calvin::application::CheckResult,
+    out: &mut impl std::io::Write,
+) -> Result<()> {
+    let config = calvin::config::Config::load_or_default(Some(project_root));
+    let use_case = calvin::application::layers::LayerQueryUseCase::default();
+
+    match use_case.query(project_root, &config) {
+        Ok(layers) => {
+            result.passed += 1;
+            let item = calvin::application::CheckItem {
+                platform: "layers".to_string(),
+                name: "layer_stack".to_string(),
+                status: calvin::application::CheckStatus::Pass,
+                message: format!("Resolved {} layers", layers.layers.len()),
+                recommendation: None,
+                details: vec![
+                    format!("merged_assets={}", layers.merged_asset_count),
+                    format!("overridden_assets={}", layers.overridden_asset_count),
+                ],
+            };
+            result.items.push(item.clone());
+            let _ = crate::ui::json::write_event(
+                out,
+                &serde_json::json!({
+                    "event": "check",
+                    "command": "check",
+                    "platform": item.platform,
+                    "name": item.name,
+                    "status": "pass",
+                    "message": item.message,
+                    "recommendation": item.recommendation,
+                    "details": item.details,
+                }),
+            );
+        }
+        Err(e) => {
+            result.errors += 1;
+            let item = calvin::application::CheckItem {
+                platform: "layers".to_string(),
+                name: "layer_stack".to_string(),
+                status: calvin::application::CheckStatus::Error,
+                message: format!("Failed to resolve layers: {}", e),
+                recommendation: None,
+                details: Vec::new(),
+            };
+            result.items.push(item.clone());
+            let _ = crate::ui::json::write_event(
+                out,
+                &serde_json::json!({
+                    "event": "check",
+                    "command": "check",
+                    "platform": item.platform,
+                    "name": item.name,
+                    "status": "error",
+                    "message": item.message,
+                    "recommendation": item.recommendation,
+                    "details": item.details,
+                }),
+            );
+        }
+    }
+
+    Ok(())
+}
+
+fn execute_check_all(
+    _cwd: &std::path::Path,
+    options: calvin::application::CheckOptions,
+    all_layers: bool,
+    json: bool,
+    verbose: u8,
+) -> Result<calvin::application::CheckResult> {
+    use calvin::presentation::factory::create_registry_use_case;
+
+    let registry = create_registry_use_case();
+    let projects = registry.list_projects();
+
+    if projects.is_empty() {
+        if json {
+            let mut out = std::io::stdout().lock();
+            let _ = crate::ui::json::write_event(
+                &mut out,
+                &serde_json::json!({
+                    "event": "complete",
+                    "command": "check",
+                    "success": true,
+                    "projects": 0,
+                    "message": "No projects in registry"
+                }),
+            );
+        } else {
+            println!("No projects in registry.");
+        }
+        return Ok(calvin::application::CheckResult::default());
+    }
+
+    let mut aggregate = calvin::application::CheckResult::default();
+    let original = std::env::current_dir()?;
+
+    if json {
+        let mut out = std::io::stdout().lock();
+        let _ = crate::ui::json::write_event(
+            &mut out,
+            &serde_json::json!({
+                "event": "start",
+                "command": "check",
+                "all": true,
+                "projects": projects.len(),
+                "verbose": verbose,
+            }),
+        );
+
+        for project in &projects {
+            let _ = crate::ui::json::write_event(
+                &mut out,
+                &serde_json::json!({
+                    "event": "project_start",
+                    "command": "check",
+                    "project": project.path.display().to_string(),
+                }),
+            );
+
+            let config = calvin::config::Config::load_or_default(Some(&project.path));
+            let use_case = calvin::application::CheckUseCase::new(config);
+
+            if let Err(e) = std::env::set_current_dir(&project.path) {
+                aggregate.errors += 1;
+                let _ = crate::ui::json::write_event(
+                    &mut out,
+                    &serde_json::json!({
+                        "event": "project_error",
+                        "command": "check",
+                        "project": project.path.display().to_string(),
+                        "error": e.to_string(),
+                    }),
+                );
+                continue;
+            }
+
+            let mut result =
+                use_case.execute_with_callback(&project.path, options.clone(), |item| {
+                    let status = match item.status {
+                        calvin::application::CheckStatus::Pass => "pass",
+                        calvin::application::CheckStatus::Warning => "warning",
+                        calvin::application::CheckStatus::Error => "error",
+                    };
+                    let _ = crate::ui::json::write_event(
+                        &mut out,
+                        &serde_json::json!({
+                            "event": "check",
+                            "command": "check",
+                            "project": project.path.display().to_string(),
+                            "platform": item.platform,
+                            "name": item.name,
+                            "status": status,
+                            "message": item.message,
+                            "recommendation": item.recommendation,
+                            "details": item.details,
+                        }),
+                    );
+                })?;
+
+            if all_layers {
+                append_layer_checks_json(&project.path, &mut result, &mut out)?;
+                // tag the layer check event with project as well via explicit event
+                let _ = crate::ui::json::write_event(
+                    &mut out,
+                    &serde_json::json!({
+                        "event": "check",
+                        "command": "check",
+                        "project": project.path.display().to_string(),
+                        "platform": "layers",
+                        "name": "layer_stack",
+                        "status": "pass",
+                        "message": "Layer stack checked",
+                    }),
+                );
+            }
+
+            aggregate.passed += result.passed;
+            aggregate.warnings += result.warnings;
+            aggregate.errors += result.errors;
+
+            let _ = crate::ui::json::write_event(
+                &mut out,
+                &serde_json::json!({
+                    "event": "project_complete",
+                    "command": "check",
+                    "project": project.path.display().to_string(),
+                    "passes": result.passed,
+                    "warnings": result.warnings,
+                    "errors": result.errors,
+                }),
+            );
+        }
+
+        let _ = std::env::set_current_dir(original);
+
+        let has_issues = if options.strict_warnings {
+            aggregate.errors > 0 || aggregate.warnings > 0
+        } else {
+            aggregate.errors > 0
+        };
+
+        let _ = crate::ui::json::write_event(
+            &mut out,
+            &serde_json::json!({
+                "event": "complete",
+                "command": "check",
+                "all": true,
+                "projects": projects.len(),
+                "passes": aggregate.passed,
+                "warnings": aggregate.warnings,
+                "errors": aggregate.errors,
+                "success": !has_issues
+            }),
+        );
+
+        if has_issues {
+            std::process::exit(1);
+        }
+
+        return Ok(aggregate);
+    }
+
+    // Text mode: concise per-project output
+    println!("Checking {} projects...", projects.len());
+    for project in &projects {
+        println!();
+        println!("Project: {}", project.path.display());
+        let config = calvin::config::Config::load_or_default(Some(&project.path));
+        let use_case = calvin::application::CheckUseCase::new(config);
+
+        if let Err(e) = std::env::set_current_dir(&project.path) {
+            aggregate.errors += 1;
+            eprintln!("  Error: {}", e);
+            continue;
+        }
+
+        let mut result = use_case.execute(&project.path, options.clone())?;
+        if all_layers {
+            append_layer_checks_text(&project.path, &mut result)?;
+        }
+
+        aggregate.passed += result.passed;
+        aggregate.warnings += result.warnings;
+        aggregate.errors += result.errors;
+
+        println!("  Passed: {}", result.passed);
+        println!("  Warnings: {}", result.warnings);
+        println!("  Errors: {}", result.errors);
+    }
+
+    let _ = std::env::set_current_dir(original);
+
+    Ok(aggregate)
 }
 
 fn emit_json_complete(

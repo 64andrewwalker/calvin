@@ -103,6 +103,14 @@ pub enum Commands {
         /// Fail on warnings too (CI mode)
         #[arg(long)]
         strict_warnings: bool,
+
+        /// Check all registered projects (global registry)
+        #[arg(long)]
+        all: bool,
+
+        /// Check all resolved layers (user/custom/project)
+        #[arg(long)]
+        all_layers: bool,
     },
 
     /// Explain Calvin's usage (for humans/AI assistants)
@@ -217,6 +225,16 @@ pub enum Commands {
         #[arg(long)]
         prune: bool,
     },
+
+    /// Show the resolved multi-layer stack
+    Layers,
+
+    /// Show lockfile provenance for outputs
+    Provenance {
+        /// Filter outputs by substring
+        #[arg(long)]
+        filter: Option<String>,
+    },
 }
 
 #[cfg(test)]
@@ -273,10 +291,14 @@ mod tests {
         if let Some(Commands::Check {
             mode,
             strict_warnings,
+            all,
+            all_layers,
         }) = cli.command
         {
             assert_eq!(mode, "balanced");
             assert!(!strict_warnings);
+            assert!(!all);
+            assert!(!all_layers);
         } else {
             panic!("Expected Check command");
         }
