@@ -291,9 +291,118 @@ Check if plans define where each new file goes:
 | `ui/views/provenance.rs` | plan-04 | Pres | ✅ |
 | `config/types.rs` extension | plan-03 | Config | ✅ |
 
-### Remaining Action Items
+### Remaining Action Items (All Completed)
 
-- [ ] Add env var `CALVIN_SOURCES_*` to plan-03
-- [ ] Add `--json` flag explicitly to plan-04 for `layers` and `projects`
-- [ ] Add `commands/projects.rs` and `ui/views/projects.rs` explicitly to plan-02
+- [x] Add env var `CALVIN_SOURCES_*` to plan-03 ✅ Task 3.6
+- [x] Add `--json` flag explicitly to plan-04 for `layers` and `projects` ✅ CLI Integration
+- [x] Add `commands/projects.rs` and `ui/views/projects.rs` explicitly to plan-02 ✅ Task 2.5
+
+---
+
+## Final Completeness Checklist
+
+### PRD Coverage (17 Sections)
+
+| Section | Description | Covered | Location |
+|---------|-------------|---------|----------|
+| §1 | Problem Statement | ✅ | design.md |
+| §2 | Goals | ✅ | design.md |
+| §3 | Design Philosophy | ✅ | design.md |
+| §4 | Design Overview | ✅ | plan-01, plan-03 |
+| §5 | Detailed Design | ✅ | plan-01 |
+| §6 | Migration | ✅ | migration-guide.md |
+| §7 | Implementation Plan | ✅ | All plans |
+| §8 | Security | ✅ | plan-03 Task 3.7 |
+| §9 | Lockfile Architecture | ✅ | plan-00 |
+| §10 | Provenance Tracking | ✅ | plan-00, plan-04 |
+| §11 | Global Registry | ✅ | plan-02 |
+| §12 | Interactive UI | ✅ | plan-02, plan-04 |
+| §13 | Error Handling | ✅ | todo.md, design.md |
+| §14 | Edge Cases | ✅ | design.md D6-D8, plan-01, plan-03 |
+| §15 | Open Questions | ✅ | Deferred items documented |
+| §16 | Success Metrics | ✅ | Implicit in tests |
+| §17 | References | ✅ | N/A |
+
+### Task Count by Phase
+
+| Phase | Tasks | Description |
+|-------|-------|-------------|
+| 0 | 6 | Lockfile Migration |
+| 1 | 7 + 2 Notes | Core Layer System |
+| 2 | 7 | Global Registry |
+| 3 | 7 | Configuration & CLI |
+| 4 | 7 | Visibility & Tooling |
+| **Total** | **34 tasks** | |
+
+### Integration Tests Required
+
+| Test | PRD Reference | todo.md |
+|------|---------------|---------|
+| 只有项目层 | §4.1 | ✅ |
+| 只有用户层 | §4.1 | ✅ |
+| 项目层 + 用户层 | §4.1 | ✅ |
+| 三层（用户 + 团队 + 项目） | §4.1 | ✅ |
+| 层覆盖 | §4.2 | ✅ |
+| lockfile 迁移 | §9.3 | ✅ |
+| registry 持久化 | §11.2 | ✅ |
+| `--source` 参数 | §4.4 | ✅ |
+| `--layer` 参数 | §4.4 | ✅ |
+| Windows 路径 | §14.8 | ✅ |
+| 符号链接 | §5.6 | ✅ (implicit in plan-01) |
+| 循环符号链接 | §5.6 | ✅ (plan-01 Task 1.7) |
+
+### Error Types Required
+
+| Error | PRD Reference | todo.md |
+|-------|---------------|---------|
+| NoLayersFound | §5.4 | ✅ |
+| AdditionalLayerNotFound | §5.4 | ✅ |
+| CircularSymlink | §5.6 | ✅ |
+| DuplicateAssetInLayer | §5.4 | ✅ |
+| LayerPermissionDenied | §14.8 | ✅ |
+| RegistryCorrupted | §11.3 | ✅ |
+| LockfileVersionMismatch | §14.1 | ✅ |
+
+### New CLI Commands
+
+| Command | PRD Reference | Plan |
+|---------|---------------|------|
+| `calvin layers` | §4.4 | plan-04 Task 4.1 |
+| `calvin layers --json` | §4.4 | plan-04 CLI Integration |
+| `calvin provenance` | §10.3 | plan-04 Task 4.2 |
+| `calvin provenance --json` | §10.3 | plan-04 CLI Integration |
+| `calvin projects` | §11.4 | plan-02 Task 2.6 |
+| `calvin projects --prune` | §11.4 | plan-02 Task 2.6 |
+| `calvin projects --json` | §11.4 | plan-02 Task 2.5 |
+| `calvin clean --all` | §11.4 | plan-02 Task 2.7 |
+| `calvin check --all` | §11.4 | plan-04 Task 4.4 |
+| `calvin init --user` | §4.4 | plan-03 Task 3.5 |
+| `calvin migrate` | §9.3 | plan-04 Task 4.6 |
+| `calvin migrate --dry-run` | §9.3 | plan-04 CLI Integration |
+
+### New CLI Flags
+
+| Flag | Command | PRD Reference | Plan |
+|------|---------|---------------|------|
+| `--source PATH` | deploy | §4.4 | plan-03 Task 3.2 |
+| `--layer PATH` | deploy | §4.4 | plan-03 Task 3.3 |
+| `--no-user-layer` | deploy | §4.4 | plan-03 Task 3.4 |
+| `--no-additional-layers` | deploy | §4.4 | plan-03 Task 3.4 |
+| `--watch-all-layers` | watch | §14.4 | Deferred (design.md D7) |
+
+### Environment Variables
+
+| Variable | PRD Reference | Plan |
+|----------|---------------|------|
+| `CALVIN_SOURCES_USE_USER_LAYER` | §14.5 | plan-03 Task 3.6 |
+| `CALVIN_SOURCES_USER_LAYER_PATH` | §14.5 | plan-03 Task 3.6 |
+
+---
+
+## Conclusion
+
+**✅ All PRD sections covered**
+**✅ All critical items addressed**
+**✅ All edge cases documented**
+**✅ Ready for TDD implementation**
 
