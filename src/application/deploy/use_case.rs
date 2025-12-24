@@ -34,6 +34,7 @@ use crate::domain::value_objects::{Scope, Target};
 
 use super::options::{DeployOptions, DeployOutputOptions};
 use super::result::DeployResult;
+use crate::application::RegistryUseCase;
 
 /// Deploy use case - orchestrates the deployment flow
 ///
@@ -49,6 +50,7 @@ where
     lockfile_repo: LR,
     file_system: FS,
     adapters: Vec<Box<dyn TargetAdapter>>,
+    registry_use_case: Option<Arc<RegistryUseCase>>,
 }
 
 impl<AR, LR, FS> DeployUseCase<AR, LR, FS>
@@ -68,7 +70,13 @@ where
             lockfile_repo,
             file_system,
             adapters,
+            registry_use_case: None,
         }
+    }
+
+    pub fn with_registry_use_case(mut self, registry_use_case: Arc<RegistryUseCase>) -> Self {
+        self.registry_use_case = Some(registry_use_case);
+        self
     }
 
     /// Execute the deploy use case
@@ -335,6 +343,15 @@ where
             ) {
                 result.add_warning(warning);
             }
+
+            if result.errors.is_empty() {
+                self.register_project(
+                    &project_root,
+                    &lockfile_path,
+                    result.asset_count,
+                    &mut result,
+                );
+            }
         } else {
             // Dry run - just collect what would happen
             for file in resolved_plan.to_write() {
@@ -354,6 +371,22 @@ where
         });
 
         result
+    }
+
+    fn register_project(
+        &self,
+        project_root: &Path,
+        lockfile_path: &Path,
+        asset_count: usize,
+        result: &mut DeployResult,
+    ) {
+        let Some(registry) = &self.registry_use_case else {
+            return;
+        };
+
+        if let Err(e) = registry.register_project(project_root, lockfile_path, asset_count) {
+            result.add_warning(format!("Failed to update registry: {}", e));
+        }
     }
 
     /// Load assets from source directory

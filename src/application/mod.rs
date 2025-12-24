@@ -25,6 +25,7 @@ pub mod deploy;
 pub mod diff;
 mod lockfile_migration;
 pub mod pipeline;
+pub mod registry;
 pub mod watch;
 
 pub use check::{CheckItem, CheckOptions, CheckResult, CheckStatus, CheckUseCase};
@@ -35,6 +36,7 @@ pub use deploy::{DeployOptions, DeployOutputOptions, DeployResult, DeployUseCase
 pub use diff::{ChangeType, DiffEntry, DiffOptions, DiffResult, DiffUseCase};
 pub use lockfile_migration::resolve_lockfile_path;
 pub use pipeline::{AssetPipeline, ScopePolicyExt};
+pub use registry::RegistryUseCase;
 pub use watch::{
     compute_content_hash, parse_incremental, IncrementalCache, SyncResult, WatchEvent,
     WatchOptions, WatchUseCase, WatcherState, DEBOUNCE_MS,

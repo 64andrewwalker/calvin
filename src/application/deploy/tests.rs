@@ -9,6 +9,7 @@ use crate::domain::ports::{
 };
 use crate::domain::value_objects::{Scope, Target};
 use crate::infrastructure::TomlLockfileRepository;
+use crate::{application::RegistryUseCase, domain::ports::RegistryRepository};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -150,6 +151,55 @@ fn create_use_case() -> DeployUseCase<MockAssetRepository, MockLockfileRepositor
     })];
 
     DeployUseCase::new(asset_repo, lockfile_repo, file_system, adapters)
+}
+
+#[test]
+fn deploy_registers_project_in_registry() {
+    struct TestRegistryRepo {
+        entries: std::sync::Mutex<Vec<crate::domain::entities::ProjectEntry>>,
+    }
+
+    impl RegistryRepository for TestRegistryRepo {
+        fn load(&self) -> crate::domain::entities::Registry {
+            crate::domain::entities::Registry::new()
+        }
+
+        fn save(
+            &self,
+            _registry: &crate::domain::entities::Registry,
+        ) -> Result<(), crate::domain::ports::RegistryError> {
+            Ok(())
+        }
+
+        fn update_project(
+            &self,
+            entry: crate::domain::entities::ProjectEntry,
+        ) -> Result<(), crate::domain::ports::RegistryError> {
+            self.entries.lock().unwrap().push(entry);
+            Ok(())
+        }
+    }
+
+    let dir = tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join(".promptpack")).unwrap();
+
+    let registry_repo = Arc::new(TestRegistryRepo {
+        entries: std::sync::Mutex::new(Vec::new()),
+    });
+    let registry_use_case = Arc::new(RegistryUseCase::new(registry_repo.clone()));
+
+    let use_case = create_use_case().with_registry_use_case(registry_use_case);
+    let options =
+        DeployOptions::new(dir.path().join(".promptpack")).with_targets(vec![Target::ClaudeCode]);
+
+    let result = use_case.execute(&options);
+    assert!(result.is_success());
+
+    let entries = registry_repo.entries.lock().unwrap();
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0].path, dir.path().to_path_buf());
+    assert_eq!(entries[0].lockfile, dir.path().join("calvin.lock"));
+    assert_eq!(entries[0].asset_count, 1);
 }
 
 #[test]

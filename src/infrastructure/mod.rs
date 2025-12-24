@@ -28,5 +28,5 @@ pub use conflict::InteractiveResolver;
 pub use events::JsonEventSink;
 pub use fs::{LocalFs, RemoteFs};
 pub use layer::FsLayerLoader;
-pub use repositories::{FsAssetRepository, TomlLockfileRepository};
+pub use repositories::{FsAssetRepository, TomlLockfileRepository, TomlRegistryRepository};
 pub use sync::{LocalHomeDestination, LocalProjectDestination, RemoteDestination};

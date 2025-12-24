@@ -3,12 +3,12 @@
 //! Creates use cases with infrastructure dependencies wired up.
 //! This is the dependency injection point for the application.
 
-use crate::application::{DeployUseCase, DiffUseCase};
+use crate::application::{DeployUseCase, DiffUseCase, RegistryUseCase};
 use crate::domain::ports::TargetAdapter;
 use crate::infrastructure::fs::DestinationFs;
 use crate::infrastructure::{
     all_adapters, ClaudeCodeAdapter, CursorAdapter, FsAssetRepository, LocalFs,
-    TomlLockfileRepository,
+    TomlLockfileRepository, TomlRegistryRepository,
 };
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -33,7 +33,11 @@ pub fn create_deploy_use_case() -> ConcreteDeployUseCase {
     let file_system = LocalFs::new();
     let adapters = all_adapters();
 
+    let registry_repo = TomlRegistryRepository::new();
+    let registry_use_case = RegistryUseCase::new(Arc::new(registry_repo));
+
     DeployUseCase::new(asset_repo, lockfile_repo, file_system, adapters)
+        .with_registry_use_case(Arc::new(registry_use_case))
 }
 
 /// Create a deploy use case with specific adapters
@@ -46,7 +50,11 @@ pub fn create_deploy_use_case_with_adapters(
     let lockfile_repo = TomlLockfileRepository::new();
     let file_system = LocalFs::new();
 
+    let registry_repo = TomlRegistryRepository::new();
+    let registry_use_case = RegistryUseCase::new(Arc::new(registry_repo));
+
     DeployUseCase::new(asset_repo, lockfile_repo, file_system, adapters)
+        .with_registry_use_case(Arc::new(registry_use_case))
 }
 
 /// Create a diff use case with all dependencies wired up
@@ -90,7 +98,11 @@ pub fn create_deploy_use_case_for_remote(
     let file_system = DestinationFs::new(destination);
     let adapters = all_adapters();
 
+    let registry_repo = TomlRegistryRepository::new();
+    let registry_use_case = RegistryUseCase::new(Arc::new(registry_repo));
+
     DeployUseCase::new(asset_repo, lockfile_repo, file_system, adapters)
+        .with_registry_use_case(Arc::new(registry_use_case))
 }
 
 /// Create a deploy use case for a remote destination with specific adapters
@@ -106,7 +118,11 @@ pub fn create_deploy_use_case_for_remote_with_adapters(
     let destination = Arc::new(RemoteDestination::new(remote_spec, source));
     let file_system = DestinationFs::new(destination);
 
+    let registry_repo = TomlRegistryRepository::new();
+    let registry_use_case = RegistryUseCase::new(Arc::new(registry_repo));
+
     DeployUseCase::new(asset_repo, lockfile_repo, file_system, adapters)
+        .with_registry_use_case(Arc::new(registry_use_case))
 }
 
 /// Create adapters for specific targets
