@@ -4,6 +4,7 @@
 
 use anyhow::Result;
 
+use calvin::domain::ports::RegistryError;
 use calvin::presentation::ColorWhen;
 
 use crate::ui::context::UiContext;
@@ -23,8 +24,23 @@ pub fn cmd_projects(
     let registry = calvin::presentation::factory::create_registry_use_case();
     let registry_path = calvin::presentation::factory::registry_path();
 
-    let pruned = if prune { Some(registry.prune()?) } else { None };
-    let projects = registry.list_projects();
+    let pruned = if prune {
+        Some(registry.prune().map_err(|e| match e {
+            RegistryError::Corrupted { path, .. } => {
+                anyhow::Error::new(calvin::CalvinError::RegistryCorrupted { path })
+            }
+            _ => anyhow::Error::new(e),
+        })?)
+    } else {
+        None
+    };
+
+    let projects = registry.list_projects().map_err(|e| match e {
+        RegistryError::Corrupted { path, .. } => {
+            anyhow::Error::new(calvin::CalvinError::RegistryCorrupted { path })
+        }
+        _ => anyhow::Error::new(e),
+    })?;
 
     if json {
         emit_json(&projects, pruned.as_deref());

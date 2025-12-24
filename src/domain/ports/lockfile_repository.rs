@@ -16,6 +16,9 @@ pub enum LockfileError {
     ParseError(String),
     /// I/O error
     IoError(String),
+
+    /// Lockfile format incompatible
+    VersionMismatch { found: u32, expected: u32 },
 }
 
 impl std::fmt::Display for LockfileError {
@@ -24,6 +27,11 @@ impl std::fmt::Display for LockfileError {
             LockfileError::NotFound(path) => write!(f, "Lockfile not found: {}", path.display()),
             LockfileError::ParseError(msg) => write!(f, "Parse error: {}", msg),
             LockfileError::IoError(msg) => write!(f, "I/O error: {}", msg),
+            LockfileError::VersionMismatch { found, expected } => write!(
+                f,
+                "lockfile format incompatible (version {}, expected {})\n  → Fix: Run calvin migrate to update\n  → Run: calvin migrate",
+                found, expected
+            ),
         }
     }
 }

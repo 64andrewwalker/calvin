@@ -43,7 +43,16 @@ where
     ///
     /// Returns what would be deleted, allowing caller to confirm before actual deletion.
     pub fn execute(&self, lockfile_path: &Path, options: &CleanOptions) -> CleanResult {
-        let lockfile = self.lockfile_repo.load_or_new(lockfile_path);
+        let lockfile = match self.lockfile_repo.load(lockfile_path) {
+            Ok(lockfile) => lockfile,
+            Err(e) => {
+                let mut result = CleanResult::new();
+                result
+                    .errors
+                    .push(CleanError::lockfile_error(e.to_string()));
+                return result;
+            }
+        };
         self.process_lockfile(&lockfile, options, false)
     }
 
@@ -51,7 +60,16 @@ where
     ///
     /// This should be called after user confirms the preview.
     pub fn execute_confirmed(&self, lockfile_path: &Path, options: &CleanOptions) -> CleanResult {
-        let lockfile = self.lockfile_repo.load_or_new(lockfile_path);
+        let lockfile = match self.lockfile_repo.load(lockfile_path) {
+            Ok(lockfile) => lockfile,
+            Err(e) => {
+                let mut result = CleanResult::new();
+                result
+                    .errors
+                    .push(CleanError::lockfile_error(e.to_string()));
+                return result;
+            }
+        };
         let result = self.process_lockfile(&lockfile, options, !options.dry_run);
 
         // Update lockfile to remove entries
@@ -482,5 +500,35 @@ hash = "{}"
         assert_eq!(result.deleted.len(), 1, "Should delete only 1 file");
         assert!(file1.exists(), "file1 should NOT be deleted");
         assert!(!file2.exists(), "file2 should be deleted");
+    }
+
+    #[test]
+    fn clean_reports_error_on_lockfile_version_mismatch() {
+        let dir = tempdir().unwrap();
+        let lockfile_path = dir.path().join("calvin.lock");
+        std::fs::write(
+            &lockfile_path,
+            r#"
+version = 999
+
+[files."project:test.md"]
+hash = "sha256:abc"
+"#,
+        )
+        .unwrap();
+
+        let repo = TomlLockfileRepository::new();
+        let fs = LocalFs::new();
+        let use_case = CleanUseCase::new(repo, fs);
+
+        let options = CleanOptions::new().with_scope(Some(Scope::Project));
+        let result = use_case.execute(&lockfile_path, &options);
+
+        assert!(
+            !result.errors.is_empty(),
+            "expected lockfile parse/version errors"
+        );
+        let msg = result.errors[0].to_string();
+        assert!(msg.contains("lockfile format incompatible"), "msg: {}", msg);
     }
 }

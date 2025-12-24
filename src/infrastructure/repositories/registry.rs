@@ -50,22 +50,22 @@ impl TomlRegistryRepository {
         self.path.with_extension("lock")
     }
 
-    fn load_from_disk(&self) -> Registry {
+    fn load_from_disk(&self) -> Result<Registry, RegistryError> {
         if !self.path.exists() {
-            return Registry::new();
+            return Ok(Registry::new());
         }
 
-        let content = match fs::read_to_string(&self.path) {
-            Ok(c) => c,
-            Err(_) => return Registry::new(),
-        };
+        let content = fs::read_to_string(&self.path).map_err(|e| RegistryError::AccessError {
+            message: e.to_string(),
+        })?;
 
-        let toml_reg: TomlRegistry = match toml::from_str(&content) {
-            Ok(r) => r,
-            Err(_) => return Registry::new(),
-        };
+        let toml_reg: TomlRegistry =
+            toml::from_str(&content).map_err(|e| RegistryError::Corrupted {
+                path: self.path.clone(),
+                message: e.to_string(),
+            })?;
 
-        from_toml(toml_reg)
+        Ok(from_toml(toml_reg))
     }
 
     fn save_to_disk(&self, registry: &Registry) -> Result<(), RegistryError> {
@@ -96,7 +96,7 @@ impl Default for TomlRegistryRepository {
 }
 
 impl RegistryRepository for TomlRegistryRepository {
-    fn load(&self) -> Registry {
+    fn load(&self) -> Result<Registry, RegistryError> {
         self.load_from_disk()
     }
 
@@ -140,7 +140,7 @@ impl RegistryRepository for TomlRegistryRepository {
                 message: e.to_string(),
             })?;
 
-        let mut registry = self.load_from_disk();
+        let mut registry = self.load_from_disk()?;
         registry.upsert(entry);
         let result = self.save_to_disk(&registry);
 
@@ -197,9 +197,24 @@ mod tests {
     fn load_missing_returns_empty() {
         let dir = tempdir().unwrap();
         let repo = TomlRegistryRepository::with_path(dir.path().join("registry.toml"));
-        let reg = repo.load();
+        let reg = repo.load().unwrap();
         assert!(reg.projects.is_empty());
         assert_eq!(reg.version, 1);
+    }
+
+    #[test]
+    fn load_corrupted_returns_error() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("registry.toml");
+        fs::write(&path, "this is not toml = = =").unwrap();
+
+        let repo = TomlRegistryRepository::with_path(path.clone());
+        let err = repo.load().unwrap_err();
+        assert!(matches!(err, RegistryError::Corrupted { .. }));
+
+        let msg = err.to_string();
+        assert!(msg.contains("registry file corrupted"));
+        assert!(msg.contains(&path.display().to_string()));
     }
 
     #[test]
@@ -216,7 +231,7 @@ mod tests {
         });
 
         repo.save(&reg).unwrap();
-        let loaded = repo.load();
+        let loaded = repo.load().unwrap();
         assert_eq!(loaded.projects.len(), 1);
         assert_eq!(loaded.projects[0].asset_count, 7);
     }
@@ -239,7 +254,7 @@ mod tests {
         })
         .unwrap();
 
-        let loaded = repo.load();
+        let loaded = repo.load().unwrap();
         assert_eq!(loaded.projects.len(), 1);
         assert_eq!(loaded.projects[0].asset_count, 2);
     }

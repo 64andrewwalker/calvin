@@ -155,7 +155,12 @@ impl LayerResolver {
             Ok(layer_path) => Ok(Some(Layer::new(name, layer_path, layer_type))),
             Err(LayerResolveError::PathNotFound { .. }) => {
                 if warn_on_missing {
-                    warnings.push(format!("Layer not found: {}", path.display()));
+                    let label = match layer_type {
+                        LayerType::Custom => "Additional layer not found",
+                        LayerType::Project => "Project layer not found",
+                        LayerType::User => "User layer not found",
+                    };
+                    warnings.push(format!("{}: {}", label, path.display()));
                 }
                 Ok(None)
             }

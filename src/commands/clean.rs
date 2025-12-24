@@ -97,7 +97,19 @@ pub fn cmd_clean(
     }
 
     // Load lockfile
-    let lockfile = lockfile_repo.load_or_new(&lockfile_path);
+    let lockfile = match lockfile_repo.load(&lockfile_path) {
+        Ok(lockfile) => lockfile,
+        Err(e) => {
+            if json {
+                println!(
+                    r#"{{"type":"clean_error","kind":"lockfile","message":"{}"}}"#,
+                    e.to_string().replace('"', "\\\"")
+                );
+                return Ok(());
+            }
+            return Err(e.into());
+        }
+    };
 
     if lockfile.is_empty() {
         if json {
@@ -170,6 +182,7 @@ fn cmd_clean_all(
     use crate::ui::primitives::icon::Icon;
     use crate::ui::primitives::text::ColoredText;
     use crate::ui::widgets::list::{ItemStatus, StatusList};
+    use calvin::domain::ports::RegistryError;
     use calvin::presentation::factory::create_registry_use_case;
 
     let cwd = std::env::current_dir()?;
@@ -177,7 +190,12 @@ fn cmd_clean_all(
     let ui = UiContext::new(json, verbose, color, no_animation, &config);
 
     let registry = create_registry_use_case();
-    let projects = registry.list_projects();
+    let projects = registry.list_projects().map_err(|e| match e {
+        RegistryError::Corrupted { path, .. } => {
+            anyhow::Error::new(calvin::CalvinError::RegistryCorrupted { path })
+        }
+        _ => anyhow::Error::new(e),
+    })?;
 
     if projects.is_empty() {
         if json {

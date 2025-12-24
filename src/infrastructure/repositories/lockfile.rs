@@ -78,6 +78,14 @@ impl LockfileRepository for TomlLockfileRepository {
         let toml_lockfile: TomlLockfile =
             toml::from_str(&content).map_err(|e| LockfileError::ParseError(e.to_string()))?;
 
+        let expected_version = Lockfile::new().version();
+        if toml_lockfile.version != expected_version {
+            return Err(LockfileError::VersionMismatch {
+                found: toml_lockfile.version,
+                expected: expected_version,
+            });
+        }
+
         let mut lockfile = Lockfile::new();
         for (key, entry) in toml_lockfile.files {
             lockfile.set_entry(
@@ -309,5 +317,27 @@ source_asset = "review"
         let content = std::fs::read_to_string(&lockfile_path).unwrap();
         assert!(content.contains(r#"source_layer_path = "C:/Users/me/project""#));
         assert!(content.contains(r#"source_file = "C:/Users/me/project/review.md""#));
+    }
+
+    #[test]
+    fn load_errors_on_version_mismatch() {
+        let dir = tempdir().unwrap();
+        let lockfile_path = dir.path().join("calvin.lock");
+
+        let content = r#"
+version = 999
+
+[files."project:test.md"]
+hash = "sha256:abc"
+"#;
+        std::fs::write(&lockfile_path, content).unwrap();
+
+        let repo = TomlLockfileRepository::new();
+        let err = repo.load(&lockfile_path).unwrap_err();
+        assert!(matches!(err, LockfileError::VersionMismatch { .. }));
+
+        let msg = err.to_string();
+        assert!(msg.contains("lockfile format incompatible"));
+        assert!(msg.contains("calvin migrate"));
     }
 }

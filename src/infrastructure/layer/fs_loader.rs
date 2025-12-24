@@ -30,6 +30,23 @@ impl LayerLoader for FsLayerLoader {
             });
         }
 
+        if !layer_root.is_dir() {
+            return Err(LayerLoadError::InvalidLayerPath {
+                path: layer_root.clone(),
+            });
+        }
+
+        if let Err(e) = std::fs::read_dir(layer_root) {
+            if matches!(e.kind(), std::io::ErrorKind::PermissionDenied) {
+                return Err(LayerLoadError::PermissionDenied {
+                    path: layer_root.clone(),
+                });
+            }
+            return Err(LayerLoadError::LoadFailed {
+                message: e.to_string(),
+            });
+        }
+
         let assets =
             self.asset_repo
                 .load_all(layer_root)
@@ -89,5 +106,70 @@ scope: project
 
         let result = loader.load_layer_assets(&mut layer);
         assert!(matches!(result, Err(LayerLoadError::PathNotFound { .. })));
+    }
+
+    #[test]
+    fn fs_loader_error_on_invalid_layer_path() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join(".promptpack");
+        std::fs::write(&path, "not a directory").unwrap();
+
+        let loader = FsLayerLoader::default();
+        let mut layer = crate::domain::entities::Layer::new(
+            "test",
+            LayerPath::new(path.clone(), path.clone()),
+            LayerType::Project,
+        );
+
+        let result = loader.load_layer_assets(&mut layer);
+        assert!(matches!(
+            result,
+            Err(LayerLoadError::InvalidLayerPath { .. })
+        ));
+    }
+
+    #[test]
+    fn fs_loader_error_on_duplicate_asset_id_in_layer() {
+        let dir = tempdir().unwrap();
+        let layer_path = dir.path().join(".promptpack");
+        std::fs::create_dir_all(layer_path.join("policies")).unwrap();
+        std::fs::create_dir_all(layer_path.join("actions")).unwrap();
+
+        // Both files will produce the same asset ID ("test")
+        std::fs::write(
+            layer_path.join("policies/test.md"),
+            r#"---
+kind: policy
+description: Policy test
+scope: project
+---
+POLICY
+"#,
+        )
+        .unwrap();
+        std::fs::write(
+            layer_path.join("actions/test.md"),
+            r#"---
+kind: action
+description: Action test
+scope: project
+---
+ACTION
+"#,
+        )
+        .unwrap();
+
+        let loader = FsLayerLoader::default();
+        let mut layer = crate::domain::entities::Layer::new(
+            "test-layer",
+            LayerPath::new(layer_path.clone(), layer_path.clone()),
+            LayerType::Project,
+        );
+
+        let result = loader.load_layer_assets(&mut layer);
+        assert!(matches!(
+            result,
+            Err(LayerLoadError::DuplicateAssetInLayer { .. })
+        ));
     }
 }

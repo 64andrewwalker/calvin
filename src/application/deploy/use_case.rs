@@ -171,7 +171,15 @@ where
         });
 
         // Step 1: Load lockfile
-        let lockfile = self.lockfile_repo.load_or_new(&options.lockfile_path);
+        let lockfile = match self.lockfile_repo.load(&options.lockfile_path) {
+            Ok(lockfile) => lockfile,
+            Err(e) => {
+                result
+                    .errors
+                    .push(format!("Failed to load lockfile: {}", e));
+                return result;
+            }
+        };
 
         // Step 2: Plan sync
         let plan = self.plan_sync(
@@ -310,7 +318,15 @@ where
         if let Some(warning) = lockfile_warning {
             result.add_warning(warning);
         }
-        let lockfile = self.lockfile_repo.load_or_new(&lockfile_path);
+        let lockfile = match self.lockfile_repo.load(&lockfile_path) {
+            Ok(lockfile) => lockfile,
+            Err(e) => {
+                result
+                    .errors
+                    .push(format!("Failed to load lockfile: {}", e));
+                return result;
+            }
+        };
 
         // Step 4: Plan sync
         let plan = self.plan_sync(&outputs, &lockfile, options);
@@ -439,7 +455,7 @@ where
         }
 
         let resolution = layer_resolver.resolve().map_err(|e| match e {
-            LayerResolveError::NoLayersFound => "No layers found".to_string(),
+            LayerResolveError::NoLayersFound => crate::CalvinError::NoLayersFound.to_string(),
             _ => e.to_string(),
         })?;
 
@@ -935,7 +951,12 @@ where
         use sha2::{Digest, Sha256};
         use std::collections::HashSet;
 
-        let mut lockfile = self.lockfile_repo.load_or_new(path);
+        let mut lockfile = match self.lockfile_repo.load(path) {
+            Ok(lockfile) => lockfile,
+            Err(e) => {
+                return Some(format!("Failed to load lockfile for update: {}", e));
+            }
+        };
 
         // Build set of written and skipped paths
         let written_set: HashSet<_> = result.written.iter().collect();

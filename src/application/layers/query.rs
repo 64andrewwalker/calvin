@@ -32,6 +32,7 @@ impl LayerQueryUseCase {
     }
 
     pub fn query(&self, project_root: &Path, config: &Config) -> anyhow::Result<LayerQueryResult> {
+        use crate::domain::services::LayerResolveError;
         use crate::domain::services::LayerResolver;
 
         let project_layer_path = project_root.join(".promptpack");
@@ -57,7 +58,12 @@ impl LayerQueryUseCase {
             resolver = resolver.with_user_layer_path(user_layer_path);
         }
 
-        let mut resolution = resolver.resolve()?;
+        let mut resolution = resolver.resolve().map_err(|e| match e {
+            LayerResolveError::NoLayersFound => {
+                anyhow::Error::new(crate::CalvinError::NoLayersFound)
+            }
+            _ => anyhow::Error::new(e),
+        })?;
         for layer in &mut resolution.layers {
             self.loader.load_layer_assets(layer)?;
         }

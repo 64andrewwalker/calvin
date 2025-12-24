@@ -252,13 +252,13 @@
 
 贯穿所有阶段：
 
-- [ ] 添加 `NoLayersFound` 错误
-- [ ] 添加 `AdditionalLayerNotFound` 警告
-- [ ] 添加 `CircularSymlink` 错误
-- [ ] 添加 `DuplicateAssetInLayer` 错误
-- [ ] 添加 `LayerPermissionDenied` 错误
-- [ ] 添加 `RegistryCorrupted` 错误
-- [ ] 添加 `LockfileVersionMismatch` 错误
+- [x] 添加 `NoLayersFound` 错误
+- [x] 添加 `AdditionalLayerNotFound` 警告
+- [x] 添加 `CircularSymlink` 错误
+- [x] 添加 `DuplicateAssetInLayer` 错误
+- [x] 添加 `LayerPermissionDenied` 错误
+- [x] 添加 `RegistryCorrupted` 错误
+- [x] 添加 `LockfileVersionMismatch` 错误
 
 ---
 
@@ -269,6 +269,8 @@
 - [x] 测试：项目层 + 用户层
 - [x] 测试：三层（用户 + 团队 + 项目）
 - [x] 测试：层覆盖
+- [x] 测试：Asset 从项目层迁移到用户层（provenance 更新）
+- [x] 测试：Asset 从用户层迁移到项目层（provenance 更新）
 - [x] 测试：lockfile 迁移
 - [x] 测试：registry 持久化
 - [x] 测试：`--source` 参数

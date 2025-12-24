@@ -301,10 +301,16 @@ fn execute_check_all(
     json: bool,
     verbose: u8,
 ) -> Result<calvin::application::CheckResult> {
+    use calvin::domain::ports::RegistryError;
     use calvin::presentation::factory::create_registry_use_case;
 
     let registry = create_registry_use_case();
-    let projects = registry.list_projects();
+    let projects = registry.list_projects().map_err(|e| match e {
+        RegistryError::Corrupted { path, .. } => {
+            anyhow::Error::new(calvin::CalvinError::RegistryCorrupted { path })
+        }
+        _ => anyhow::Error::new(e),
+    })?;
 
     if projects.is_empty() {
         if json {

@@ -160,8 +160,11 @@ fn deploy_registers_project_in_registry() {
     }
 
     impl RegistryRepository for TestRegistryRepo {
-        fn load(&self) -> crate::domain::entities::Registry {
-            crate::domain::entities::Registry::new()
+        fn load(
+            &self,
+        ) -> Result<crate::domain::entities::Registry, crate::domain::ports::RegistryError>
+        {
+            Ok(crate::domain::entities::Registry::new())
         }
 
         fn save(

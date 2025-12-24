@@ -34,12 +34,12 @@ impl RegistryUseCase {
         self.repository.update_project(entry)
     }
 
-    pub fn list_projects(&self) -> Vec<ProjectEntry> {
-        self.repository.load().all().to_vec()
+    pub fn list_projects(&self) -> Result<Vec<ProjectEntry>, RegistryError> {
+        Ok(self.repository.load()?.all().to_vec())
     }
 
     pub fn prune(&self) -> Result<Vec<PathBuf>, RegistryError> {
-        let mut registry = self.repository.load();
+        let mut registry = self.repository.load()?;
         let removed = registry.prune();
         self.repository.save(&registry)?;
         Ok(removed)
@@ -65,8 +65,8 @@ mod tests {
     }
 
     impl RegistryRepository for InMemoryRegistryRepo {
-        fn load(&self) -> Registry {
-            self.registry.lock().unwrap().clone()
+        fn load(&self) -> Result<Registry, RegistryError> {
+            Ok(self.registry.lock().unwrap().clone())
         }
 
         fn save(&self, registry: &Registry) -> Result<(), RegistryError> {
@@ -93,7 +93,7 @@ mod tests {
             .register_project(Path::new("/p"), Path::new("/p/calvin.lock"), 2)
             .unwrap();
 
-        let projects = use_case.list_projects();
+        let projects = use_case.list_projects().unwrap();
         assert_eq!(projects.len(), 1);
         assert_eq!(projects[0].asset_count, 2);
     }
