@@ -165,6 +165,9 @@ calvin explain --json
 
 Watch `.promptpack/` for changes and deploy continuously.
 
+Compilation uses the resolved multi-layer stack (user/custom/project), but by default only the
+project layer is watched. Use `--watch-all-layers` to watch changes in user/custom layers too.
+
 ```bash
 calvin watch [OPTIONS]
 ```
@@ -174,6 +177,8 @@ calvin watch [OPTIONS]
 | Option | Short | Description |
 |--------|-------|-------------|
 | `--source <PATH>` | `-s` | Path to `.promptpack` directory (default: `.promptpack`) |
+| `--home` | - | Deploy to user home directory (~/...) |
+| `--watch-all-layers` | - | Watch all resolved layers (user/custom/project), not just the project layer |
 
 **JSON output (NDJSON):**
 

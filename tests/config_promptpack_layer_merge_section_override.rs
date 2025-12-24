@@ -48,6 +48,7 @@ allow_naked = true
         PromptpackLayerInputs {
             project_root: project_root.to_path_buf(),
             project_layer_path: project_layer,
+            disable_project_layer: false,
             user_layer_path: Some(user_layer),
             use_user_layer: true,
             additional_layers: Vec::new(),

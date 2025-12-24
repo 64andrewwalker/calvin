@@ -25,6 +25,8 @@ pub struct WatchOptions {
     pub json: bool,
     /// Deploy scope (User = home, Project = local)
     pub scope: Scope,
+    /// Watch all resolved layers (user/custom/project)
+    pub watch_all_layers: bool,
 }
 
 impl WatchOptions {
@@ -37,6 +39,7 @@ impl WatchOptions {
             config: Config::default(),
             json: false,
             scope: Scope::Project,
+            watch_all_layers: false,
         }
     }
 
@@ -55,6 +58,12 @@ impl WatchOptions {
     /// Set JSON output mode
     pub fn with_json(mut self, json: bool) -> Self {
         self.json = json;
+        self
+    }
+
+    /// Set whether to watch all layers
+    pub fn with_watch_all_layers(mut self, watch_all_layers: bool) -> Self {
+        self.watch_all_layers = watch_all_layers;
         self
     }
 

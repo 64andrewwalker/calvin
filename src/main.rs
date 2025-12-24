@@ -118,9 +118,11 @@ fn dispatch(
             no_animation,
         ),
         Commands::Explain { brief } => commands::explain::cmd_explain(brief, json, verbose),
-        Commands::Watch { source, home } => {
-            commands::watch::cmd_watch(&source, home, json, color, no_animation)
-        }
+        Commands::Watch {
+            source,
+            home,
+            watch_all_layers,
+        } => commands::watch::cmd_watch(&source, home, watch_all_layers, json, color, no_animation),
         Commands::Diff { source, home } => commands::debug::cmd_diff(&source, home, json),
         Commands::Parse { source } => commands::debug::cmd_parse(&source, json),
         Commands::Migrate {

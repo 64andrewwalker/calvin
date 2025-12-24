@@ -129,6 +129,10 @@ pub enum Commands {
         /// Sync to user home directory (instead of project root)
         #[arg(long)]
         home: bool,
+
+        /// Watch all resolved layers (user/custom/project), not just the project layer
+        #[arg(long)]
+        watch_all_layers: bool,
     },
 
     /// Preview changes without writing

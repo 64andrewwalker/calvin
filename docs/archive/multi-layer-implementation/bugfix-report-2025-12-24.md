@@ -191,6 +191,68 @@
 - 新增单元测试（确保不回归）：
   - `src/config/loader.rs`（`config_merge_section_override_drops_missing_keys` / `config_merge_sources_preserves_user_settings_when_project_sets_ignore_flags`）
 
+### 1.12 `sources.disable_project_layer` 未生效（仍然读取项目层）
+
+**现象**：
+- 用户在 user config（`~/.config/calvin/config.toml` 或 `~/.calvin/config.toml`）设置：
+  - `[sources] disable_project_layer = true`
+- 期望 deploy 仅使用 user/custom layers，但实际仍会读取 `./.promptpack/` 并参与合并/覆盖。
+
+**PRD 期望**：
+- PRD §4.3：`disable_project_layer` 可用于调试/特殊场景，禁用项目层。
+
+**根因**：
+- `disable_project_layer` 仅存在于 PRD/设计中，但没有贯穿到 layer resolver 与 deploy/watch/layers 的实际解析分支。
+
+**修复**：
+- `src/config/types.rs`：补齐 `SourcesConfig.disable_project_layer`（默认 false）。
+- `src/domain/services/layer_resolver.rs`：支持 `with_disable_project_layer`，并在 local 模式下跳过 project layer（remote mode 仍强制使用 project layer）。
+- `src/application/deploy/options.rs`：`DeployOptions` 增加 `use_project_layer` 并由上层注入。
+- `src/commands/deploy/cmd.rs` / `src/commands/interactive/state.rs` / `src/application/layers/query.rs`：解析层级时尊重该开关。
+- 新增覆盖测试：`tests/cli_deploy_disable_project_layer.rs`
+
+### 1.13 支持 legacy 用户 config 路径 `~/.calvin/config.toml`
+
+**现象**：
+- PRD 在目录结构说明中提到 `~/.calvin/config.toml` 可作为简化选项，但实现只读取 XDG：
+  - `~/.config/calvin/config.toml`
+
+**PRD 期望**：
+- PRD §5.3：`~/.config/calvin/config.toml`（XDG）为标准位置，同时支持 `~/.calvin/config.toml` 作为替代。
+
+**修复**：
+- `src/config/loader.rs`：
+  - 优先读取 XDG user config；
+  - 若 XDG 不存在，则回退读取 `~/.calvin/config.toml`（仅作为 fallback，不改变优先级层级）。
+- 新增覆盖测试：`tests/cli_interactive_legacy_user_config_path.rs`
+
+### 1.14 `calvin watch` 未按 multi-layer 编译 + 缺少 `--watch-all-layers`
+
+**现象**：
+- watch 初次 sync 只编译 `--source` 指向的单一目录，不会合并 user/custom layers：
+  - user layer 的 assets 不会生成输出（尤其在“项目无任何 assets，但 user layer 有 assets”时很明显）。
+- PRD 要求默认只监听项目层，但提供 `--watch-all-layers` 给高级用户；旧实现没有该选项，也不具备“watch 多层”的机制。
+
+**PRD 期望**：
+- PRD §11.4：
+  - 默认：只监听 project layer（`./.promptpack`）变化
+  - 但编译应使用 multi-layer 解析/合并语义（user/custom/project）
+  - 可选：`calvin watch --watch-all-layers` 监听所有层
+
+**根因（架构级）**：
+- WatchUseCase 仍在使用 legacy `AssetPipeline` 对 `options.source` 做增量编译 → 天生只能看到单一目录，无法与 multi-layer 的 `LayerResolver` 对齐。
+
+**修复（架构级）**：
+- `src/commands/watch.rs`：
+  - 使用 `merge_promptpack_layer_configs` 计算 watch 的有效配置（targets/deploy 等），并注入 `watch_all_layers`。
+- `src/application/watch/use_case.rs`：
+  - sync 逻辑改为直接执行 `DeployUseCase::execute`（multi-layer），确保编译/clean/orphans/registry 等行为与 deploy 完全一致；
+  - 默认仅 watch project layer；`--watch-all-layers` 时通过 `LayerResolver` watch 所有 resolved layers；
+  - watch 事件过滤扩展为 `.md` + `config.toml`，并确保删除文件也会触发 sync（用于 orphan 清理）。
+- 新增覆盖测试：
+  - `tests/cli_watch_includes_user_layer_assets.rs`（初次 sync 必须包含 user layer outputs）
+  - `tests/cli_watch_includes_user_layer_assets.rs`（`--watch-all-layers` 时 user layer 变更触发重新部署）
+
 ## 2. 变更摘要（关键文件）
 
 - `src/commands/interactive/state.rs`：interactive state 基于 `LayerResolver`（尊重 user_layer_path/additional_layers）
@@ -207,19 +269,24 @@
 - `src/application/diff.rs`：diff 使用显式 `project_root`（不再从 source 推导）
 - `src/commands/debug.rs`：diff 注入 `project_root = current_dir`
 - `src/commands/watch.rs`：watch 注入 `project_root = current_dir`
-- `src/application/watch/use_case.rs`：watch 使用 `WatchOptions.project_root`
+- `src/application/watch/use_case.rs`：watch 以 `DeployUseCase` 执行 multi-layer sync；支持 `--watch-all-layers`
 - `src/config/loader.rs`：XDG user config + project config 合并改为 section override（sources 例外深合并）
+- `src/config/types.rs`：补齐 `sources.disable_project_layer`
+- `src/domain/services/layer_resolver.rs`：支持禁用 project layer
 - 新增测试：
   - `tests/cli_interactive_user_layer_empty.rs`
   - `tests/cli_interactive_user_layer_path_config.rs`
   - `tests/cli_interactive_additional_layers_only.rs`
+  - `tests/cli_interactive_legacy_user_config_path.rs`
   - `tests/cli_deploy_source_external.rs`
+  - `tests/cli_deploy_disable_project_layer.rs`
   - `tests/cli_deploy_user_layer_targets_config.rs`
   - `tests/cli_check_respects_user_layer_promptpack_security_config.rs`
   - `tests/cli_init_project_config_template.rs`
   - `tests/config_promptpack_layer_merge_section_override.rs`
   - `tests/cli_diff_source_external.rs`
   - `tests/cli_watch_source_external.rs`
+  - `tests/cli_watch_includes_user_layer_assets.rs`
   - `tests/remote_tilde_expansion.rs`
 
 ## 3. 验证

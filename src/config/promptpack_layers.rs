@@ -11,6 +11,7 @@ use crate::domain::value_objects::ConfigWarning;
 pub struct PromptpackLayerInputs {
     pub project_root: PathBuf,
     pub project_layer_path: PathBuf,
+    pub disable_project_layer: bool,
     pub user_layer_path: Option<PathBuf>,
     pub use_user_layer: bool,
     pub additional_layers: Vec<PathBuf>,
@@ -31,6 +32,7 @@ pub fn merge_promptpack_layer_configs(
 ) -> Result<(Config, Vec<ConfigWarning>)> {
     let mut resolver = LayerResolver::new(inputs.project_root)
         .with_project_layer_path(inputs.project_layer_path)
+        .with_disable_project_layer(inputs.disable_project_layer)
         .with_additional_layers(if inputs.use_additional_layers {
             inputs.additional_layers
         } else {

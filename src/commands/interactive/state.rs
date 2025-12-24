@@ -27,7 +27,7 @@ pub fn detect_state(cwd: &Path, config: &calvin::config::Config) -> Result<Proje
     let promptpack_dir = cwd.join(".promptpack");
 
     // First check project layer
-    if promptpack_dir.is_dir() {
+    if !config.sources.disable_project_layer && promptpack_dir.is_dir() {
         let total = count_prompt_markdown_files(&promptpack_dir);
         if total == 0 {
             return Ok(ProjectState::EmptyPromptPack);
@@ -44,6 +44,7 @@ pub fn detect_state(cwd: &Path, config: &calvin::config::Config) -> Result<Proje
 
     let mut resolver = LayerResolver::new(cwd.to_path_buf())
         .with_project_layer_path(promptpack_dir)
+        .with_disable_project_layer(config.sources.disable_project_layer)
         .with_remote_mode(false)
         .with_additional_layers(if use_additional_layers {
             config.sources.additional_layers.clone()

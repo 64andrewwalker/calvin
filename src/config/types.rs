@@ -184,6 +184,10 @@ pub struct SourcesConfig {
     /// Project-level switch: disable additional layers regardless of user config.
     #[serde(default)]
     pub ignore_additional_layers: bool,
+
+    /// User-level switch: disable the project layer entirely (debug/special cases).
+    #[serde(default)]
+    pub disable_project_layer: bool,
 }
 
 impl Default for SourcesConfig {
@@ -194,6 +198,7 @@ impl Default for SourcesConfig {
             user_layer_path: None,
             additional_layers: Vec::new(),
             ignore_additional_layers: false,
+            disable_project_layer: false,
         }
     }
 }

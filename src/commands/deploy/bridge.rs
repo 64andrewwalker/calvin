@@ -14,12 +14,25 @@ use calvin::presentation::factory::{
 use super::options::DeployOptions as RunnerOptions;
 use super::targets::DeployTarget;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct LayerInputs {
+    pub use_project_layer: bool,
     pub user_layer_path: Option<std::path::PathBuf>,
     pub use_user_layer: bool,
     pub additional_layers: Vec<std::path::PathBuf>,
     pub use_additional_layers: bool,
+}
+
+impl Default for LayerInputs {
+    fn default() -> Self {
+        Self {
+            use_project_layer: true,
+            user_layer_path: None,
+            use_user_layer: true,
+            additional_layers: Vec::new(),
+            use_additional_layers: true,
+        }
+    }
 }
 
 /// Convert runner options to use case options
@@ -58,6 +71,7 @@ pub fn convert_options(
     UseCaseOptions {
         source: source.to_path_buf(),
         project_root: project_root.to_path_buf(),
+        use_project_layer: layers.use_project_layer,
         user_layer_path: layers.user_layer_path,
         use_user_layer: layers.use_user_layer,
         additional_layers: layers.additional_layers,
@@ -130,6 +144,7 @@ mod tests {
             false,
             &effective_targets,
             LayerInputs {
+                use_project_layer: true,
                 user_layer_path: None,
                 use_user_layer: true,
                 additional_layers: Vec::new(),
@@ -153,6 +168,7 @@ mod tests {
             false,
             &effective_targets,
             LayerInputs {
+                use_project_layer: true,
                 user_layer_path: None,
                 use_user_layer: true,
                 additional_layers: Vec::new(),
@@ -177,6 +193,7 @@ mod tests {
             false,
             &effective_targets,
             LayerInputs {
+                use_project_layer: true,
                 user_layer_path: None,
                 use_user_layer: true,
                 additional_layers: Vec::new(),
@@ -201,6 +218,7 @@ mod tests {
             false,
             &effective_targets,
             LayerInputs {
+                use_project_layer: true,
                 user_layer_path: None,
                 use_user_layer: true,
                 additional_layers: Vec::new(),
@@ -224,6 +242,7 @@ mod tests {
             true,
             &effective_targets,
             LayerInputs {
+                use_project_layer: true,
                 user_layer_path: None,
                 use_user_layer: true,
                 additional_layers: Vec::new(),
@@ -247,6 +266,7 @@ mod tests {
             false,
             &effective_targets,
             LayerInputs {
+                use_project_layer: true,
                 user_layer_path: None,
                 use_user_layer: true,
                 additional_layers: Vec::new(),

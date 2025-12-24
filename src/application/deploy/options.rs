@@ -13,6 +13,8 @@ pub struct DeployOptions {
     pub source: PathBuf,
     /// Project root directory (where project-scoped outputs + `calvin.lock` live)
     pub project_root: PathBuf,
+    /// Whether to use the project layer at all (debug/special cases)
+    pub use_project_layer: bool,
     /// Explicit user layer path override (defaults to `~/.calvin/.promptpack`)
     pub user_layer_path: Option<PathBuf>,
     /// Whether to use the user layer (ignored in remote mode)
@@ -53,6 +55,7 @@ impl DeployOptions {
         Self {
             source,
             project_root,
+            use_project_layer: true,
             user_layer_path: None,
             use_user_layer: true,
             additional_layers: Vec::new(),
@@ -74,6 +77,11 @@ impl DeployOptions {
 
     pub fn with_project_root(mut self, root: impl Into<PathBuf>) -> Self {
         self.project_root = root.into();
+        self
+    }
+
+    pub fn with_project_layer_enabled(mut self, enabled: bool) -> Self {
+        self.use_project_layer = enabled;
         self
     }
 

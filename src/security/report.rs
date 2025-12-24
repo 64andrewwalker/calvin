@@ -120,6 +120,7 @@ pub fn run_doctor(project_root: &Path, mode: SecurityMode) -> DoctorReport {
     let inputs = PromptpackLayerInputs {
         project_root: project_root.to_path_buf(),
         project_layer_path: project_root.join(".promptpack"),
+        disable_project_layer: base.sources.disable_project_layer,
         user_layer_path: base.sources.user_layer_path.clone(),
         use_user_layer,
         additional_layers: base.sources.additional_layers.clone(),
@@ -229,6 +230,7 @@ pub fn run_doctor_with_callback(
     let inputs = PromptpackLayerInputs {
         project_root: project_root.to_path_buf(),
         project_layer_path: project_root.join(".promptpack"),
+        disable_project_layer: base.sources.disable_project_layer,
         user_layer_path: base.sources.user_layer_path.clone(),
         use_user_layer,
         additional_layers: base.sources.additional_layers.clone(),

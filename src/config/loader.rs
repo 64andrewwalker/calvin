@@ -79,7 +79,20 @@ pub fn load_or_default(project_root: Option<&Path>) -> Config {
 pub fn load_or_default_with_warnings(
     project_root: Option<&Path>,
 ) -> CalvinResult<(Config, Vec<ConfigWarning>)> {
-    let user_config_path = dirs_config_dir().map(|d| d.join("calvin/config.toml"));
+    // Prefer XDG config (`~/.config/calvin/config.toml`), but support legacy
+    // `~/.calvin/config.toml` as an alternative (PRD note).
+    let xdg_user_config_path = dirs_config_dir().map(|d| d.join("calvin/config.toml"));
+    let legacy_user_config_path = dirs::home_dir().map(|h| h.join(".calvin/config.toml"));
+    let user_config_path = xdg_user_config_path
+        .as_ref()
+        .filter(|p| p.exists())
+        .cloned()
+        .or_else(|| {
+            legacy_user_config_path
+                .as_ref()
+                .filter(|p| p.exists())
+                .cloned()
+        });
     let project_config_path = project_root.map(|r| r.join(".promptpack/config.toml"));
 
     let mut warnings: Vec<ConfigWarning> = Vec::new();

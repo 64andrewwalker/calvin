@@ -194,6 +194,7 @@ where
             &DeployOptions {
                 source: options.lockfile_path.clone(),
                 project_root: project_root.clone(),
+                use_project_layer: true,
                 user_layer_path: None,
                 use_user_layer: true,
                 additional_layers: Vec::new(),
@@ -474,6 +475,7 @@ where
 
         let mut layer_resolver = LayerResolver::new(project_root)
             .with_project_layer_path(project_layer_path)
+            .with_disable_project_layer(!options.use_project_layer)
             .with_additional_layers(if options.use_additional_layers {
                 options.additional_layers.clone()
             } else {

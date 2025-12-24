@@ -55,6 +55,27 @@
 - 备注：
   - `[sources]` 仍保持深合并（项目 ignore flags 与用户路径需要共存）。
 
+### H. Watch 使用 multi-layer 编译 + `--watch-all-layers`
+
+- PRD: §11.4
+  - 默认只监听 project layer，但编译必须使用 resolved multi-layer stack（user/custom/project）
+  - 提供 `--watch-all-layers` 给高级用户监听所有层
+- 覆盖：
+  - 初次 sync 包含 user layer assets：`tests/cli_watch_includes_user_layer_assets.rs`
+  - `--watch-all-layers` 时 user layer 变更触发重新部署：`tests/cli_watch_includes_user_layer_assets.rs`
+
+### I. Legacy user config 路径 `~/.calvin/config.toml`（fallback）
+
+- PRD: §5.3 directory structure note
+- 覆盖：
+  - interactive 读取 legacy user config：`tests/cli_interactive_legacy_user_config_path.rs`
+
+### J. `sources.disable_project_layer`
+
+- PRD: §4.3
+- 覆盖：
+  - deploy 可以通过 user config 禁用 project layer：`tests/cli_deploy_disable_project_layer.rs`
+
 ## 2. 仍需确认/仍有风险（建议发布前处理）
 
 ### R1. Interactive JSON state 命名语义（user_layer_only vs additional layers）
@@ -75,3 +96,6 @@
 3. `calvin deploy --source /path/to/external-pack`：
    - 产物写入当前项目
    - `./calvin.lock` 仍在当前项目
+4. `calvin watch`：
+   - 初次 sync 必须包含 user layer assets（即使默认不 watch user layer 变化）
+   - `calvin watch --watch-all-layers` 修改 user layer 后必须触发重新部署

@@ -5,21 +5,19 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::channel;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use notify::{Config, Event, RecommendedWatcher, RecursiveMode, Watcher};
 
-use crate::application::{
-    resolve_lockfile_path, AssetPipeline, DeployOutputOptions, DeployResult, DeployUseCase,
-};
-use crate::domain::policies::ScopePolicy;
-use crate::domain::value_objects::Scope;
+use crate::application::{DeployOptions, DeployResult, DeployUseCase, RegistryUseCase};
+use crate::domain::services::LayerResolver;
 use crate::error::{CalvinError, CalvinResult};
-use crate::infrastructure::adapters::all_adapters;
 use crate::infrastructure::fs::LocalFs;
-use crate::infrastructure::repositories::{FsAssetRepository, TomlLockfileRepository};
+use crate::infrastructure::repositories::{
+    FsAssetRepository, TomlLockfileRepository, TomlRegistryRepository,
+};
 
-use super::cache::{compute_content_hash, IncrementalCache};
+use super::cache::compute_content_hash;
 use super::event::{WatchEvent, WatchOptions, WatcherState};
 
 /// Result of a single sync operation
@@ -67,11 +65,8 @@ impl WatchUseCase {
             source: self.options.source.display().to_string(),
         });
 
-        // Create incremental cache for efficient reparsing
-        let mut cache = IncrementalCache::new();
-
-        // Do initial full sync (populates cache)
-        self.do_sync_incremental(&[], &mut cache, &on_event)?;
+        // Do initial sync using the resolved multi-layer stack (PRD §11.4).
+        self.do_sync(&on_event)?;
 
         // Set up file watcher
         let (tx, rx) = channel();
@@ -88,59 +83,72 @@ impl WatchUseCase {
         )
         .map_err(|e| CalvinError::Io(std::io::Error::other(e.to_string())))?;
 
-        watcher
-            .watch(&self.options.source, RecursiveMode::Recursive)
-            .map_err(|e| CalvinError::Io(std::io::Error::other(e.to_string())))?;
+        let paths_to_watch = if self.options.watch_all_layers {
+            self.resolve_watch_paths()?
+        } else {
+            vec![self.options.source.clone()]
+        };
+        for path in &paths_to_watch {
+            watcher
+                .watch(path, RecursiveMode::Recursive)
+                .map_err(|e| CalvinError::Io(std::io::Error::other(e.to_string())))?;
+        }
 
         // Watch loop with debouncing
         let mut state = WatcherState::new();
-        // Track content hashes for change detection (separate from parse cache)
-        // Pre-populate from initial cache to avoid spurious syncs on startup
-        let mut content_hashes: HashMap<PathBuf, String> = cache.file_hashes();
+        // Track content hashes for change detection (filter out IDE auto-save noise).
+        let mut content_hashes: HashMap<PathBuf, String> = HashMap::new();
 
-        // Startup cooldown: drain any initial events from notify (it sometimes sends
-        // events for existing files when the watcher is first registered)
-        let cooldown_end = Instant::now() + Duration::from_millis(500);
-        while Instant::now() < cooldown_end {
-            // Drain events but don't process them
-            let _ = rx.recv_timeout(Duration::from_millis(50));
-        }
+        self.seed_content_hashes(&paths_to_watch, &mut content_hashes);
 
         while running.load(Ordering::SeqCst) {
             // Check for file changes (non-blocking with timeout)
             if let Ok(path) = rx.recv_timeout(Duration::from_millis(50)) {
-                // Only watch .md files, ignore lockfiles and other non-md files
-                if path.extension().map(|e| e == "md").unwrap_or(false) {
-                    // Skip legacy lockfile (older versions wrote it into `.promptpack/`)
-                    if path
-                        .file_name()
-                        .map(|n| n == ".calvin.lock")
-                        .unwrap_or(false)
-                    {
-                        continue;
-                    }
+                // Skip legacy lockfile (older versions wrote it into `.promptpack/`).
+                if path
+                    .file_name()
+                    .map(|n| n == ".calvin.lock")
+                    .unwrap_or(false)
+                {
+                    continue;
+                }
 
-                    // Canonicalize path to ensure consistent matching with cache
-                    let canonical_path = path.canonicalize().unwrap_or(path);
+                // Only watch .md assets + config.toml changes.
+                let is_md = path.extension().map(|e| e == "md").unwrap_or(false);
+                let is_config = path
+                    .file_name()
+                    .map(|n| n == "config.toml")
+                    .unwrap_or(false);
+                if !(is_md || is_config) {
+                    continue;
+                }
 
-                    // Check if content actually changed (filter out IDE auto-save noise)
-                    if let Ok(content) = std::fs::read_to_string(&canonical_path) {
-                        let new_hash = compute_content_hash(&content);
+                // Canonicalize when possible to keep a stable key in the hash map.
+                let canonical_path = path.canonicalize().unwrap_or(path);
 
-                        // Check against our local content tracker
-                        let cache_hit = content_hashes.get(&canonical_path);
-
-                        if let Some(old_hash) = cache_hit {
-                            if old_hash == &new_hash {
-                                // Content unchanged, skip
+                if canonical_path.exists() {
+                    // If we can read the file, only queue a sync when contents changed.
+                    match std::fs::read_to_string(&canonical_path) {
+                        Ok(content) => {
+                            let new_hash = compute_content_hash(&content);
+                            if content_hashes
+                                .get(&canonical_path)
+                                .is_some_and(|old| old == &new_hash)
+                            {
                                 continue;
                             }
+                            content_hashes.insert(canonical_path.clone(), new_hash);
+                            state.add_change(canonical_path);
                         }
-
-                        // Content changed (or new file), update tracker and queue for sync
-                        content_hashes.insert(canonical_path.clone(), new_hash);
-                        state.add_change(canonical_path);
+                        Err(_) => {
+                            // If the file is mid-write (editor swap), treat as changed.
+                            state.add_change(canonical_path);
+                        }
                     }
+                } else {
+                    // Deletions should still trigger a sync so we can remove orphans.
+                    content_hashes.remove(&canonical_path);
+                    state.add_change(canonical_path);
                 }
             }
 
@@ -153,8 +161,8 @@ impl WatchUseCase {
                         path: path.display().to_string(),
                     });
                 }
-                // Incremental sync - only reparse changed files
-                self.do_sync_incremental(&changes, &mut cache, &on_event)?;
+                // Sync using full multi-layer deploy (PRD §11.4).
+                self.do_sync(&on_event)?;
             }
         }
 
@@ -162,23 +170,10 @@ impl WatchUseCase {
         Ok(())
     }
 
-    fn do_sync_incremental(
-        &self,
-        changed_files: &[PathBuf],
-        cache: &mut IncrementalCache,
-        callback: &impl Fn(WatchEvent),
-    ) -> CalvinResult<()> {
+    fn do_sync(&self, callback: &impl Fn(WatchEvent)) -> CalvinResult<()> {
         callback(WatchEvent::SyncStarted);
 
-        let result = match self.perform_sync_incremental(changed_files, cache) {
-            Ok(result) => result,
-            Err(e) => {
-                callback(WatchEvent::Error {
-                    message: e.to_string(),
-                });
-                return Err(e);
-            }
-        };
+        let result = self.perform_sync();
 
         callback(WatchEvent::SyncComplete {
             written: result.written.len(),
@@ -189,84 +184,140 @@ impl WatchUseCase {
         Ok(())
     }
 
-    fn perform_sync_incremental(
-        &self,
-        changed_files: &[PathBuf],
-        cache: &mut IncrementalCache,
-    ) -> CalvinResult<DeployResult> {
-        let scope_policy = if self.options.deploy_to_home() {
-            ScopePolicy::ForceUser
+    fn perform_sync(&self) -> DeployResult {
+        let use_project_layer = !self.options.config.sources.disable_project_layer;
+        let use_user_layer = self.options.config.sources.use_user_layer
+            && !self.options.config.sources.ignore_user_layer;
+        let additional_layers = if self.options.config.sources.ignore_additional_layers {
+            Vec::new()
         } else {
-            ScopePolicy::Keep
+            self.options.config.sources.additional_layers.clone()
         };
+        let use_additional_layers = !self.options.config.sources.ignore_additional_layers;
 
-        // Convert domain targets to legacy targets for pipeline
-        let legacy_targets: Vec<crate::models::Target> = self
-            .options
-            .targets
-            .iter()
-            .map(|t| match t {
-                crate::domain::value_objects::Target::ClaudeCode => {
-                    crate::models::Target::ClaudeCode
-                }
-                crate::domain::value_objects::Target::Cursor => crate::models::Target::Cursor,
-                crate::domain::value_objects::Target::VSCode => crate::models::Target::VSCode,
-                crate::domain::value_objects::Target::Antigravity => {
-                    crate::models::Target::Antigravity
-                }
-                crate::domain::value_objects::Target::Codex => crate::models::Target::Codex,
-                crate::domain::value_objects::Target::All => crate::models::Target::All,
-            })
-            .collect();
+        let mut deploy_options = DeployOptions::new(self.options.source.clone())
+            .with_project_root(self.options.project_root.clone())
+            .with_project_layer_enabled(use_project_layer)
+            .with_user_layer_enabled(use_user_layer)
+            .with_additional_layers(additional_layers)
+            .with_additional_layers_enabled(use_additional_layers)
+            .with_scope(self.options.scope)
+            .with_targets(self.options.targets.clone())
+            .with_clean_orphans(true);
+        if let Some(path) = self.options.config.sources.user_layer_path.clone() {
+            deploy_options = deploy_options.with_user_layer_path(path);
+        }
 
-        let pipeline = AssetPipeline::new(self.options.source.clone(), self.options.config.clone())
-            .with_scope_policy(scope_policy)
-            .with_targets(legacy_targets);
-
-        // Compile assets incrementally
-        let legacy_outputs = pipeline.compile_incremental(changed_files, cache)?;
-
-        // Convert legacy OutputFile to domain OutputFile
-        let outputs: Vec<crate::domain::entities::OutputFile> = legacy_outputs
-            .into_iter()
-            .map(|o| {
-                crate::domain::entities::OutputFile::new(
-                    o.path().to_path_buf(),
-                    o.content().to_string(),
-                    crate::domain::value_objects::Target::All, // Watch mode outputs to all targets
-                )
-            })
-            .collect();
-
-        // Determine scope and lockfile path
-        let scope = if self.options.deploy_to_home() {
-            Scope::User
-        } else {
-            Scope::Project
-        };
+        let registry_repo = Arc::new(TomlRegistryRepository::new());
+        let registry_use_case = Arc::new(RegistryUseCase::new(registry_repo));
 
         let fs = LocalFs::new();
         let lockfile_repo = TomlLockfileRepository::new();
-        let project_root = self.options.project_root.clone();
-
-        let (lockfile_path, migration_note) =
-            resolve_lockfile_path(&project_root, &self.options.source, &lockfile_repo);
-
-        // Create DeployUseCase
         let asset_repo = FsAssetRepository::new();
-        let adapters = all_adapters();
-        let deploy = DeployUseCase::new(asset_repo, lockfile_repo, fs, adapters);
+        let adapters = crate::infrastructure::adapters::all_adapters();
 
-        // Deploy outputs directly
-        let deploy_options = DeployOutputOptions::new(lockfile_path)
-            .with_scope(scope)
-            .with_clean_orphans(true);
+        DeployUseCase::new(asset_repo, lockfile_repo, fs, adapters)
+            .with_registry_use_case(registry_use_case)
+            .execute(&deploy_options)
+    }
 
-        let mut result = deploy.deploy_outputs(outputs, &deploy_options);
-        if let Some(note) = migration_note {
-            result.add_warning(note);
+    fn resolve_watch_paths(&self) -> CalvinResult<Vec<PathBuf>> {
+        use crate::domain::services::LayerResolveError;
+
+        let project_root = self.options.project_root.clone();
+        let project_layer_path = if self.options.source.is_relative() {
+            project_root.join(&self.options.source)
+        } else {
+            self.options.source.clone()
+        };
+
+        let mut resolver = LayerResolver::new(project_root)
+            .with_project_layer_path(project_layer_path)
+            .with_disable_project_layer(self.options.config.sources.disable_project_layer)
+            .with_additional_layers(if self.options.config.sources.ignore_additional_layers {
+                Vec::new()
+            } else {
+                self.options.config.sources.additional_layers.clone()
+            })
+            .with_remote_mode(false);
+
+        let use_user_layer = self.options.config.sources.use_user_layer
+            && !self.options.config.sources.ignore_user_layer;
+        if use_user_layer {
+            let user_layer_path = self
+                .options
+                .config
+                .sources
+                .user_layer_path
+                .clone()
+                .unwrap_or_else(crate::config::default_user_layer_path);
+            resolver = resolver.with_user_layer_path(user_layer_path);
         }
 
-        Ok(result)
+        let resolution = resolver.resolve().map_err(|e| match e {
+            LayerResolveError::NoLayersFound => CalvinError::NoLayersFound,
+            LayerResolveError::PathNotFound { path } => CalvinError::DirectoryNotFound { path },
+            _ => CalvinError::Io(std::io::Error::other(e.to_string())),
+        })?;
+
+        let mut paths: Vec<PathBuf> = resolution
+            .layers
+            .into_iter()
+            .map(|layer| layer.path.resolved().to_path_buf())
+            .collect();
+        paths.sort();
+        paths.dedup();
+        Ok(paths)
+    }
+
+    fn seed_content_hashes(
+        &self,
+        paths: &[PathBuf],
+        content_hashes: &mut HashMap<PathBuf, String>,
+    ) {
+        for path in paths {
+            self.seed_content_hashes_for_path(path, content_hashes);
+        }
+    }
+
+    fn seed_content_hashes_for_path(
+        &self,
+        path: &PathBuf,
+        content_hashes: &mut HashMap<PathBuf, String>,
+    ) {
+        if path.is_dir() {
+            let Ok(entries) = std::fs::read_dir(path) else {
+                return;
+            };
+            for entry in entries.flatten() {
+                let Ok(file_type) = entry.file_type() else {
+                    continue;
+                };
+                if file_type.is_symlink() {
+                    continue;
+                }
+                self.seed_content_hashes_for_path(&entry.path(), content_hashes);
+            }
+            return;
+        }
+
+        if !path.is_file() {
+            return;
+        }
+
+        let is_md = path.extension().map(|e| e == "md").unwrap_or(false);
+        let is_config = path
+            .file_name()
+            .map(|n| n == "config.toml")
+            .unwrap_or(false);
+        if !(is_md || is_config) {
+            return;
+        }
+
+        let canonical_path = path.canonicalize().unwrap_or_else(|_| path.clone());
+        let Ok(content) = std::fs::read_to_string(&canonical_path) else {
+            return;
+        };
+        content_hashes.insert(canonical_path, compute_content_hash(&content));
     }
 }

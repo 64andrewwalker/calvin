@@ -143,6 +143,8 @@ pub fn cmd_deploy_with_explicit_target(
 
     let is_remote_target = matches!(&target_for_bridge, DeployTarget::Remote(_));
 
+    let use_project_layer = is_remote_target || !config.sources.disable_project_layer;
+
     let mut user_layer_path = config.sources.user_layer_path.clone();
     let use_user_layer = !is_remote_target
         && !no_user_layer
@@ -176,6 +178,7 @@ pub fn cmd_deploy_with_explicit_target(
         use calvin::domain::services::LayerResolver;
         let mut resolver = LayerResolver::new(project_root.clone())
             .with_project_layer_path(project_layer_path.clone())
+            .with_disable_project_layer(!use_project_layer)
             .with_additional_layers(if use_additional_layers {
                 additional_layers.clone()
             } else {
@@ -265,6 +268,7 @@ pub fn cmd_deploy_with_explicit_target(
         calvin::config::PromptpackLayerInputs {
             project_root: project_root.clone(),
             project_layer_path: project_layer_path.clone(),
+            disable_project_layer: config.sources.disable_project_layer,
             user_layer_path: user_layer_path.clone(),
             use_user_layer,
             additional_layers: additional_layers.clone(),
@@ -285,6 +289,7 @@ pub fn cmd_deploy_with_explicit_target(
                 cleanup,
                 &effective_targets,
                 super::bridge::LayerInputs {
+                    use_project_layer: true,
                     user_layer_path: None,
                     use_user_layer: false,
                     additional_layers: Vec::new(),
@@ -313,6 +318,7 @@ pub fn cmd_deploy_with_explicit_target(
             cleanup,
             &effective_targets,
             super::bridge::LayerInputs {
+                use_project_layer,
                 user_layer_path: user_layer_path.clone(),
                 use_user_layer,
                 additional_layers: additional_layers.clone(),
@@ -332,6 +338,7 @@ pub fn cmd_deploy_with_explicit_target(
             cleanup,
             &effective_targets,
             super::bridge::LayerInputs {
+                use_project_layer,
                 user_layer_path: user_layer_path.clone(),
                 use_user_layer,
                 additional_layers: additional_layers.clone(),

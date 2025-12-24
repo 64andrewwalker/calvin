@@ -42,6 +42,7 @@ impl LayerQueryUseCase {
 
         let mut resolver = LayerResolver::new(project_root.to_path_buf())
             .with_project_layer_path(project_layer_path)
+            .with_disable_project_layer(config.sources.disable_project_layer)
             .with_remote_mode(false)
             .with_additional_layers(if use_additional_layers {
                 config.sources.additional_layers.clone()

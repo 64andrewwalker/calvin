@@ -36,6 +36,7 @@ pub enum LayerResolveError {
 pub struct LayerResolver {
     project_root: PathBuf,
     project_layer_path: Option<PathBuf>,
+    disable_project_layer: bool,
     user_layer_path: Option<PathBuf>,
     additional_layers: Vec<PathBuf>,
     remote_mode: bool,
@@ -46,6 +47,7 @@ impl LayerResolver {
         Self {
             project_root,
             project_layer_path: None,
+            disable_project_layer: false,
             user_layer_path: None,
             additional_layers: Vec::new(),
             remote_mode: false,
@@ -54,6 +56,14 @@ impl LayerResolver {
 
     pub fn with_project_layer_path(mut self, path: PathBuf) -> Self {
         self.project_layer_path = Some(path);
+        self
+    }
+
+    /// Disable the project layer entirely (debug/special cases).
+    ///
+    /// Note: remote mode always uses the project layer.
+    pub fn with_disable_project_layer(mut self, disable_project_layer: bool) -> Self {
+        self.disable_project_layer = disable_project_layer;
         self
     }
 
@@ -126,14 +136,16 @@ impl LayerResolver {
         }
 
         // 3) Project layer (highest priority)
-        if let Some(layer) = self.try_add_layer(
-            "project",
-            &project_layer,
-            LayerType::Project,
-            &mut resolution.warnings,
-            /* warn_on_missing */ true,
-        )? {
-            resolution.layers.push(layer);
+        if !self.disable_project_layer {
+            if let Some(layer) = self.try_add_layer(
+                "project",
+                &project_layer,
+                LayerType::Project,
+                &mut resolution.warnings,
+                /* warn_on_missing */ true,
+            )? {
+                resolution.layers.push(layer);
+            }
         }
 
         if resolution.layers.is_empty() {
