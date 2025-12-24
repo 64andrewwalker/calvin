@@ -45,13 +45,45 @@ pub fn load_with_warnings(path: &Path) -> CalvinResult<(Config, Vec<ConfigWarnin
 
 /// Load from project config, user config, or defaults
 pub fn load_or_default(project_root: Option<&Path>) -> Config {
+    match load_or_default_with_warnings(project_root) {
+        Ok((config, warnings)) => {
+            // Print warnings if any
+            for warning in warnings {
+                eprintln!(
+                    "Warning: Unknown config key '{}' in {}{}",
+                    warning.key,
+                    warning.file.display(),
+                    warning
+                        .suggestion
+                        .as_ref()
+                        .map(|s| format!(". Did you mean '{}'?", s))
+                        .unwrap_or_default()
+                );
+            }
+            config
+        }
+        Err(e) => {
+            // Print warning and fall back to defaults
+            eprintln!("Warning: Failed to load config: {}", e);
+            eprintln!("Using default configuration");
+            with_env_overrides(Config::default())
+        }
+    }
+}
+
+/// Load from project config, user config, or defaults with detailed error/warning info
+///
+/// Returns Ok((config, warnings)) on success, Err on parse failure.
+/// This allows callers to handle errors programmatically rather than just printing.
+pub fn load_or_default_with_warnings(
+    project_root: Option<&Path>,
+) -> CalvinResult<(Config, Vec<ConfigWarning>)> {
     // Try project config first
     if let Some(root) = project_root {
         let project_config = root.join(".promptpack/config.toml");
         if project_config.exists() {
-            if let Ok(config) = Config::load(&project_config) {
-                return with_env_overrides(config);
-            }
+            let (config, warnings) = load_with_warnings(&project_config)?;
+            return Ok((with_env_overrides(config), warnings));
         }
     }
 
@@ -59,14 +91,13 @@ pub fn load_or_default(project_root: Option<&Path>) -> Config {
     if let Some(user_config_dir) = dirs_config_dir() {
         let user_config = user_config_dir.join("calvin/config.toml");
         if user_config.exists() {
-            if let Ok(config) = Config::load(&user_config) {
-                return with_env_overrides(config);
-            }
+            let (config, warnings) = load_with_warnings(&user_config)?;
+            return Ok((with_env_overrides(config), warnings));
         }
     }
 
-    // Return defaults with env overrides
-    with_env_overrides(Config::default())
+    // Return defaults with env overrides (no warnings for defaults)
+    Ok((with_env_overrides(Config::default()), vec![]))
 }
 
 /// Apply environment variable overrides (CALVIN_* prefix)
@@ -94,7 +125,7 @@ pub fn with_env_overrides(mut config: Config) -> Config {
             })
             .collect();
         if !parsed.is_empty() {
-            config.targets.enabled = parsed;
+            config.targets.enabled = Some(parsed);
         }
     }
 

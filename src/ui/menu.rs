@@ -56,25 +56,18 @@ pub fn select_targets_interactive_with_save(
     use dialoguer::MultiSelect;
 
     if json || !std::io::stdin().is_terminal() {
-        // Non-interactive mode: use config or all targets
-        let targets =
-            if config.targets.enabled.is_empty() || config.targets.enabled.contains(&Target::All) {
-                ALL_TARGETS.to_vec()
-            } else {
-                config.targets.enabled.clone()
-            };
+        // Non-interactive mode: use config enabled targets
+        let targets = config.enabled_targets();
         return Some(targets);
     }
 
     let items: Vec<&str> = ALL_TARGETS.iter().map(target_display_name).collect();
 
+    // Get enabled targets from config for default selection
+    let enabled = config.enabled_targets();
+
     // Set defaults based on previously enabled targets in config
-    let defaults: Vec<bool> = ALL_TARGETS
-        .iter()
-        .map(|t| {
-            config.targets.enabled.contains(t) || config.targets.enabled.contains(&Target::All)
-        })
-        .collect();
+    let defaults: Vec<bool> = ALL_TARGETS.iter().map(|t| enabled.contains(t)).collect();
 
     // Use CalvinTheme for ●/○ icons
     let theme = CalvinTheme::new(crate::ui::terminal::detect_capabilities().supports_unicode);
@@ -95,7 +88,7 @@ pub fn select_targets_interactive_with_save(
 
     // DP-7: Configuration Remembers - save if different
     if let Some(path) = config_path {
-        let config_targets: std::collections::HashSet<_> = config.targets.enabled.iter().collect();
+        let config_targets: std::collections::HashSet<_> = enabled.iter().collect();
         let selected_set: std::collections::HashSet<_> = selected.iter().collect();
 
         if config_targets != selected_set {

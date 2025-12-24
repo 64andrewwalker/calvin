@@ -153,7 +153,8 @@ fn create_use_case() -> DeployUseCase<MockAssetRepository, MockLockfileRepositor
 #[test]
 fn deploy_use_case_executes_successfully() {
     let use_case = create_use_case();
-    let options = DeployOptions::new(".promptpack");
+    // Explicitly specify targets (empty targets now means "no deployment")
+    let options = DeployOptions::new(".promptpack").with_targets(vec![Target::ClaudeCode]);
 
     let result = use_case.execute(&options);
 
@@ -165,7 +166,10 @@ fn deploy_use_case_executes_successfully() {
 #[test]
 fn deploy_dry_run_does_not_write_files() {
     let use_case = create_use_case();
-    let options = DeployOptions::new(".promptpack").with_dry_run(true);
+    // Explicitly specify targets (empty targets now means "no deployment")
+    let options = DeployOptions::new(".promptpack")
+        .with_targets(vec![Target::ClaudeCode])
+        .with_dry_run(true);
 
     let result = use_case.execute(&options);
 
@@ -204,7 +208,8 @@ impl DeployEventSink for MockEventSink {
 #[test]
 fn execute_with_events_emits_started_event() {
     let use_case = create_use_case();
-    let options = DeployOptions::new(".promptpack");
+    // Explicitly specify targets (empty targets now means "no deployment")
+    let options = DeployOptions::new(".promptpack").with_targets(vec![Target::ClaudeCode]);
     let event_sink = Arc::new(MockEventSink::new());
 
     use_case.execute_with_events(&options, event_sink.clone());
@@ -218,7 +223,8 @@ fn execute_with_events_emits_started_event() {
 #[test]
 fn execute_with_events_emits_compiled_event() {
     let use_case = create_use_case();
-    let options = DeployOptions::new(".promptpack");
+    // Explicitly specify targets (empty targets now means "no deployment")
+    let options = DeployOptions::new(".promptpack").with_targets(vec![Target::ClaudeCode]);
     let event_sink = Arc::new(MockEventSink::new());
 
     use_case.execute_with_events(&options, event_sink.clone());
@@ -232,7 +238,8 @@ fn execute_with_events_emits_compiled_event() {
 #[test]
 fn execute_with_events_emits_file_written_event() {
     let use_case = create_use_case();
-    let options = DeployOptions::new(".promptpack");
+    // Explicitly specify targets (empty targets now means "no deployment")
+    let options = DeployOptions::new(".promptpack").with_targets(vec![Target::ClaudeCode]);
     let event_sink = Arc::new(MockEventSink::new());
 
     use_case.execute_with_events(&options, event_sink.clone());
@@ -246,7 +253,8 @@ fn execute_with_events_emits_file_written_event() {
 #[test]
 fn execute_with_events_emits_completed_event() {
     let use_case = create_use_case();
-    let options = DeployOptions::new(".promptpack");
+    // Explicitly specify targets (empty targets now means "no deployment")
+    let options = DeployOptions::new(".promptpack").with_targets(vec![Target::ClaudeCode]);
     let event_sink = Arc::new(MockEventSink::new());
 
     use_case.execute_with_events(&options, event_sink.clone());

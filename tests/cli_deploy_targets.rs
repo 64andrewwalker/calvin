@@ -392,3 +392,159 @@ fn deploy_cursor_with_claude_code_no_duplicate_commands() {
         "Claude Code should create .claude/commands/test-action.md"
     );
 }
+
+// ============================================================================
+// Config Targets Enabled Tests (Bug Fix: targets-config-bug-2025-12-24)
+// ============================================================================
+
+/// Create a test project with config specifying only cursor target
+fn create_project_with_cursor_only_config() -> tempfile::TempDir {
+    let dir = create_test_project();
+
+    fs::write(
+        dir.path().join(".promptpack/config.toml"),
+        r#"
+[targets]
+enabled = ["cursor"]
+"#,
+    )
+    .unwrap();
+
+    dir
+}
+
+/// Create a test project with empty targets config (explicitly no targets)
+fn create_project_with_empty_targets_config() -> tempfile::TempDir {
+    let dir = create_test_project();
+
+    fs::write(
+        dir.path().join(".promptpack/config.toml"),
+        r#"
+[targets]
+enabled = []
+"#,
+    )
+    .unwrap();
+
+    dir
+}
+
+/// Bug fix test: enabled = ["cursor"] should only deploy to Cursor
+///
+/// Previously, config was ignored and all targets were deployed.
+#[test]
+fn deploy_respects_config_targets_cursor_only() {
+    let dir = create_project_with_cursor_only_config();
+    let output = run_deploy(&dir, &["--yes"]);
+
+    assert!(
+        output.status.success(),
+        "Deploy should succeed. stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    // .cursor should exist
+    let cursor_rules = dir.path().join(".cursor/rules/test.md");
+    assert!(
+        cursor_rules.exists() || dir.path().join(".cursor").exists(),
+        "Cursor target should be deployed"
+    );
+
+    // .claude should NOT exist (not in enabled list)
+    let claude_dir = dir.path().join(".claude");
+    assert!(
+        !claude_dir.exists(),
+        "Claude Code should NOT be deployed when only cursor is enabled in config. \
+         .claude dir exists: {:?}",
+        claude_dir
+    );
+}
+
+/// Bug fix test: enabled = [] should not deploy any targets
+///
+/// Empty list means "explicitly disable all targets", not "use defaults".
+#[test]
+fn deploy_respects_config_empty_targets() {
+    let dir = create_project_with_empty_targets_config();
+    let output = run_deploy(&dir, &["--yes"]);
+
+    assert!(
+        output.status.success(),
+        "Deploy should succeed (no targets = nothing to do). stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    // No target directories should be created
+    let cursor_dir = dir.path().join(".cursor");
+    let claude_dir = dir.path().join(".claude");
+    let vscode_dir = dir.path().join(".vscode");
+
+    assert!(
+        !cursor_dir.exists() && !claude_dir.exists() && !vscode_dir.exists(),
+        "No target directories should be created when enabled = []. \
+         cursor={:?}, claude={:?}, vscode={:?}",
+        cursor_dir.exists(),
+        claude_dir.exists(),
+        vscode_dir.exists()
+    );
+}
+
+/// Create a test project with an asset that has no target restrictions (all targets)
+fn create_project_all_targets_asset() -> tempfile::TempDir {
+    let dir = tempdir().unwrap();
+
+    // Avoid "not a git repository" prompt
+    fs::create_dir_all(dir.path().join(".git")).unwrap();
+
+    let promptpack = dir.path().join(".promptpack");
+    fs::create_dir_all(&promptpack).unwrap();
+
+    // Create asset with all targets (empty targets = defaults to all)
+    fs::write(
+        promptpack.join("test.md"),
+        r#"---
+kind: policy
+description: Test Policy for All Targets
+scope: project
+---
+Test content for all targets
+"#,
+    )
+    .unwrap();
+
+    // Config limits to cursor only
+    fs::write(
+        promptpack.join("config.toml"),
+        r#"
+[targets]
+enabled = ["cursor"]
+"#,
+    )
+    .unwrap();
+
+    dir
+}
+
+/// Test: CLI --targets flag overrides config
+#[test]
+fn deploy_cli_targets_overrides_config() {
+    // Use a project with an all-targets asset (no asset-level restriction)
+    let dir = create_project_all_targets_asset();
+    // Config says cursor only, but CLI says claude-code
+    // Use -t short form which is equivalent to --targets
+    let output = run_deploy(&dir, &["-t", "claude-code", "--yes"]);
+
+    assert!(
+        output.status.success(),
+        "Deploy should succeed. stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    // .claude should exist (CLI override)
+    let claude_dir = dir.path().join(".claude");
+    assert!(
+        claude_dir.exists(),
+        "CLI -t should override config. claude_dir exists: {}",
+        claude_dir.exists()
+    );
+}

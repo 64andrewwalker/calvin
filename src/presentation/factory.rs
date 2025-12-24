@@ -110,13 +110,24 @@ pub fn create_deploy_use_case_for_remote_with_adapters(
 }
 
 /// Create adapters for specific targets
+///
+/// Semantics:
+/// - Empty targets list: No adapters (explicitly disabled)
+/// - Contains Target::All: All adapters
+/// - Specific targets: Only those adapters
 pub fn create_adapters_for_targets(
     targets: &[crate::domain::value_objects::Target],
 ) -> Vec<Box<dyn TargetAdapter>> {
     use crate::domain::value_objects::Target;
     use crate::infrastructure::adapters::{AntigravityAdapter, CodexAdapter, VSCodeAdapter};
 
-    if targets.is_empty() || targets.contains(&Target::All) {
+    // Empty list means "no targets" - return empty adapter list
+    if targets.is_empty() {
+        return Vec::new();
+    }
+
+    // Target::All means all adapters
+    if targets.contains(&Target::All) {
         return all_adapters();
     }
 

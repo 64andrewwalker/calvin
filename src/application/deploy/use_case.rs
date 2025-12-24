@@ -366,15 +366,20 @@ where
         let mut outputs = Vec::new();
 
         // Determine which adapters to use
-        let active_adapters: Vec<&Box<dyn TargetAdapter>> =
-            if targets.is_empty() || targets.iter().any(|t| t.is_all()) {
-                self.adapters.iter().collect()
-            } else {
-                self.adapters
-                    .iter()
-                    .filter(|a| targets.contains(&a.target()))
-                    .collect()
-            };
+        // Empty targets list means "no targets" (not "all targets")
+        let active_adapters: Vec<&Box<dyn TargetAdapter>> = if targets.is_empty() {
+            // Empty targets = no deployment
+            Vec::new()
+        } else if targets.iter().any(|t| t.is_all()) {
+            // Target::All = all adapters
+            self.adapters.iter().collect()
+        } else {
+            // Specific targets = filter to matching adapters
+            self.adapters
+                .iter()
+                .filter(|a| targets.contains(&a.target()))
+                .collect()
+        };
 
         // Check if Cursor needs to generate its own commands
         // (when Cursor is selected but Claude Code is not)

@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "kebab-case")]
 pub enum Target {
     /// Claude Code (Anthropic)
+    #[serde(alias = "claude")]
     ClaudeCode,
     /// Cursor IDE
     Cursor,
@@ -76,6 +77,138 @@ impl std::fmt::Display for Target {
     }
 }
 
+impl Target {
+    /// All valid target names including aliases (for error messages)
+    /// Users can use any of these names in config files
+    pub const VALID_NAMES: &'static [&'static str] = &[
+        "claude-code",
+        "claude", // alias for claude-code
+        "cursor",
+        "vscode",
+        "vs-code", // alias for vscode
+        "antigravity",
+        "codex",
+        "all",
+    ];
+
+    /// Canonical names (without aliases, for documentation)
+    pub const CANONICAL_NAMES: &'static [&'static str] = &[
+        "claude-code",
+        "cursor",
+        "vscode",
+        "antigravity",
+        "codex",
+        "all",
+    ];
+
+    /// Parse a target name with helpful error message
+    ///
+    /// Accepts various aliases:
+    /// - `claude` or `claude-code` → ClaudeCode
+    /// - `vscode` or `vs-code` → VSCode
+    pub fn from_str_with_suggestion(s: &str) -> Result<Target, TargetParseError> {
+        match s.trim().to_lowercase().as_str() {
+            "claude-code" | "claudecode" | "claude" => Ok(Target::ClaudeCode),
+            "cursor" => Ok(Target::Cursor),
+            "vscode" | "vs-code" => Ok(Target::VSCode),
+            "antigravity" => Ok(Target::Antigravity),
+            "codex" => Ok(Target::Codex),
+            "all" => Ok(Target::All),
+            _ => {
+                let suggestion = Self::suggest_target(s);
+                Err(TargetParseError {
+                    invalid: s.to_string(),
+                    suggestion,
+                })
+            }
+        }
+    }
+
+    /// Suggest a valid target name based on typo
+    fn suggest_target(input: &str) -> Option<String> {
+        let input_lower = input.to_lowercase();
+
+        // Common typos and shortcuts
+        let aliases: &[(&str, &str)] = &[
+            ("claude code", "claude-code"),
+            ("code", "claude-code"),
+            ("vs", "vscode"),
+            ("vsc", "vscode"),
+            ("anti", "antigravity"),
+            ("gravity", "antigravity"),
+            ("gemini", "antigravity"),
+        ];
+
+        for (typo, correct) in aliases {
+            if input_lower == *typo {
+                return Some(correct.to_string());
+            }
+        }
+
+        // Levenshtein distance for other typos
+        let mut best: Option<(&str, usize)> = None;
+        for valid in Self::CANONICAL_NAMES {
+            let dist = levenshtein(&input_lower, valid);
+            match best {
+                None => best = Some((valid, dist)),
+                Some((_, best_dist)) if dist < best_dist => best = Some((valid, dist)),
+                _ => {}
+            }
+        }
+
+        match best {
+            Some((name, dist)) if dist <= 3 => Some(name.to_string()),
+            _ => None,
+        }
+    }
+}
+
+/// Error when parsing an invalid target name
+#[derive(Debug, Clone)]
+pub struct TargetParseError {
+    /// The invalid value provided
+    pub invalid: String,
+    /// A suggested valid target name, if applicable
+    pub suggestion: Option<String>,
+}
+
+impl std::fmt::Display for TargetParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "invalid target '{}'. ", self.invalid)?;
+        if let Some(ref suggestion) = self.suggestion {
+            write!(f, "Did you mean '{}'? ", suggestion)?;
+        }
+        write!(f, "Valid targets: {}", Target::VALID_NAMES.join(", "))
+    }
+}
+
+impl std::error::Error for TargetParseError {}
+
+/// Simple Levenshtein distance for typo detection
+fn levenshtein(a: &str, b: &str) -> usize {
+    if a == b {
+        return 0;
+    }
+
+    let a_bytes = a.as_bytes();
+    let b_bytes = b.as_bytes();
+
+    let mut prev: Vec<usize> = (0..=b_bytes.len()).collect();
+    let mut curr = vec![0usize; b_bytes.len() + 1];
+
+    for (i, &ac) in a_bytes.iter().enumerate() {
+        curr[0] = i + 1;
+        for (j, &bc) in b_bytes.iter().enumerate() {
+            let cost = if ac == bc { 0 } else { 1 };
+            curr[j + 1] =
+                std::cmp::min(std::cmp::min(prev[j + 1] + 1, curr[j] + 1), prev[j] + cost);
+        }
+        prev.clone_from_slice(&curr);
+    }
+
+    prev[b_bytes.len()]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -128,5 +261,65 @@ mod tests {
         let json = "\"vscode\"";
         let target: Target = serde_json::from_str(json).unwrap();
         assert_eq!(target, Target::VSCode);
+    }
+
+    #[test]
+    fn target_from_str_with_suggestion_valid() {
+        assert_eq!(
+            Target::from_str_with_suggestion("claude-code").unwrap(),
+            Target::ClaudeCode
+        );
+        assert_eq!(
+            Target::from_str_with_suggestion("cursor").unwrap(),
+            Target::Cursor
+        );
+        assert_eq!(
+            Target::from_str_with_suggestion("vscode").unwrap(),
+            Target::VSCode
+        );
+        assert_eq!(
+            Target::from_str_with_suggestion("vs-code").unwrap(),
+            Target::VSCode
+        );
+        assert_eq!(
+            Target::from_str_with_suggestion("antigravity").unwrap(),
+            Target::Antigravity
+        );
+        assert_eq!(
+            Target::from_str_with_suggestion("codex").unwrap(),
+            Target::Codex
+        );
+        assert_eq!(
+            Target::from_str_with_suggestion("all").unwrap(),
+            Target::All
+        );
+    }
+
+    #[test]
+    fn target_from_str_with_suggestion_claude_alias() {
+        // "claude" is now a valid alias for "claude-code"
+        let target = Target::from_str_with_suggestion("claude").unwrap();
+        assert_eq!(target, Target::ClaudeCode);
+    }
+
+    #[test]
+    fn target_from_str_with_suggestion_typo() {
+        // "cursr" (typo) should suggest "cursor"
+        let err = Target::from_str_with_suggestion("cursr").unwrap_err();
+        assert_eq!(err.invalid, "cursr");
+        assert_eq!(err.suggestion, Some("cursor".to_string()));
+    }
+
+    #[test]
+    fn target_from_str_with_suggestion_invalid() {
+        let err = Target::from_str_with_suggestion("foobar").unwrap_err();
+        assert_eq!(err.invalid, "foobar");
+        // Error message should list valid targets
+        let msg = err.to_string();
+        assert!(
+            msg.contains("Valid targets:"),
+            "error should list valid targets: {}",
+            msg
+        );
     }
 }
