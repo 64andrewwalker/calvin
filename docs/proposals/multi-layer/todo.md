@@ -34,10 +34,16 @@
   - [ ] `diff` 命令
   - [ ] `watch` 命令
 
-- [ ] **0.5** 端到端测试
+- [ ] **0.5** Windows 路径规范化
+  - [ ] lockfile 中统一使用正斜杠
+  - [ ] 读取时转换为平台原生分隔符
+  - [ ] 添加跨平台测试
+
+- [ ] **0.6** 端到端测试
   - [ ] 测试旧格式 lockfile 自动迁移
   - [ ] 测试新格式 lockfile 读写
   - [ ] 测试旧版本 Calvin 读取新格式（模拟）
+  - [ ] 测试 Windows 路径处理
 
 **验收标准**:
 - `cargo test lockfile` 全部通过
@@ -94,7 +100,8 @@
 ### Tasks
 
 - [ ] **2.1** 定义 `Registry` 和 `ProjectEntry` 类型
-  - [ ] `src/infrastructure/repositories/registry.rs`
+  - [ ] `src/domain/entities/registry.rs` (Entity 在 domain 层)
+  - [ ] `src/domain/ports/registry_repository.rs` (Port 定义)
   - [ ] 添加测试
 
 - [ ] **2.2** 实现 Registry 持久化
@@ -179,12 +186,17 @@
   - [ ] 检测冲突
   - [ ] 添加测试
 
-- [ ] **4.4** 实现 `calvin migrate` 命令
+- [ ] **4.4** 实现 `calvin check --all`
+  - [ ] 检查所有注册项目
+  - [ ] 汇总结果
+  - [ ] 添加测试
+
+- [ ] **4.5** 实现 `calvin migrate` 命令
   - [ ] 迁移 lockfile
   - [ ] 支持 `--dry-run`
   - [ ] 添加测试
 
-- [ ] **4.5** 更新文档
+- [ ] **4.6** 更新文档
   - [ ] `docs/configuration.md`
   - [ ] `docs/command-reference.md`
   - [ ] `CHANGELOG.md`

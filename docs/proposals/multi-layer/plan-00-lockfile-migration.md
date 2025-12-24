@@ -217,7 +217,53 @@ fn migrate_lockfile_from_old_location() {
 
 主要改动：使用新的 `get_lockfile_path()` 方法。
 
-### Task 0.5: Integration Tests
+### Task 0.5: Windows Path Normalization
+
+**File**: `src/domain/entities/lockfile.rs`
+
+确保 lockfile 中的路径在所有平台上一致：
+
+```rust
+/// Normalize path for lockfile storage (always use forward slashes)
+fn normalize_lockfile_path(path: &Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
+}
+
+/// Parse path from lockfile (handle both / and \ separators)
+fn parse_lockfile_path(s: &str) -> PathBuf {
+    if cfg!(windows) {
+        PathBuf::from(s.replace('/', "\\"))
+    } else {
+        PathBuf::from(s)
+    }
+}
+```
+
+**Tests**:
+```rust
+#[test]
+fn normalize_windows_path() {
+    let path = Path::new("C:\\Users\\me\\project\\.claude\\commands\\test.md");
+    assert_eq!(
+        normalize_lockfile_path(path),
+        "C:/Users/me/project/.claude/commands/test.md"
+    );
+}
+
+#[test]
+fn parse_normalized_path_on_windows() {
+    let normalized = "C:/Users/me/project/.claude/commands/test.md";
+    let parsed = parse_lockfile_path(normalized);
+    
+    #[cfg(windows)]
+    assert_eq!(parsed, Path::new("C:\\Users\\me\\project\\.claude\\commands\\test.md"));
+    
+    #[cfg(not(windows))]
+    assert_eq!(parsed, Path::new(normalized));
+}
+```
+
+### Task 0.6: Integration Tests
 
 **File**: `tests/cli_lockfile_migration.rs`
 
@@ -270,5 +316,6 @@ fn deploy_migrates_old_lockfile() {
 - 扩展的 `LockfileEntry` 结构
 - 更新的 `TomlLockfileRepository`
 - 自动迁移逻辑
+- Windows 路径规范化逻辑
 - 新的集成测试
 

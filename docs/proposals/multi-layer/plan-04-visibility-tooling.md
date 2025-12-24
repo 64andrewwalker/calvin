@@ -328,7 +328,58 @@ fn check_cross_layer_conflicts(layers: &[Layer]) -> Result<()> {
 }
 ```
 
-### Task 4.4: Implement `calvin migrate` Command
+### Task 4.4: Implement `calvin check --all` Command
+
+**Note**: Listed in PRD §11.4, enables checking all registered projects.
+
+**File**: `src/commands/check.rs`
+
+```rust
+pub fn run_check_all() -> Result<()> {
+    let registry = RegistryRepository::load();
+    
+    if registry.projects.is_empty() {
+        println!("{} No projects in registry.", dim(icons::PENDING));
+        return Ok(());
+    }
+    
+    let mut header = CommandHeader::new(icons::CHECK, "Calvin Check All");
+    header.add("Projects", registry.projects.len().to_string());
+    header.render();
+    
+    let mut total_passed = 0;
+    let mut total_warnings = 0;
+    let mut total_errors = 0;
+    
+    for project in &registry.projects {
+        println!();
+        println!("Checking {}...", project.path.display());
+        
+        match run_check_for_project(&project.path) {
+            Ok(result) => {
+                total_passed += result.passed;
+                total_warnings += result.warnings;
+                total_errors += result.errors;
+            }
+            Err(e) => {
+                println!("  {} Error: {}", icons::ERROR.red(), e);
+                total_errors += 1;
+            }
+        }
+    }
+    
+    // Summary
+    println!();
+    println!(
+        "Total: {} passed, {} warnings, {} errors across {} projects",
+        total_passed, total_warnings, total_errors, registry.projects.len()
+    );
+    
+    Ok(())
+}
+```
+
+### Task 4.5: Implement `calvin migrate` Command
 
 **File**: `src/commands/migrate.rs`
 
@@ -389,7 +440,7 @@ enum MigrationChange {
 }
 ```
 
-### Task 4.5: Update Documentation
+### Task 4.6: Update Documentation
 
 **Files to update**:
 - `docs/configuration.md` - 添加 `[sources]` section

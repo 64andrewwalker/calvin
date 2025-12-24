@@ -420,7 +420,7 @@ pub fn create_deploy_use_case(config: &Config) -> DeployUseCase {
 }
 ```
 
-### Task 2.5: Implement `calvin projects` Command
+### Task 2.6: Implement `calvin projects` Command
 
 **File**: `src/commands/projects.rs`
 
@@ -530,7 +530,7 @@ impl<'a> ProjectsView<'a> {
 }
 ```
 
-### Task 2.5: Implement `calvin clean --all`
+### Task 2.7: Implement `calvin clean --all`
 
 **Files**:
 - `src/commands/clean.rs` - 添加 `--all` 参数处理
