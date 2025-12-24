@@ -5,6 +5,7 @@
 use std::fs;
 use std::path::Path;
 
+use crate::docs;
 use crate::error::{CalvinError, CalvinResult};
 use crate::models::{Frontmatter, PromptAsset};
 
@@ -165,7 +166,7 @@ fn format_yaml_frontmatter_error(yaml: &str, err: &serde_yaml_ng::Error) -> Stri
         message.push_str("Hint: Strings with colons need quotes: description: \"My: Rule\"\n");
     }
 
-    message.push_str("Docs: https://calvin.dev/docs/frontmatter");
+    message.push_str(&format!("Docs: {}", docs::frontmatter_url()));
     message
 }
 

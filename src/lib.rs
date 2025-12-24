@@ -21,6 +21,7 @@ pub mod presentation;
 
 // Core modules
 pub mod config;
+pub mod docs;
 pub mod error;
 pub mod models;
 pub mod parser;
