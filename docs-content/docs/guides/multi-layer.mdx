@@ -1,0 +1,221 @@
+---
+title: Multi-Layer PromptPacks
+description: Share and organize promptpacks across projects with layered configurations
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+
+# Multi-Layer PromptPacks
+
+> **New in v0.4.0** — Share personal defaults, team standards, and project-specific rules.
+
+Calvin supports **layered promptpacks** that merge together, enabling:
+
+- **Personal defaults** shared across all your projects
+- **Team standards** applied to multiple repositories
+- **Project overrides** for specific customizations
+
+## Layer Priority
+
+Layers are merged in priority order (highest to lowest):
+
+```
+┌─────────────────────────────────┐
+│  1. Project Layer               │  ← ./.promptpack (highest priority)
+├─────────────────────────────────┤
+│  2. Additional Layers (CLI)     │  ← --layer /path/to/layer
+├─────────────────────────────────┤
+│  3. User Layer                  │  ← ~/.calvin/.promptpack (lowest)
+└─────────────────────────────────┘
+```
+
+When multiple layers define the same asset ID, the **higher priority layer wins**.
+
+## Setting Up User Layer
+
+Create a personal promptpack that applies to all projects:
+
+```bash
+# Initialize user layer
+calvin init --user
+
+# This creates:
+# ~/.calvin/.promptpack/
+# ├── config.toml
+# ├── policies/
+# └── actions/
+```
+
+Add your personal defaults:
+
+```bash
+# Add a personal coding style rule
+echo '---
+description: My preferred coding style
+scope: user
+---
+Always use descriptive variable names.
+Prefer early returns for error handling.
+' > ~/.calvin/.promptpack/policies/my-style.md
+```
+
+## Using Additional Layers
+
+Add team or organization layers via CLI:
+
+```bash
+# Add a team layer for this deployment
+calvin deploy --layer /shared/team-layer
+
+# Add multiple layers
+calvin deploy --layer ~/org-standards --layer ~/team-rules
+```
+
+<Callout type="info">
+**Layer Order:** When using `--layer` multiple times, they are processed in order. Later layers have higher priority than earlier ones.
+</Callout>
+
+## Disabling Layers
+
+Sometimes you need to deploy without certain layers:
+
+```bash
+# Deploy without user layer
+calvin deploy --no-user-layer
+
+# Deploy without additional layers
+calvin deploy --no-additional-layers
+
+# Project layer only
+calvin deploy --no-user-layer --no-additional-layers
+```
+
+## Viewing Layer Information
+
+### Show Active Layers
+
+```bash
+$ calvin layers
+
+Layer Stack (3 layers):
+  1. project   ./.promptpack            12 assets
+  2. team      /shared/team-standards    5 assets
+  3. user      ~/.calvin/.promptpack     3 assets
+
+Merged: 18 unique assets (2 overridden)
+```
+
+### Show Asset Provenance
+
+See where each output file comes from:
+
+```bash
+$ calvin provenance
+
+.claude/rules/security.md
+  ← project:.promptpack/policies/security.md
+
+.cursor/rules/code-style.mdc
+  ← user:~/.calvin/.promptpack/policies/code-style.md
+  (overrides: team:/shared/team-standards/policies/code-style.md)
+```
+
+## Configuration
+
+### Project Config
+
+In your `.promptpack/config.toml`:
+
+```toml
+[sources]
+# Disable user layer for this project
+use_user_layer = false
+```
+
+<Callout type="warning">
+**Security Restriction:** Projects cannot add `additional_layers` or change `user_layer_path`. These can only be set via CLI or environment variables.
+</Callout>
+
+### Environment Variables
+
+```bash
+# Disable user layer globally
+export CALVIN_SOURCES_USE_USER_LAYER=false
+
+# Use custom user layer path
+export CALVIN_SOURCES_USER_LAYER_PATH=~/.my-prompts
+```
+
+## Layer Override Behavior
+
+When the same asset ID exists in multiple layers:
+
+1. **Higher priority layer wins** — project overrides user
+2. **Override is logged** — visible in verbose mode and provenance
+3. **Lockfile tracks source** — `source_layer` field shows origin
+
+Example scenario:
+
+```
+# User layer has: policies/security.md
+# Project layer has: policies/security.md
+
+# Result: Project version is used
+# Provenance shows: "overrides: user:~/.calvin/.promptpack/policies/security.md"
+```
+
+## Best Practices
+
+### User Layer
+
+Put in `~/.calvin/.promptpack/`:
+
+- Personal coding style preferences
+- Common workflow shortcuts
+- Default security settings
+
+### Team Layers
+
+Shared team layers should contain:
+
+- Company coding standards
+- Common review workflows
+- Organization security policies
+
+### Project Layer
+
+Keep project-specific in `./.promptpack/`:
+
+- Project-specific rules
+- Repository-specific workflows
+- Overrides for team defaults
+
+## Commands Reference
+
+| Command | Description |
+|---------|-------------|
+| `calvin init --user` | Create user layer directory |
+| `calvin layers` | Show active layer stack |
+| `calvin layers --json` | Layer info as JSON |
+| `calvin provenance` | Show output file sources |
+| `calvin provenance --json` | Provenance as JSON |
+| `calvin deploy --layer PATH` | Add extra layer |
+| `calvin deploy --no-user-layer` | Disable user layer |
+
+## Troubleshooting
+
+### "No layers found"
+
+Check that at least one of these exists:
+- `./.promptpack/` (project layer)
+- `~/.calvin/.promptpack/` (user layer)
+
+### Asset not appearing
+
+1. Check `calvin layers` to verify the layer is loaded
+2. Check `calvin provenance` to see if it's being overridden
+3. Verify the asset has valid frontmatter
+
+### Unexpected override
+
+Use `calvin provenance` to see which layer is providing each asset and what it overrides.

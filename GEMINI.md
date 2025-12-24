@@ -8,7 +8,9 @@ Calvin is a PromptOps compiler. It takes a `.promptpack/` directory of Markdown 
 
 **Core command**: `calvin deploy` - compiles and writes outputs to project.
 
-**Documentation**: https://64andrewwalker.github.io/calvin/
+**Multi-layer support**: Calvin merges assets from user layer (`~/.calvin/.promptpack`), team layers, and project layer.
+
+**Documentation**: <https://64andrewwalker.github.io/calvin/>
 
 ## Quick Start for Developers
 
@@ -41,18 +43,21 @@ src/
 ├── main.rs              # CLI entry point
 ├── lib.rs               # Library exports
 ├── domain/              # Core business logic (no I/O)
-│   ├── entities/        # Asset, OutputFile, Lockfile
-│   ├── services/        # Compiler, Planner, OrphanDetector
+│   ├── entities/        # Asset, OutputFile, Lockfile, Layer, Registry
+│   ├── services/        # Compiler, Planner, OrphanDetector, LayerMerger
 │   ├── policies/        # ScopePolicy, SecurityPolicy
 │   ├── value_objects/   # Scope, Target, Hash
 │   └── ports/           # Trait definitions
 ├── application/         # Use cases (orchestration)
 │   ├── deploy/          # DeployUseCase
 │   ├── watch/           # WatchUseCase, file watching
+│   ├── registry/        # RegistryUseCase (project tracking)
 │   ├── check.rs         # CheckUseCase
 │   └── diff.rs          # DiffUseCase
 ├── infrastructure/      # External integrations
 │   ├── adapters/        # Claude, Cursor, VSCode, etc.
+│   ├── layer/           # LayerLoader implementation
+│   ├── repositories/    # Lockfile, Registry persistence
 │   ├── sync/            # Local/Remote file sync
 │   └── fs/              # FileSystem implementations
 ├── commands/            # CLI command handlers
@@ -73,6 +78,7 @@ src/
 | `docs/architecture/directory.md` | Finding where code lives |
 | `docs/api/frontmatter.md` | Working with source file format |
 | `docs/target-platforms.md` | Adding new platform adapters |
+| `docs/proposals/multi-layer/` | Multi-layer feature design |
 | `spec.md` | Original product specification |
 
 ## Development Principles
