@@ -3,10 +3,33 @@
 > **Priority**: Medium  
 > **Estimated Effort**: 2-3 days  
 > **Dependencies**: Phase 1 complete
+> **Architecture Reference**: `docs/architecture/layers.md`
 
 ## Objective
 
 扩展配置系统支持 `[sources]` section，添加新的 CLI 参数。
+
+## Architecture Compliance
+
+按四层架构分布组件：
+
+```
+独立模块 (config/):
+└── config/types.rs             # 扩展 SourcesConfig (~30 lines 新增)
+
+Layer 0 (Presentation):
+├── presentation/cli.rs         # 新增 CLI 参数 (~20 lines 新增)
+├── commands/deploy.rs          # 集成新参数 (修改)
+└── commands/init.rs            # 新增 --user 处理 (~80 lines)
+
+Layer 2 (Domain):
+└── domain/services/layer_resolver.rs  # 使用新配置 (修改)
+```
+
+**关键约束**:
+- `SourcesConfig` 是纯数据类型，无业务逻辑
+- CLI 参数解析在 Presentation 层
+- `LayerResolver` 通过配置接收参数，不直接读取配置文件
 
 ## Detailed Tasks
 

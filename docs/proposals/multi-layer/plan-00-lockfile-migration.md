@@ -3,10 +3,37 @@
 > **Priority**: Must complete first  
 > **Estimated Effort**: 2-3 days  
 > **Breaking Change**: Yes (with auto-migration)
+> **Architecture Reference**: `docs/architecture/layers.md`
 
 ## Objective
 
 将 lockfile 从 `.promptpack/.calvin.lock` 迁移到 `./calvin.lock`，并扩展格式支持来源追踪。
+
+## Architecture Compliance
+
+按四层架构分布改动：
+
+```
+Layer 2 (Domain):
+└── domain/entities/lockfile.rs    # 扩展 LockfileEntry (~20 lines 新增)
+    - 新增 OutputProvenance 结构
+    - 扩展 with_provenance() 方法
+
+Layer 3 (Infrastructure):
+└── infrastructure/repositories/lockfile.rs  # 更新序列化 (~30 lines 修改)
+    - 支持新字段的 serde 序列化
+    - 向后兼容旧格式
+
+Layer 1 (Application):
+└── application/deploy/use_case.rs  # 迁移逻辑 (~30 lines 新增)
+    - get_lockfile_path() 方法更新
+    - migrate_lockfile() 新增
+```
+
+**关键约束**:
+- `LockfileEntry` 是纯数据实体，迁移逻辑不在 entity 中
+- 迁移逻辑在 Application 层，因为涉及业务决策
+- Infrastructure 层只负责文件读写
 
 ## Background
 

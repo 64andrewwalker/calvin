@@ -1,6 +1,66 @@
 # Multi-Layer PromptPack Design Principles
 
 > Core design principles guiding the multi-layer feature implementation.
+> 
+> **架构参考**: `docs/architecture/layers.md`
+
+---
+
+## Architecture Compliance
+
+### 严格遵循四层架构
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Layer 0: Presentation (表示层)                             │
+│  - commands/layers.rs, commands/projects.rs                 │
+│  - commands/provenance.rs, commands/migrate.rs              │
+│  - ui/views/layers.rs, ui/views/projects.rs                 │
+│  - ui/views/provenance.rs                                   │
+├─────────────────────────────────────────────────────────────┤
+│  Layer 1: Application (应用层)                              │
+│  - application/layers/use_case.rs (LayerUseCase)            │
+│  - application/registry/use_case.rs (RegistryUseCase)       │
+│  - 编排层解析、合并、注册流程                                │
+├─────────────────────────────────────────────────────────────┤
+│  Layer 2: Domain (领域层) ← 核心!                           │
+│  - domain/entities/layer.rs (Layer, LayerSource)            │
+│  - domain/entities/registry.rs (Registry, ProjectEntry)     │
+│  - domain/services/layer_resolver.rs (LayerResolver)        │
+│  - domain/services/layer_merger.rs (LayerMerger)            │
+│  - domain/ports/registry_repository.rs (RegistryRepository) │
+├─────────────────────────────────────────────────────────────┤
+│  Layer 3: Infrastructure (基础设施层)                        │
+│  - infrastructure/repositories/registry.rs (TomlRegistry)   │
+│  - infrastructure/layer/detector.rs (FsLayerDetector)       │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 依赖规则
+
+| 新组件 | 可依赖 | 禁止依赖 |
+|-------|--------|---------|
+| `commands/layers.rs` | application, domain | infrastructure |
+| `LayerUseCase` | domain | infrastructure (通过 ports) |
+| `Layer` (entity) | 无外部依赖 | application, infrastructure |
+| `LayerResolver` (service) | entities, ports | infrastructure |
+| `TomlRegistry` | domain ports | 无限制 (最底层) |
+
+### 禁止上帝对象
+
+每个文件职责单一，行数控制在 400 行以内：
+
+| 文件 | 职责 | 预估行数 |
+|-----|------|---------|
+| `domain/entities/layer.rs` | Layer 数据结构 | ~50 |
+| `domain/entities/registry.rs` | Registry 数据结构 | ~100 |
+| `domain/services/layer_resolver.rs` | 层路径解析 | ~150 |
+| `domain/services/layer_merger.rs` | 层 asset 合并 | ~120 |
+| `application/layers/use_case.rs` | 层操作编排 | ~200 |
+| `commands/layers.rs` | CLI 命令处理 | ~80 |
+| `ui/views/layers.rs` | 层列表渲染 | ~100 |
+
+---
 
 ## Core Philosophy
 

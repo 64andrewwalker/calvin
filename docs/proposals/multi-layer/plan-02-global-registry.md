@@ -3,11 +3,38 @@
 > **Priority**: Medium  
 > **Estimated Effort**: 2-3 days  
 > **Dependencies**: Phase 1 complete
+> **Architecture Reference**: `docs/architecture/layers.md`
 > **UI Reference**: `docs/ui-components-spec.md`
 
 ## Objective
 
 实现全局 registry 追踪所有 Calvin 管理的项目，支持批量操作。
+
+## Architecture Compliance
+
+按四层架构分布新组件：
+
+```
+Layer 2 (Domain):
+├── domain/entities/registry.rs       # Registry, ProjectEntry (~100 lines)
+└── domain/ports/registry_repository.rs  # RegistryRepository trait (~30 lines)
+
+Layer 3 (Infrastructure):
+└── infrastructure/repositories/registry.rs  # TomlRegistryRepository (~150 lines)
+
+Layer 1 (Application):
+└── application/registry/use_case.rs  # RegistryUseCase (~100 lines)
+
+Layer 0 (Presentation):
+├── commands/projects.rs              # CLI handler (~80 lines)
+└── ui/views/projects.rs              # View renderer (~100 lines)
+```
+
+**关键约束**:
+- `Registry` entity 不依赖任何外部模块
+- `TomlRegistryRepository` 实现 `RegistryRepository` port
+- `RegistryUseCase` 通过 port 依赖，不直接依赖 Infrastructure
+- 每个文件 < 400 行
 
 ## Key Concepts
 
@@ -160,7 +187,39 @@ fn registry_prune_removes_missing() {
 }
 ```
 
-### Task 2.2: Implement Repository
+### Task 2.2: Define Port and Implement Repository
+
+**Port Definition (Layer 2 Domain)**:
+
+**File**: `src/domain/ports/registry_repository.rs`
+
+```rust
+use crate::domain::entities::registry::{Registry, ProjectEntry};
+use std::path::Path;
+
+/// Port: Registry 持久化
+pub trait RegistryRepository: Send + Sync {
+    /// 加载 registry
+    fn load(&self) -> Registry;
+    
+    /// 保存 registry
+    fn save(&self, registry: &Registry) -> Result<(), RegistryError>;
+    
+    /// 原子更新单个项目
+    fn update_project(&self, entry: ProjectEntry) -> Result<(), RegistryError>;
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum RegistryError {
+    #[error("Failed to access registry: {message}")]
+    AccessError { message: String },
+    
+    #[error("Failed to serialize registry: {message}")]
+    SerializationError { message: String },
+}
+```
+
+**Infrastructure Implementation (Layer 3)**:
 
 **File**: `src/infrastructure/repositories/registry.rs`
 
@@ -170,6 +229,7 @@ use std::fs;
 use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
 use fs2::FileExt; // 文件锁
+use crate::domain::ports::registry_repository::{RegistryRepository, RegistryError};
 
 #[derive(Serialize, Deserialize)]
 struct TomlProjectEntry {
@@ -268,13 +328,33 @@ impl RegistryRepository {
 }
 ```
 
-### Task 2.3: Auto-register on Deploy
+### Task 2.3: Create RegistryUseCase (Application Layer)
 
-**File**: `src/application/deploy/use_case.rs`
+**File**: `src/application/registry/use_case.rs`
 
 ```rust
-impl DeployUseCase {
-    fn register_project(&self, project_path: &Path, lockfile_path: &Path, asset_count: usize) {
+use crate::domain::entities::registry::{Registry, ProjectEntry};
+use crate::domain::ports::registry_repository::RegistryRepository;
+use std::path::Path;
+use std::sync::Arc;
+
+/// Application 层：编排 Registry 操作
+pub struct RegistryUseCase {
+    repository: Arc<dyn RegistryRepository>,
+}
+
+impl RegistryUseCase {
+    pub fn new(repository: Arc<dyn RegistryRepository>) -> Self {
+        Self { repository }
+    }
+    
+    /// 注册/更新项目
+    pub fn register_project(
+        &self,
+        project_path: &Path,
+        lockfile_path: &Path,
+        asset_count: usize,
+    ) -> Result<(), RegistryError> {
         let entry = ProjectEntry {
             path: project_path.to_path_buf(),
             lockfile: lockfile_path.to_path_buf(),
@@ -282,15 +362,65 @@ impl DeployUseCase {
             asset_count,
         };
         
-        if let Err(e) = RegistryRepository::update_project(entry) {
-            // 警告但不失败
-            eprintln!("⚠ Failed to update registry: {}", e);
+        self.repository.update_project(entry)
+    }
+    
+    /// 列出所有项目
+    pub fn list_projects(&self) -> Vec<ProjectEntry> {
+        self.repository.load().all().to_vec()
+    }
+    
+    /// 清理失效项目
+    pub fn prune(&self) -> Result<Vec<PathBuf>, RegistryError> {
+        let mut registry = self.repository.load();
+        let removed = registry.prune();
+        self.repository.save(&registry)?;
+        Ok(removed)
+    }
+}
+```
+
+### Task 2.4: Auto-register on Deploy
+
+**File**: `src/application/deploy/use_case.rs`
+
+修改 `DeployUseCase` 依赖注入 `RegistryUseCase`：
+
+```rust
+impl DeployUseCase {
+    pub fn new(
+        // 现有依赖...
+        registry_use_case: Option<Arc<RegistryUseCase>>,  // 可选，向后兼容
+    ) -> Self {
+        // ...
+    }
+    
+    fn register_project(&self, project_path: &Path, lockfile_path: &Path, asset_count: usize) {
+        if let Some(registry) = &self.registry_use_case {
+            if let Err(e) = registry.register_project(project_path, lockfile_path, asset_count) {
+                // 警告但不失败 - deploy 成功比 registry 更重要
+                log::warn!("Failed to update registry: {}", e);
+            }
         }
     }
 }
 ```
 
-### Task 2.4: Implement `calvin projects` Command
+**工厂更新** (`presentation/factory.rs`):
+
+```rust
+pub fn create_deploy_use_case(config: &Config) -> DeployUseCase {
+    let registry_repo = Arc::new(TomlRegistryRepository::new());
+    let registry_use_case = Arc::new(RegistryUseCase::new(registry_repo));
+    
+    DeployUseCase::new(
+        // 现有参数...
+        Some(registry_use_case),
+    )
+}
+```
+
+### Task 2.5: Implement `calvin projects` Command
 
 **File**: `src/commands/projects.rs`
 

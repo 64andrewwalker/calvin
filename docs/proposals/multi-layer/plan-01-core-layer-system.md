@@ -3,10 +3,35 @@
 > **Priority**: High (MVP)  
 > **Estimated Effort**: 3-4 days  
 > **Dependencies**: Phase 0 complete
+> **Architecture Reference**: `docs/architecture/layers.md`
 
 ## Objective
 
 实现多层 promptpack 加载和合并的核心逻辑，使 `calvin deploy` 能够从多个来源合并 assets。
+
+## Architecture Compliance
+
+按四层架构分布新组件，禁止上帝对象：
+
+```
+Layer 2 (Domain):
+├── domain/entities/layer.rs       # Layer, LayerType (~50 lines)
+├── domain/services/layer_resolver.rs  # LayerResolver (~150 lines)
+├── domain/services/layer_merger.rs    # merge_layers (~120 lines)
+└── domain/ports/layer_loader.rs      # LayerLoader trait (~20 lines)
+
+Layer 3 (Infrastructure):
+└── infrastructure/layer/fs_loader.rs  # FsLayerLoader (~80 lines)
+
+Layer 1 (Application):
+└── application/deploy/use_case.rs   # 修改现有，使用新组件
+```
+
+**关键约束**:
+- `Layer` entity 不依赖任何外部模块
+- `LayerResolver` 只依赖 entities 和 ports
+- `FsLayerLoader` 实现 `LayerLoader` port
+- 每个文件 < 400 行
 
 ## Key Concepts
 
@@ -282,26 +307,97 @@ fn merge_different_ids_all_kept() {
 }
 ```
 
-### Task 1.4: Update FsAssetRepository
+### Task 1.4: Define LayerLoader Port and Implementation
 
-**File**: `src/infrastructure/repositories/asset.rs`
+**Port Definition (Layer 2 Domain)**:
+
+**File**: `src/domain/ports/layer_loader.rs`
 
 ```rust
-impl FsAssetRepository {
-    /// 从多个层加载 assets
-    pub fn load_from_layers(&self, layers: &[Layer]) -> Result<Vec<LayerWithAssets>, Error> {
-        let mut result = Vec::new();
-        
-        for layer in layers {
-            let assets = self.load_assets(&layer.path)?;
-            result.push(LayerWithAssets {
-                layer: layer.clone(),
-                assets,
+use crate::domain::entities::Layer;
+use std::path::Path;
+
+/// Port: 从路径加载层的 assets
+pub trait LayerLoader: Send + Sync {
+    /// 加载指定层的所有 assets
+    fn load_layer_assets(&self, layer: &mut Layer) -> Result<(), LayerError>;
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum LayerError {
+    #[error("Layer path not found: {path}")]
+    PathNotFound { path: std::path::PathBuf },
+    
+    #[error("Failed to load assets from layer: {message}")]
+    LoadFailed { message: String },
+}
+```
+
+**Infrastructure Implementation (Layer 3)**:
+
+**File**: `src/infrastructure/layer/fs_loader.rs`
+
+```rust
+use crate::domain::entities::Layer;
+use crate::domain::ports::layer_loader::{LayerLoader, LayerError};
+use crate::infrastructure::repositories::FsAssetRepository;
+
+/// 基于文件系统的层加载器
+pub struct FsLayerLoader {
+    asset_repo: FsAssetRepository,
+}
+
+impl FsLayerLoader {
+    pub fn new(asset_repo: FsAssetRepository) -> Self {
+        Self { asset_repo }
+    }
+}
+
+impl LayerLoader for FsLayerLoader {
+    fn load_layer_assets(&self, layer: &mut Layer) -> Result<(), LayerError> {
+        if !layer.path.exists() {
+            return Err(LayerError::PathNotFound { 
+                path: layer.path.clone() 
             });
         }
         
-        Ok(result)
+        let assets = self.asset_repo
+            .load_assets(&layer.path)
+            .map_err(|e| LayerError::LoadFailed { 
+                message: e.to_string() 
+            })?;
+        
+        layer.assets = assets;
+        Ok(())
     }
+}
+```
+
+**Tests**:
+```rust
+#[test]
+fn fs_loader_loads_assets() {
+    let dir = tempdir().unwrap();
+    let layer_path = dir.path().join(".promptpack");
+    fs::create_dir_all(&layer_path).unwrap();
+    // 创建测试 asset 文件...
+    
+    let loader = FsLayerLoader::new(FsAssetRepository::new());
+    let mut layer = Layer::new("test", layer_path, LayerType::Project);
+    
+    loader.load_layer_assets(&mut layer).unwrap();
+    
+    assert!(!layer.assets.is_empty());
+}
+
+#[test]
+fn fs_loader_error_on_missing_path() {
+    let loader = FsLayerLoader::new(FsAssetRepository::new());
+    let mut layer = Layer::new("test", PathBuf::from("/nonexistent"), LayerType::Project);
+    
+    let result = loader.load_layer_assets(&mut layer);
+    
+    assert!(matches!(result, Err(LayerError::PathNotFound { .. })));
 }
 ```
 

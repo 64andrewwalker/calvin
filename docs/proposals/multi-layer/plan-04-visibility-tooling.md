@@ -3,11 +3,36 @@
 > **Priority**: Low (Polish)  
 > **Estimated Effort**: 1-2 days  
 > **Dependencies**: Phase 1-3 complete
+> **Architecture Reference**: `docs/architecture/layers.md`
 > **UI Reference**: `docs/ui-components-spec.md`
 
 ## Objective
 
 添加可视化命令和工具，帮助用户理解和调试多层系统。
+
+## Architecture Compliance
+
+按四层架构分布组件：
+
+```
+Layer 0 (Presentation):
+├── commands/layers.rs          # CLI handler (~60 lines)
+├── commands/provenance.rs      # CLI handler (~60 lines)
+├── commands/migrate.rs         # CLI handler (~80 lines)
+├── ui/views/layers.rs          # View renderer (~100 lines)
+├── ui/views/provenance.rs      # View renderer (~80 lines)
+└── ui/views/migrate.rs         # View renderer (~60 lines)
+
+Layer 1 (Application):
+├── application/layers/query.rs    # LayerQueryUseCase (~80 lines)
+└── application/migrate/use_case.rs # MigrateUseCase (~100 lines)
+```
+
+**关键约束**:
+- 所有命令处理器只负责：解析参数 → 调用 UseCase → 渲染视图
+- UseCase 编排业务流程，返回数据给 Presentation 层渲染
+- View 组件只负责渲染，不包含业务逻辑
+- 每个文件 < 400 行
 
 ## UI Design Principles
 
