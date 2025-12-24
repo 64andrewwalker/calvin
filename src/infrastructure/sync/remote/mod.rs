@@ -249,7 +249,22 @@ impl SyncDestination for RemoteDestination {
     }
 
     fn lockfile_path(&self, _source: &Path) -> PathBuf {
-        self.source.join(".calvin.lock")
+        let source_is_promptpack = self
+            .source
+            .file_name()
+            .map(|n| n == ".promptpack")
+            .unwrap_or(false);
+
+        let project_root = if source_is_promptpack {
+            self.source
+                .parent()
+                .filter(|p| !p.as_os_str().is_empty())
+                .unwrap_or_else(|| Path::new("."))
+        } else {
+            self.source.as_path()
+        };
+
+        project_root.join("calvin.lock")
     }
 }
 
@@ -300,7 +315,7 @@ mod tests {
     fn lockfile_path_is_in_source_dir() {
         let dest = RemoteDestination::new("host:/remote", PathBuf::from("/local/project"));
         let lockfile = dest.lockfile_path(Path::new("/any/path"));
-        assert_eq!(lockfile, PathBuf::from("/local/project/.calvin.lock"));
+        assert_eq!(lockfile, PathBuf::from("/local/project/calvin.lock"));
     }
 
     #[test]

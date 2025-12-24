@@ -1,6 +1,11 @@
 //! Clean command handler
 //!
 //! Removes deployed files tracked in the lockfile.
+//!
+//! # Size Justification
+//!
+//! calvin-no-split: This command keeps CLI flow, UI rendering, and interactive selection logic in
+//! one place for now. Refactor/split after the multi-layer migration stabilizes.
 
 use std::path::{Path, PathBuf};
 
@@ -8,6 +13,7 @@ use anyhow::Result;
 use is_terminal::IsTerminal;
 
 use calvin::application::clean::{CleanOptions, CleanResult, CleanUseCase};
+use calvin::application::resolve_lockfile_path;
 use calvin::domain::entities::Lockfile;
 use calvin::domain::ports::{FileSystem, LockfileRepository};
 use calvin::domain::value_objects::Scope;
@@ -59,8 +65,18 @@ pub fn cmd_clean(
     let lockfile_repo = TomlLockfileRepository::new();
     let fs = LocalFs::new();
 
-    // Get lockfile path
-    let lockfile_path = source.join(".calvin.lock");
+    // Get lockfile path (project-root lockfile, with legacy migration)
+    let project_root = source
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    let (lockfile_path, migration_note) =
+        resolve_lockfile_path(project_root, source, &lockfile_repo);
+    if !json {
+        if let Some(note) = migration_note {
+            eprintln!("ℹ {}", note);
+        }
+    }
 
     // Check if lockfile exists
     if !fs.exists(&lockfile_path) {

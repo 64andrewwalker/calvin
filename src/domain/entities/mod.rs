@@ -10,5 +10,6 @@ mod lockfile;
 mod output_file;
 
 pub use asset::{Asset, AssetKind};
-pub use lockfile::{Lockfile, LockfileEntry};
+pub(crate) use lockfile::{normalize_lockfile_path, parse_lockfile_path};
+pub use lockfile::{Lockfile, LockfileEntry, OutputProvenance};
 pub use output_file::OutputFile;

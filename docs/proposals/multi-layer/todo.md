@@ -1,7 +1,7 @@
 # Multi-Layer PromptPack Implementation TODO
 
 > Track implementation progress. Each phase must be completed with tests before moving to the next.
-> 
+>
 > **UI 规范**: 所有新命令的 UI 必须遵循 `docs/ui-components-spec.md`
 
 ## Phase 0: Lockfile Migration
@@ -10,42 +10,43 @@
 
 ### Tasks
 
-- [ ] **0.1** 扩展 `LockfileEntry` 结构
-  - [ ] 添加 `source_layer: Option<String>`
-  - [ ] 添加 `source_layer_path: Option<PathBuf>`
-  - [ ] 添加 `source_asset: Option<String>`
-  - [ ] 添加 `source_file: Option<PathBuf>`
-  - [ ] 添加 `overrides: Option<String>`
-  - [ ] 添加单元测试
+- [x] **0.1** 扩展 `LockfileEntry` 结构
+  - [x] 添加 `source_layer: Option<String>`
+  - [x] 添加 `source_layer_path: Option<PathBuf>`
+  - [x] 添加 `source_asset: Option<String>`
+  - [x] 添加 `source_file: Option<PathBuf>`
+  - [x] 添加 `overrides: Option<String>`
+  - [x] 添加单元测试
 
-- [ ] **0.2** 更新 `TomlLockfileRepository` 序列化
-  - [ ] 支持新字段的序列化/反序列化
-  - [ ] 向后兼容：读取旧格式时使用默认值
-  - [ ] 添加序列化测试
+- [x] **0.2** 更新 `TomlLockfileRepository` 序列化
+  - [x] 支持新字段的序列化/反序列化
+  - [x] 向后兼容：读取旧格式时使用默认值
+  - [x] 添加序列化测试
 
-- [ ] **0.3** 更新 lockfile 路径逻辑
-  - [ ] 修改 `get_lockfile_path()` 返回项目根目录
-  - [ ] 实现自动迁移逻辑
-  - [ ] 添加迁移测试
+- [x] **0.3** 更新 lockfile 路径逻辑
+  - [x] 修改 `get_lockfile_path()` 返回项目根目录
+  - [x] 实现自动迁移逻辑
+  - [x] 添加迁移测试
 
-- [ ] **0.4** 更新所有使用 lockfile 的代码
-  - [ ] `deploy` 命令
-  - [ ] `clean` 命令
-  - [ ] `diff` 命令
-  - [ ] `watch` 命令
+- [x] **0.4** 更新所有使用 lockfile 的代码
+  - [x] `deploy` 命令
+  - [x] `clean` 命令
+  - [x] `diff` 命令
+  - [x] `watch` 命令
 
-- [ ] **0.5** Windows 路径规范化
-  - [ ] lockfile 中统一使用正斜杠
-  - [ ] 读取时转换为平台原生分隔符
-  - [ ] 添加跨平台测试
+- [x] **0.5** Windows 路径规范化
+  - [x] lockfile 中统一使用正斜杠
+  - [x] 读取时转换为平台原生分隔符
+  - [x] 添加跨平台测试
 
-- [ ] **0.6** 端到端测试
-  - [ ] 测试旧格式 lockfile 自动迁移
-  - [ ] 测试新格式 lockfile 读写
-  - [ ] 测试旧版本 Calvin 读取新格式（模拟）
-  - [ ] 测试 Windows 路径处理
+- [x] **0.6** 端到端测试
+  - [x] 测试旧格式 lockfile 自动迁移
+  - [x] 测试新格式 lockfile 读写
+  - [x] 测试旧版本 Calvin 读取新格式（模拟）
+  - [x] 测试 Windows 路径处理
 
 **验收标准**:
+
 - `cargo test lockfile` 全部通过
 - 现有集成测试全部通过
 - 手动测试 lockfile 迁移
@@ -97,6 +98,7 @@
   - [ ] 添加测试
 
 **验收标准**:
+
 - `calvin deploy` 能检测并使用用户层
 - verbose 模式显示层栈
 - 覆盖关系正确
@@ -143,6 +145,7 @@
   - [ ] 添加测试
 
 **验收标准**:
+
 - `calvin projects` 显示所有项目
 - `calvin clean --all` 正常工作
 - Registry 自动更新
@@ -189,6 +192,7 @@
   - [ ] 添加测试
 
 **验收标准**:
+
 - 所有新 CLI 参数正常工作
 - 配置文件解析正确
 - 环境变量覆盖正确
@@ -238,6 +242,7 @@
   - [ ] `CHANGELOG.md`
 
 **验收标准**:
+
 - 所有新命令正常工作
 - 文档完整
 
@@ -275,11 +280,10 @@
 
 | Phase | Status | Start Date | End Date | Notes |
 |-------|--------|------------|----------|-------|
-| 0 | ⬜ Not Started | | | Lockfile migration |
+| 0 | ✅ Complete | 2025-12-20 | 2025-12-24 | Lockfile migration |
 | 1 | ⬜ Not Started | | | Core layer system |
 | 2 | ⬜ Not Started | | | Global registry |
 | 3 | ⬜ Not Started | | | Config & CLI |
 | 4 | ⬜ Not Started | | | Visibility & tooling |
 
 Legend: ⬜ Not Started | 🟡 In Progress | ✅ Complete
-

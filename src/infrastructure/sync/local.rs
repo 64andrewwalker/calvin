@@ -102,7 +102,8 @@ impl SyncDestination for LocalProjectDestination {
     }
 
     fn lockfile_path(&self, source: &Path) -> PathBuf {
-        source.join(".calvin.lock")
+        let _ = source;
+        self.project_root.join("calvin.lock")
     }
 }
 
@@ -209,7 +210,11 @@ impl SyncDestination for LocalHomeDestination {
     }
 
     fn lockfile_path(&self, _source: &Path) -> PathBuf {
-        self.source.join(".calvin.lock")
+        self.source
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .unwrap_or_else(|| Path::new("."))
+            .join("calvin.lock")
     }
 }
 

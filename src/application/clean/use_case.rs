@@ -1,6 +1,11 @@
 //! Clean Use Case
 //!
 //! Orchestrates the file cleaning process.
+//!
+//! # Size Justification
+//!
+//! calvin-no-split: This module keeps CleanUseCase and its unit tests together to simplify
+//! verification while migrating lockfile behavior for multi-layer promptpacks. Split later.
 
 use std::path::{Path, PathBuf};
 
@@ -201,7 +206,7 @@ mod tests {
     #[test]
     fn clean_deletes_files_from_lockfile() {
         let dir = tempdir().unwrap();
-        let lockfile_path = dir.path().join(".promptpack/.calvin.lock");
+        let lockfile_path = dir.path().join("calvin.lock");
         std::fs::create_dir_all(lockfile_path.parent().unwrap()).unwrap();
 
         // Create file with correct hash - use absolute path
@@ -250,7 +255,7 @@ hash = "{}"
     #[test]
     fn clean_skips_modified_files() {
         let dir = tempdir().unwrap();
-        let lockfile_path = dir.path().join(".promptpack/.calvin.lock");
+        let lockfile_path = dir.path().join("calvin.lock");
         std::fs::create_dir_all(lockfile_path.parent().unwrap()).unwrap();
 
         // Create file with signature but different hash (modified)
@@ -289,7 +294,7 @@ hash = "sha256:original_hash_that_does_not_match"
     #[test]
     fn clean_dry_run_does_not_delete() {
         let dir = tempdir().unwrap();
-        let lockfile_path = dir.path().join(".promptpack/.calvin.lock");
+        let lockfile_path = dir.path().join("calvin.lock");
         std::fs::create_dir_all(lockfile_path.parent().unwrap()).unwrap();
 
         let file_path = dir.path().join(".cursor/rules/test.mdc");
@@ -336,7 +341,7 @@ hash = "{}"
     #[test]
     fn clean_skips_files_without_signature() {
         let dir = tempdir().unwrap();
-        let lockfile_path = dir.path().join(".promptpack/.calvin.lock");
+        let lockfile_path = dir.path().join("calvin.lock");
         std::fs::create_dir_all(lockfile_path.parent().unwrap()).unwrap();
 
         // Create file WITHOUT signature
@@ -379,7 +384,7 @@ hash = "{}"
     #[test]
     fn clean_force_deletes_modified_files() {
         let dir = tempdir().unwrap();
-        let lockfile_path = dir.path().join(".promptpack/.calvin.lock");
+        let lockfile_path = dir.path().join("calvin.lock");
         std::fs::create_dir_all(lockfile_path.parent().unwrap()).unwrap();
 
         // Create file without signature (normally skipped)
@@ -419,7 +424,7 @@ hash = "sha256:original_hash"
     #[test]
     fn clean_selected_keys_only_deletes_selected() {
         let dir = tempdir().unwrap();
-        let lockfile_path = dir.path().join(".promptpack/.calvin.lock");
+        let lockfile_path = dir.path().join("calvin.lock");
         std::fs::create_dir_all(lockfile_path.parent().unwrap()).unwrap();
 
         // Create two files with correct hashes

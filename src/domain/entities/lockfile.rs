@@ -4,25 +4,158 @@
 //! It's a pure data structure - I/O operations are handled by LockfileRepository.
 
 use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
 
 use crate::domain::value_objects::Scope;
+
+/// Normalize a path for lockfile storage (always use forward slashes).
+pub(crate) fn normalize_lockfile_path(path: &Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
+}
+
+/// Parse a normalized lockfile path (handle both `/` and `\\` separators).
+pub(crate) fn parse_lockfile_path(s: &str) -> PathBuf {
+    if cfg!(windows) {
+        PathBuf::from(s.replace('/', "\\"))
+    } else {
+        PathBuf::from(s)
+    }
+}
+
+/// Provenance metadata for a generated output file.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OutputProvenance {
+    source_layer: String,
+    source_layer_path: PathBuf,
+    source_asset: String,
+    source_file: PathBuf,
+    overrides: Option<String>,
+}
+
+impl OutputProvenance {
+    pub fn new(
+        source_layer: impl Into<String>,
+        source_layer_path: impl Into<PathBuf>,
+        source_asset: impl Into<String>,
+        source_file: impl Into<PathBuf>,
+    ) -> Self {
+        Self {
+            source_layer: source_layer.into(),
+            source_layer_path: source_layer_path.into(),
+            source_asset: source_asset.into(),
+            source_file: source_file.into(),
+            overrides: None,
+        }
+    }
+
+    pub fn with_overrides(mut self, overrides: impl Into<String>) -> Self {
+        self.overrides = Some(overrides.into());
+        self
+    }
+
+    pub fn source_layer(&self) -> &str {
+        &self.source_layer
+    }
+
+    pub fn source_layer_path(&self) -> &Path {
+        &self.source_layer_path
+    }
+
+    pub fn source_asset(&self) -> &str {
+        &self.source_asset
+    }
+
+    pub fn source_file(&self) -> &Path {
+        &self.source_file
+    }
+
+    pub fn overrides(&self) -> Option<&str> {
+        self.overrides.as_deref()
+    }
+}
 
 /// Lockfile entry for a tracked file
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LockfileEntry {
     /// SHA-256 hash of file content
     hash: String,
+    /// Source layer name (e.g., "user", "project")
+    source_layer: Option<String>,
+    /// Source layer root path (normalized for lockfile storage)
+    source_layer_path: Option<PathBuf>,
+    /// Source asset ID
+    source_asset: Option<String>,
+    /// Source asset file path (normalized for lockfile storage)
+    source_file: Option<PathBuf>,
+    /// Overrides applied (if any)
+    overrides: Option<String>,
 }
 
 impl LockfileEntry {
     /// Create a new entry with the given hash
     pub fn new(hash: impl Into<String>) -> Self {
-        Self { hash: hash.into() }
+        Self {
+            hash: hash.into(),
+            source_layer: None,
+            source_layer_path: None,
+            source_asset: None,
+            source_file: None,
+            overrides: None,
+        }
+    }
+
+    pub fn with_provenance(hash: impl Into<String>, provenance: OutputProvenance) -> Self {
+        Self::with_parts(
+            hash,
+            Some(provenance.source_layer),
+            Some(provenance.source_layer_path),
+            Some(provenance.source_asset),
+            Some(provenance.source_file),
+            provenance.overrides,
+        )
+    }
+
+    pub fn with_parts(
+        hash: impl Into<String>,
+        source_layer: Option<String>,
+        source_layer_path: Option<PathBuf>,
+        source_asset: Option<String>,
+        source_file: Option<PathBuf>,
+        overrides: Option<String>,
+    ) -> Self {
+        Self {
+            hash: hash.into(),
+            source_layer,
+            source_layer_path,
+            source_asset,
+            source_file,
+            overrides,
+        }
     }
 
     /// Get the hash
     pub fn hash(&self) -> &str {
         &self.hash
+    }
+
+    pub fn source_layer(&self) -> Option<&str> {
+        self.source_layer.as_deref()
+    }
+
+    pub fn source_layer_path(&self) -> Option<&Path> {
+        self.source_layer_path.as_deref()
+    }
+
+    pub fn source_asset(&self) -> Option<&str> {
+        self.source_asset.as_deref()
+    }
+
+    pub fn source_file(&self) -> Option<&Path> {
+        self.source_file.as_deref()
+    }
+
+    pub fn overrides(&self) -> Option<&str> {
+        self.overrides.as_deref()
     }
 }
 
@@ -110,6 +243,19 @@ impl Lockfile {
             .insert(key.into(), LockfileEntry::new(hash.into()));
     }
 
+    pub fn set_entry(&mut self, key: impl Into<String>, entry: LockfileEntry) {
+        self.entries.insert(key.into(), entry);
+    }
+
+    pub fn set_with_provenance(
+        &mut self,
+        key: impl Into<String>,
+        hash: impl Into<String>,
+        provenance: OutputProvenance,
+    ) {
+        self.set_entry(key, LockfileEntry::with_provenance(hash, provenance));
+    }
+
     /// Set an entry by hash (alias for `set()` for sync module compatibility)
     pub fn set_hash(&mut self, key: impl Into<String>, hash: impl Into<String>) {
         self.set(key, hash);
@@ -149,194 +295,4 @@ impl Lockfile {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    // === TDD: Lockfile Creation ===
-
-    #[test]
-    fn lockfile_new_is_empty() {
-        let lockfile = Lockfile::new();
-
-        assert!(lockfile.is_empty());
-        assert_eq!(lockfile.len(), 0);
-        assert_eq!(lockfile.version(), 1);
-    }
-
-    // === TDD: Key Generation ===
-
-    #[test]
-    fn lockfile_make_key_project() {
-        let key = Lockfile::make_key(Scope::Project, ".claude/rules/test.md");
-        assert_eq!(key, "project:.claude/rules/test.md");
-    }
-
-    #[test]
-    fn lockfile_make_key_user() {
-        let key = Lockfile::make_key(Scope::User, "~/.claude/commands/test.md");
-        assert_eq!(key, "home:~/.claude/commands/test.md");
-    }
-
-    #[test]
-    fn lockfile_make_key_tilde_path_always_home() {
-        // Paths starting with ~ always use home: prefix, even if scope is Project
-        let key = Lockfile::make_key(Scope::Project, "~/.claude/commands/test.md");
-        assert_eq!(key, "home:~/.claude/commands/test.md");
-    }
-
-    #[test]
-    fn lockfile_make_key_user_without_tilde() {
-        // User scope paths without ~ get ~/ prepended
-        let key = Lockfile::make_key(Scope::User, ".claude/settings.json");
-        assert_eq!(key, "home:~/.claude/settings.json");
-    }
-
-    #[test]
-    fn lockfile_make_key_normalizes_windows_separators() {
-        // Windows paths with backslashes should be normalized to forward slashes
-        let key = Lockfile::make_key(Scope::User, "~/.claude/commands\\test.md");
-        assert_eq!(key, "home:~/.claude/commands/test.md");
-
-        // Multiple backslashes in a path
-        let key2 = Lockfile::make_key(Scope::Project, ".cursor\\rules\\test.md");
-        assert_eq!(key2, "project:.cursor/rules/test.md");
-    }
-
-    #[test]
-    fn lockfile_parse_key_project() {
-        let result = Lockfile::parse_key("project:.claude/rules/test.md");
-        assert_eq!(result, Some((Scope::Project, ".claude/rules/test.md")));
-    }
-
-    #[test]
-    fn lockfile_parse_key_user() {
-        let result = Lockfile::parse_key("home:~/.claude/commands/test.md");
-        assert_eq!(result, Some((Scope::User, "~/.claude/commands/test.md")));
-    }
-
-    #[test]
-    fn lockfile_parse_key_invalid() {
-        assert!(Lockfile::parse_key("invalid:path").is_none());
-        assert!(Lockfile::parse_key("no-prefix").is_none());
-    }
-
-    // === TDD: Entry Operations ===
-
-    #[test]
-    fn lockfile_set_and_get() {
-        let mut lockfile = Lockfile::new();
-        lockfile.set("project:test.md", "sha256:abc123");
-
-        assert!(!lockfile.is_empty());
-        assert_eq!(lockfile.len(), 1);
-
-        let entry = lockfile.get("project:test.md").unwrap();
-        assert_eq!(entry.hash(), "sha256:abc123");
-    }
-
-    #[test]
-    fn lockfile_get_hash() {
-        let mut lockfile = Lockfile::new();
-        lockfile.set("project:test.md", "sha256:abc123");
-
-        assert_eq!(lockfile.get_hash("project:test.md"), Some("sha256:abc123"));
-        assert_eq!(lockfile.get_hash("missing"), None);
-    }
-
-    #[test]
-    fn lockfile_set_overwrites() {
-        let mut lockfile = Lockfile::new();
-        lockfile.set("project:test.md", "sha256:old");
-        lockfile.set("project:test.md", "sha256:new");
-
-        assert_eq!(lockfile.get_hash("project:test.md"), Some("sha256:new"));
-        assert_eq!(lockfile.len(), 1);
-    }
-
-    #[test]
-    fn lockfile_remove() {
-        let mut lockfile = Lockfile::new();
-        lockfile.set("project:test.md", "sha256:abc");
-
-        let removed = lockfile.remove("project:test.md");
-        assert!(removed.is_some());
-        assert_eq!(removed.unwrap().hash(), "sha256:abc");
-        assert!(lockfile.is_empty());
-    }
-
-    #[test]
-    fn lockfile_remove_nonexistent() {
-        let mut lockfile = Lockfile::new();
-        let removed = lockfile.remove("missing");
-        assert!(removed.is_none());
-    }
-
-    // === TDD: Iteration ===
-
-    #[test]
-    fn lockfile_keys() {
-        let mut lockfile = Lockfile::new();
-        lockfile.set("project:a.md", "hash1");
-        lockfile.set("home:b.md", "hash2");
-
-        let keys: Vec<_> = lockfile.keys().collect();
-        assert_eq!(keys.len(), 2);
-        assert!(keys.contains(&"project:a.md"));
-        assert!(keys.contains(&"home:b.md"));
-    }
-
-    #[test]
-    fn lockfile_keys_for_scope() {
-        let mut lockfile = Lockfile::new();
-        lockfile.set("project:a.md", "hash1");
-        lockfile.set("project:b.md", "hash2");
-        lockfile.set("home:c.md", "hash3");
-
-        let project_keys: Vec<_> = lockfile.keys_for_scope(Scope::Project).collect();
-        assert_eq!(project_keys.len(), 2);
-
-        let home_keys: Vec<_> = lockfile.keys_for_scope(Scope::User).collect();
-        assert_eq!(home_keys.len(), 1);
-    }
-
-    #[test]
-    fn lockfile_entries() {
-        let mut lockfile = Lockfile::new();
-        lockfile.set("project:test.md", "sha256:abc");
-
-        let entries: Vec<_> = lockfile.entries().collect();
-        assert_eq!(entries.len(), 1);
-        assert_eq!(entries[0].0, "project:test.md");
-        assert_eq!(entries[0].1.hash(), "sha256:abc");
-    }
-
-    // === TDD: LockfileEntry ===
-
-    #[test]
-    fn lockfile_entry_new() {
-        let entry = LockfileEntry::new("sha256:abc123");
-        assert_eq!(entry.hash(), "sha256:abc123");
-    }
-
-    // === TDD: Step 1 - Additional methods for sync compatibility ===
-
-    #[test]
-    fn lockfile_contains_returns_true_for_existing_key() {
-        let mut lockfile = Lockfile::new();
-        lockfile.set("test:path", "hash");
-        assert!(lockfile.contains("test:path"));
-    }
-
-    #[test]
-    fn lockfile_contains_returns_false_for_missing_key() {
-        let lockfile = Lockfile::new();
-        assert!(!lockfile.contains("test:path"));
-    }
-
-    #[test]
-    fn lockfile_set_hash_is_alias_for_set() {
-        let mut lockfile = Lockfile::new();
-        lockfile.set_hash("test:path", "hash");
-        assert_eq!(lockfile.get_hash("test:path"), Some("hash"));
-    }
-}
+mod tests;

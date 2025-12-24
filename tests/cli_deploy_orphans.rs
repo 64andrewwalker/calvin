@@ -78,7 +78,7 @@ enabled = ["cursor"]
     assert!(output.status.success());
 
     // Lockfile should be created
-    let lockfile = dir.path().join(".promptpack/.calvin.lock");
+    let lockfile = dir.path().join("calvin.lock");
     assert!(lockfile.exists(), "Lockfile should be created");
 }
 
@@ -328,7 +328,7 @@ enabled = ["cursor"]
     assert!(output.status.success());
 
     // Check that lockfile was created and contains entries
-    let lockfile = dir.path().join(".promptpack/.calvin.lock");
+    let lockfile = dir.path().join("calvin.lock");
     assert!(lockfile.exists(), "Lockfile should be created");
 
     let lockfile_content = fs::read_to_string(&lockfile).unwrap();
@@ -390,7 +390,7 @@ enabled = ["cursor"]
     assert!(output.status.success());
 
     // Lockfile should still contain policy2 but not policy1
-    let lockfile = dir.path().join(".promptpack/.calvin.lock");
+    let lockfile = dir.path().join("calvin.lock");
     let lockfile_content = fs::read_to_string(&lockfile).unwrap();
 
     // policy2 should still be in lockfile
@@ -444,7 +444,7 @@ enabled = ["cursor"]
     assert!(output.status.success());
 
     // Verify lockfile was created and has entries
-    let lockfile_path = dir.path().join(".promptpack/.calvin.lock");
+    let lockfile_path = dir.path().join("calvin.lock");
     assert!(lockfile_path.exists(), "Lockfile should be created");
 
     let lockfile_content = fs::read_to_string(&lockfile_path).unwrap();

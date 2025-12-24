@@ -7,6 +7,11 @@
 //! 4. Return what would change
 //!
 //! This is essentially a dry-run of the deploy use case.
+//!
+//! # Size Justification
+//!
+//! calvin-no-split: This module keeps DiffUseCase, supporting types, and its unit tests together
+//! to make behavior changes easy to audit during the multi-layer migration. Refactor/split later.
 
 use std::path::PathBuf;
 
@@ -177,7 +182,16 @@ where
         result.output_count = outputs.len();
 
         // Step 3: Load lockfile
-        let lockfile = self.lockfile_repo.load(&options.source).unwrap_or_default();
+        let new_lockfile_path = project_root.join("calvin.lock");
+        let old_lockfile_path = options.source.join(".calvin.lock");
+        let lockfile_path = if new_lockfile_path.exists() {
+            &new_lockfile_path
+        } else if old_lockfile_path.exists() {
+            &old_lockfile_path
+        } else {
+            &new_lockfile_path
+        };
+        let lockfile = self.lockfile_repo.load(lockfile_path).unwrap_or_default();
 
         // Step 4: Compare each output with target state
         for output in &outputs {

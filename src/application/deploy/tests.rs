@@ -8,10 +8,12 @@ use crate::domain::ports::{
     DeployEventSink, FileSystem, FsResult, LockfileRepository, TargetAdapter,
 };
 use crate::domain::value_objects::{Scope, Target};
+use crate::infrastructure::TomlLockfileRepository;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use tempfile::tempdir;
 
 // Mock implementations for testing
 
@@ -218,6 +220,27 @@ fn execute_with_events_emits_started_event() {
     assert!(events
         .iter()
         .any(|e| matches!(e, DeployEvent::Started { .. })));
+}
+
+#[test]
+fn migrate_lockfile_from_old_location() {
+    let dir = tempdir().unwrap();
+    let project_root = dir.path();
+    let source = project_root.join(".promptpack");
+    let old_path = source.join(".calvin.lock");
+    let new_path = project_root.join("calvin.lock");
+
+    std::fs::create_dir_all(old_path.parent().unwrap()).unwrap();
+    std::fs::write(&old_path, "version = 1\n").unwrap();
+
+    let lockfile_repo = TomlLockfileRepository::new();
+    let (lockfile_path, warning) =
+        crate::application::resolve_lockfile_path(project_root, &source, &lockfile_repo);
+
+    assert_eq!(lockfile_path, new_path);
+    assert!(warning.is_some());
+    assert!(new_path.exists());
+    assert!(!old_path.exists());
 }
 
 #[test]

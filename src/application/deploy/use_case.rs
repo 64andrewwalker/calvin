@@ -272,8 +272,22 @@ where
             output_count: outputs.len(),
         });
 
-        // Step 3: Load lockfile
-        let lockfile_path = self.get_lockfile_path(&options.source, options.scope);
+        // Step 3: Load lockfile (project-root lockfile, with auto-migration)
+        let project_root = options
+            .source
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .map(|p| p.to_path_buf())
+            .unwrap_or_else(|| PathBuf::from("."));
+
+        let (lockfile_path, lockfile_warning) = crate::application::resolve_lockfile_path(
+            &project_root,
+            &options.source,
+            &self.lockfile_repo,
+        );
+        if let Some(warning) = lockfile_warning {
+            result.add_warning(warning);
+        }
         let lockfile = self.lockfile_repo.load_or_new(&lockfile_path);
 
         // Step 4: Plan sync
@@ -743,11 +757,6 @@ where
             self.file_system.create_dir_all(parent)?;
         }
         self.file_system.write(path, content)
-    }
-
-    /// Get lockfile path based on scope
-    fn get_lockfile_path(&self, source: &Path, _scope: Scope) -> PathBuf {
-        source.join(".calvin.lock")
     }
 
     /// Update lockfile after sync

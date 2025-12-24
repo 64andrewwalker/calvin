@@ -9,7 +9,9 @@ use std::time::{Duration, Instant};
 
 use notify::{Config, Event, RecommendedWatcher, RecursiveMode, Watcher};
 
-use crate::application::{AssetPipeline, DeployOutputOptions, DeployResult, DeployUseCase};
+use crate::application::{
+    resolve_lockfile_path, AssetPipeline, DeployOutputOptions, DeployResult, DeployUseCase,
+};
 use crate::domain::policies::ScopePolicy;
 use crate::domain::value_objects::Scope;
 use crate::error::{CalvinError, CalvinResult};
@@ -107,9 +109,9 @@ impl WatchUseCase {
         while running.load(Ordering::SeqCst) {
             // Check for file changes (non-blocking with timeout)
             if let Ok(path) = rx.recv_timeout(Duration::from_millis(50)) {
-                // Only watch .md files, ignore .calvin.lock and other non-md files
+                // Only watch .md files, ignore lockfiles and other non-md files
                 if path.extension().map(|e| e == "md").unwrap_or(false) {
-                    // Skip lockfile (it's in .promptpack/ and sync updates it)
+                    // Skip legacy lockfile (older versions wrote it into `.promptpack/`)
                     if path
                         .file_name()
                         .map(|n| n == ".calvin.lock")
@@ -236,14 +238,6 @@ impl WatchUseCase {
             })
             .collect();
 
-        // Create DeployUseCase
-        let fs = LocalFs::new();
-        let lockfile_repo = TomlLockfileRepository::new();
-        let asset_repo = FsAssetRepository::new();
-        let adapters = all_adapters();
-
-        let deploy = DeployUseCase::new(asset_repo, lockfile_repo, fs, adapters);
-
         // Determine scope and lockfile path
         let scope = if self.options.deploy_to_home() {
             Scope::User
@@ -251,14 +245,33 @@ impl WatchUseCase {
             Scope::Project
         };
 
-        let lockfile_path = self.options.source.join(".calvin.lock");
+        let fs = LocalFs::new();
+        let lockfile_repo = TomlLockfileRepository::new();
+        let project_root = self
+            .options
+            .source
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .map(|p| p.to_path_buf())
+            .unwrap_or_else(|| PathBuf::from("."));
+
+        let (lockfile_path, migration_note) =
+            resolve_lockfile_path(&project_root, &self.options.source, &lockfile_repo);
+
+        // Create DeployUseCase
+        let asset_repo = FsAssetRepository::new();
+        let adapters = all_adapters();
+        let deploy = DeployUseCase::new(asset_repo, lockfile_repo, fs, adapters);
 
         // Deploy outputs directly
         let deploy_options = DeployOutputOptions::new(lockfile_path)
             .with_scope(scope)
             .with_clean_orphans(true);
 
-        let result = deploy.deploy_outputs(outputs, &deploy_options);
+        let mut result = deploy.deploy_outputs(outputs, &deploy_options);
+        if let Some(note) = migration_note {
+            result.add_warning(note);
+        }
 
         Ok(result)
     }

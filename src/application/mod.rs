@@ -23,6 +23,7 @@ pub mod clean;
 pub mod compiler;
 pub mod deploy;
 pub mod diff;
+mod lockfile_migration;
 pub mod pipeline;
 pub mod watch;
 
@@ -32,6 +33,7 @@ pub use clean::{CleanOptions, CleanResult, CleanUseCase, SkipReason, SkippedFile
 pub use compiler::compile_assets;
 pub use deploy::{DeployOptions, DeployOutputOptions, DeployResult, DeployUseCase};
 pub use diff::{ChangeType, DiffEntry, DiffOptions, DiffResult, DiffUseCase};
+pub use lockfile_migration::resolve_lockfile_path;
 pub use pipeline::{AssetPipeline, ScopePolicyExt};
 pub use watch::{
     compute_content_hash, parse_incremental, IncrementalCache, SyncResult, WatchEvent,
