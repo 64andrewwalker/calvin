@@ -30,6 +30,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Skips projects with missing lockfiles
   - JSON output includes per-project results
 
+- **Visibility & Tooling (Phase 4)**: New inspection and debugging commands
+  - `calvin layers` - Show resolved multi-layer stack with asset counts
+  - `calvin provenance` - Show lockfile provenance (source layer, asset, file, overrides)
+  - `calvin provenance --filter <SUBSTR>` - Filter outputs by substring
+  - `calvin check --all` - Check all registered projects (global registry)
+  - `calvin check --all-layers` - Check all resolved layers for the current project
+  - `calvin migrate` - Migrate lockfile from legacy to new location
+  - `calvin migrate --dry-run` - Preview migration without applying
+
 ### Changed
 
 - **Breaking**: `calvin clean --all` semantic changed from "all scopes (home + project)" to "all registered projects"

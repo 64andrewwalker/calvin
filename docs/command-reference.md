@@ -98,6 +98,8 @@ calvin check [OPTIONS]
 |--------|-------------|
 | `--mode <MODE>` | Security mode: `balanced` (default), `strict`, `yolo` |
 | `--strict-warnings` | Fail on warnings too (CI mode) |
+| `--all` | Check all registered projects (uses global registry) |
+| `--all-layers` | Check all resolved layers (user, custom, project) |
 
 **Examples:**
 
@@ -105,6 +107,16 @@ calvin check [OPTIONS]
 calvin check
 calvin check --mode strict
 calvin check --strict-warnings
+calvin check --all                  # Check all registered projects
+calvin check --all-layers           # Check all layers for current project
+```
+
+**JSON Output for `--all`:**
+
+```json
+{"event":"check","project":"/path/to/project-a","platform":"cursor","name":"rules_valid","status":"pass"}
+{"event":"check","project":"/path/to/project-b","platform":"claude","name":"commands_valid","status":"pass"}
+{"event":"complete","projects_checked":2,"total_passed":10,"total_failed":0}
 ```
 
 ---
@@ -295,6 +307,138 @@ calvin projects --json         # JSON output for scripting
   ],
   "pruned": []
 }
+```
+
+---
+
+### `calvin layers`
+
+Show the resolved multi-layer stack for the current project.
+
+```bash
+calvin layers [--json]
+```
+
+**Description:**
+
+Displays all active promptpack layers in priority order (project → custom → user). Shows each layer's path and asset count, plus merged/overridden asset statistics.
+
+**Examples:**
+
+```bash
+calvin layers                # Show layer stack with UI
+calvin layers --json         # JSON output for scripting
+```
+
+**JSON Output:**
+
+```json
+{
+  "layers": [
+    {
+      "name": "project",
+      "layer_type": "project",
+      "original_path": "./.promptpack",
+      "resolved_path": "/path/to/project/.promptpack",
+      "asset_count": 5
+    },
+    {
+      "name": "user",
+      "layer_type": "user",
+      "original_path": "~/.calvin/.promptpack",
+      "resolved_path": "/home/user/.calvin/.promptpack",
+      "asset_count": 3
+    }
+  ],
+  "merged_asset_count": 7,
+  "overridden_asset_count": 1
+}
+```
+
+---
+
+### `calvin provenance`
+
+Show lockfile provenance for deployed outputs (source layer, asset, file, overrides).
+
+```bash
+calvin provenance [OPTIONS]
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--filter <SUBSTR>` | Filter outputs by substring match on path/key |
+
+**Description:**
+
+Reads the lockfile and displays the source information for each deployed output: which layer, asset, and source file it came from, plus any override relationships.
+
+**Examples:**
+
+```bash
+calvin provenance               # Show all outputs with provenance
+calvin provenance --filter cursor   # Filter to cursor outputs only
+calvin provenance --json        # JSON output
+```
+
+**JSON Output:**
+
+```json
+{
+  "type": "provenance",
+  "count": 2,
+  "entries": [
+    {
+      "key": "project:.cursor/rules/policy/RULE.md",
+      "scope": "project",
+      "path": ".cursor/rules/policy/RULE.md",
+      "hash": "abc123",
+      "source_layer": "project",
+      "source_asset": "policy",
+      "source_file": ".promptpack/policy.md",
+      "overrides": "user"
+    }
+  ]
+}
+```
+
+---
+
+### `calvin migrate`
+
+Migrate assets or lockfile to newer versions.
+
+```bash
+calvin migrate [OPTIONS]
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--format <VERSION>` | Target format version (e.g., "1.0") |
+| `--adapter <NAME>` | Target adapter to migrate |
+| `--dry-run` | Preview changes without applying |
+
+**Description:**
+
+Migrates the lockfile from legacy location (`.promptpack/.calvin.lock`) to the new location (`./calvin.lock`). Future versions may add adapter migrations.
+
+**Examples:**
+
+```bash
+calvin migrate                  # Apply all pending migrations
+calvin migrate --dry-run        # Preview what would change
+calvin migrate --json           # JSON output
+```
+
+**JSON Output:**
+
+```json
+{"event":"start","command":"migrate","dry_run":false}
+{"event":"complete","command":"migrate","status":"success","message":"Migration complete.","changes":[{"type":"move_lockfile","from":".promptpack/.calvin.lock","to":"calvin.lock"}]}
 ```
 
 ---

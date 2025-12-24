@@ -236,10 +236,10 @@
   - [x] 支持 `--dry-run`
   - [x] 添加测试
 
-- [ ] **4.7** 更新文档
-  - [ ] `docs/configuration.md`
-  - [ ] `docs/command-reference.md`
-  - [ ] `CHANGELOG.md`
+- [x] **4.7** 更新文档
+  - [x] `docs/configuration.md`
+  - [x] `docs/command-reference.md`
+  - [x] `CHANGELOG.md`
 
 **验收标准**:
 
@@ -284,6 +284,6 @@
 | 1 | ✅ Complete | 2025-12-24 | 2025-12-24 | Core layer system |
 | 2 | ✅ Complete | 2025-12-24 | 2025-12-24 | Global registry |
 | 3 | ✅ Complete | 2025-12-24 | 2025-12-24 | Config & CLI |
-| 4 | 🟡 In Progress | 2025-12-24 | | Visibility & tooling (docs pending) |
+| 4 | ✅ Complete | 2025-12-24 | 2025-12-24 | Visibility & tooling |
 
 Legend: ⬜ Not Started | 🟡 In Progress | ✅ Complete
