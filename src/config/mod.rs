@@ -9,6 +9,7 @@
 
 mod env_validator;
 mod loader;
+mod promptpack_layers;
 #[cfg(test)]
 mod tests;
 mod types;
@@ -27,3 +28,5 @@ pub use types::{
 };
 
 pub use types::default_user_layer_path;
+
+pub use promptpack_layers::{merge_promptpack_layer_configs, PromptpackLayerInputs};

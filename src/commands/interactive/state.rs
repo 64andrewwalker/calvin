@@ -4,6 +4,8 @@
 
 use std::path::Path;
 
+use anyhow::Result;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AssetCount {
     pub total: usize,
@@ -13,7 +15,7 @@ pub struct AssetCount {
 pub enum ProjectState {
     /// No .promptpack/ in project AND no user layer
     NoPromptPack,
-    /// No .promptpack/ in project, but user layer exists at ~/.calvin/.promptpack
+    /// No .promptpack/ in project, but at least one global layer exists (user and/or custom)
     UserLayerOnly(AssetCount),
     /// .promptpack/ exists but is empty
     EmptyPromptPack,
@@ -21,33 +23,56 @@ pub enum ProjectState {
     Configured(AssetCount),
 }
 
-/// Get the user layer path (~/.calvin/.promptpack)
-fn get_user_layer_path() -> Option<std::path::PathBuf> {
-    dirs::home_dir().map(|home| home.join(".calvin").join(".promptpack"))
-}
-
-pub fn detect_state(cwd: &Path) -> ProjectState {
+pub fn detect_state(cwd: &Path, config: &calvin::config::Config) -> Result<ProjectState> {
     let promptpack_dir = cwd.join(".promptpack");
 
     // First check project layer
     if promptpack_dir.is_dir() {
         let total = count_prompt_markdown_files(&promptpack_dir);
         if total == 0 {
-            return ProjectState::EmptyPromptPack;
+            return Ok(ProjectState::EmptyPromptPack);
         } else {
-            return ProjectState::Configured(AssetCount { total });
+            return Ok(ProjectState::Configured(AssetCount { total }));
         }
     }
 
-    // No project layer - check for user layer
-    if let Some(user_layer) = get_user_layer_path() {
-        if user_layer.is_dir() {
-            let total = count_prompt_markdown_files(&user_layer);
-            return ProjectState::UserLayerOnly(AssetCount { total });
-        }
+    // No project layer - check for any non-project layers (user/custom).
+    use calvin::domain::services::{LayerResolveError, LayerResolver};
+
+    let use_user_layer = config.sources.use_user_layer && !config.sources.ignore_user_layer;
+    let use_additional_layers = !config.sources.ignore_additional_layers;
+
+    let mut resolver = LayerResolver::new(cwd.to_path_buf())
+        .with_project_layer_path(promptpack_dir)
+        .with_remote_mode(false)
+        .with_additional_layers(if use_additional_layers {
+            config.sources.additional_layers.clone()
+        } else {
+            Vec::new()
+        });
+
+    if use_user_layer {
+        let user_layer_path = config
+            .sources
+            .user_layer_path
+            .clone()
+            .unwrap_or_else(calvin::config::default_user_layer_path);
+        resolver = resolver.with_user_layer_path(user_layer_path);
     }
 
-    ProjectState::NoPromptPack
+    let resolution = match resolver.resolve() {
+        Ok(resolution) => resolution,
+        Err(LayerResolveError::NoLayersFound) => return Ok(ProjectState::NoPromptPack),
+        Err(e) => return Err(anyhow::Error::new(e)),
+    };
+
+    let total = resolution
+        .layers
+        .iter()
+        .map(|layer| count_prompt_markdown_files(layer.path.resolved()))
+        .sum();
+
+    Ok(ProjectState::UserLayerOnly(AssetCount { total }))
 }
 
 fn count_prompt_markdown_files(root: &Path) -> usize {
@@ -89,28 +114,31 @@ mod tests {
     use super::*;
     use tempfile::tempdir;
 
+    fn config_without_global_layers() -> calvin::config::Config {
+        let mut config = calvin::config::Config::default();
+        config.sources.use_user_layer = false;
+        config.sources.additional_layers.clear();
+        config.sources.ignore_additional_layers = true;
+        config
+    }
+
     #[test]
     fn test_detect_state_no_promptpack() {
         let dir = tempdir().unwrap();
-        let state = detect_state(dir.path());
-        // When no project .promptpack exists, we get either:
-        // - NoPromptPack (if no user layer exists)
-        // - UserLayerOnly (if user layer exists at ~/.calvin/.promptpack)
-        assert!(
-            matches!(
-                state,
-                ProjectState::NoPromptPack | ProjectState::UserLayerOnly(_)
-            ),
-            "Expected NoPromptPack or UserLayerOnly, got {:?}",
-            state
-        );
+        let config = config_without_global_layers();
+        let state = detect_state(dir.path(), &config).unwrap();
+        assert!(matches!(state, ProjectState::NoPromptPack));
     }
 
     #[test]
     fn test_detect_state_empty_promptpack() {
         let dir = tempdir().unwrap();
         std::fs::create_dir_all(dir.path().join(".promptpack")).unwrap();
-        assert_eq!(detect_state(dir.path()), ProjectState::EmptyPromptPack);
+        let config = config_without_global_layers();
+        assert_eq!(
+            detect_state(dir.path(), &config).unwrap(),
+            ProjectState::EmptyPromptPack
+        );
     }
 
     #[test]
@@ -119,7 +147,11 @@ mod tests {
         let promptpack = dir.path().join(".promptpack");
         std::fs::create_dir_all(&promptpack).unwrap();
         std::fs::write(promptpack.join("README.md"), "# PromptPack\n").unwrap();
-        assert_eq!(detect_state(dir.path()), ProjectState::EmptyPromptPack);
+        let config = config_without_global_layers();
+        assert_eq!(
+            detect_state(dir.path(), &config).unwrap(),
+            ProjectState::EmptyPromptPack
+        );
     }
 
     #[test]
@@ -133,8 +165,9 @@ mod tests {
         )
         .unwrap();
 
+        let config = config_without_global_layers();
         assert_eq!(
-            detect_state(dir.path()),
+            detect_state(dir.path(), &config).unwrap(),
             ProjectState::Configured(AssetCount { total: 1 })
         );
     }
@@ -150,8 +183,9 @@ mod tests {
         )
         .unwrap();
 
+        let config = config_without_global_layers();
         assert_eq!(
-            detect_state(dir.path()),
+            detect_state(dir.path(), &config).unwrap(),
             ProjectState::Configured(AssetCount { total: 1 })
         );
     }
@@ -167,6 +201,10 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(detect_state(dir.path()), ProjectState::EmptyPromptPack);
+        let config = config_without_global_layers();
+        assert_eq!(
+            detect_state(dir.path(), &config).unwrap(),
+            ProjectState::EmptyPromptPack
+        );
     }
 }

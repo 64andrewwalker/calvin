@@ -62,10 +62,7 @@ pub fn interactive_user_layer_only(
     color: Option<ColorWhen>,
     no_animation: bool,
 ) -> Result<()> {
-    println!(
-        "Found {} prompts in user layer (~/.calvin/.promptpack)\n",
-        asset_count
-    );
+    println!("Found {} prompts in global layers\n", asset_count);
     println!("No .promptpack/ in this directory.\n");
 
     let items = vec![

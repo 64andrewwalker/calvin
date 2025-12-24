@@ -25,17 +25,23 @@
 - 覆盖：
   - interactive menu 增加 clean 入口（人工验证为主）
 
+### D. Interactive 尊重 sources 配置解析层（user_layer_path / additional_layers）
+
+- PRD: §4.3 / §5.1 `sources.user_layer_path`、`sources.additional_layers`
+- 覆盖：
+  - user_layer_path（dotfiles 路径）：`tests/cli_interactive_user_layer_path_config.rs`
+  - additional layers only：`tests/cli_interactive_additional_layers_only.rs`
+
 ## 2. 仍需确认/仍有风险（建议发布前处理）
 
-### R1. Interactive 的 user layer 路径可配置性
+### R1. Interactive JSON state 命名语义（user_layer_only vs additional layers）
 
-- PRD: §4.3 `sources.user_layer_path` 可配置（dotfiles 常见用法）
 - 现状：
-  - interactive state 检测仍使用默认约定 `~/.calvin/.promptpack`（未读取 config 的 `user_layer_path`）。
+  - `calvin --json` 的 `state="user_layer_only"` 目前被用于“无项目 `.promptpack/`，但存在至少一个全局层（user/custom）”。
 - 风险：
-  - 用户把 user layer 放在 `~/dotfiles/.promptpack` 时，interactive 会误判为 `no_promptpack`。
+  - state 名称在语义上并不严格等同“只有 user layer”。
 - 建议：
-  - interactive state 复用 LayerResolver（读取 Config 后做层解析）并输出 layer stack/asset count。
+  - 若需要对外稳定语义，可新增更准确的 state（例如 `global_layers_only`），并保留 `user_layer_only` 作为兼容别名。
 
 ### R2. Remote deploy 与 `~` 路径
 
@@ -69,13 +75,14 @@
   - 明确后补齐测试用例（至少覆盖：同 section 多 key 时的覆盖行为）。
 
 **最新进展（已修复一部分）**：
-- Deploy 的 targets 选择已开始按 layer 读取 `config.toml`：
-  - 会读取 `~/.calvin/.promptpack/config.toml` 的 `[targets] enabled = [...]`
-  - 并按层级从高 → 低查找 `[targets]`（section-level override）
-  - 覆盖测试：`tests/cli_deploy_user_layer_targets_config.rs`
+- 已实现 promptpack layer 的 section-level override 合并（PRD §11.2）：
+  - 实现：`src/config/promptpack_layers.rs`
+  - 覆盖测试：
+    - deploy targets：`tests/cli_deploy_user_layer_targets_config.rs`
+    - check/security：`tests/cli_check_respects_user_layer_promptpack_security_config.rs`
+    - section override（非 deep merge）：`tests/config_promptpack_layer_merge_section_override.rs`
 - 仍有缺口：
-  - 目前仅对 `[targets]` 做了分层合并；`[security]` / `[mcp]` / `[output]` 等仍未按 PRD §11.2 做 section 级覆盖合并
-  - `merge_toml` 仍是深合并，且对 “section 覆盖” 的 PRD 约束不一致（需要设计决策并补齐测试）
+  - `merge_toml`（XDG user config + project config）仍是深合并；若 PRD 期望“对所有 config 来源都做 section 覆盖”，需要做一次明确的架构决策并补齐测试/文档。
 
 ## 3. 建议的发布前最小验收用例（手工 + 自动）
 

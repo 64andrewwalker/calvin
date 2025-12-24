@@ -23,8 +23,8 @@ pub fn cmd_interactive(
     color: Option<ColorWhen>,
     no_animation: bool,
 ) -> Result<()> {
-    let state = detect_state(cwd);
     let config = calvin::config::Config::load_or_default(Some(cwd));
+    let state = detect_state(cwd, &config)?;
     let ui = crate::ui::context::UiContext::new(json, verbose, color, no_animation, &config);
 
     if json {

@@ -92,19 +92,75 @@
 **修复**：
 - interactive 模式下（TTY 且未 `--yes` 且未传 `--targets`），在 deploy 过程中弹出 targets 多选确认（默认选中配置/合并后的 targets）。
 
+### 1.6 Interactive 状态检测没有遵循 `sources.user_layer_path` / `sources.additional_layers`
+
+**现象**：
+- 用户在 `~/.config/calvin/config.toml` 配置：
+  - `[sources] user_layer_path = ".../dotfiles/.promptpack"`（非默认路径）
+  - 或仅配置 `[sources] additional_layers = [...]`
+- 在一个没有 `.promptpack/` 的目录运行 `calvin --json` / `calvin`（interactive）会误判为 `no_promptpack`，从而进入初始化向导，而不是显示可部署菜单。
+
+**PRD 期望**：
+- PRD §4.3 / §5.1：layer resolver 应尊重 `sources.user_layer_path` 与 `sources.additional_layers`。
+- PRD §13.5：存在任意 layer（即使为空）也应可继续。
+
+**根因**：
+- `src/commands/interactive/state.rs` 使用硬编码 `~/.calvin/.promptpack`，且完全忽略 additional layers。
+
+**修复**：
+- interactive state 复用 `LayerResolver`，用 config 的 sources 解析非项目层（user/custom）并统计 markdown 资产数。
+- 新增覆盖测试：
+  - `tests/cli_interactive_user_layer_path_config.rs`
+  - `tests/cli_interactive_additional_layers_only.rs`
+
+### 1.7 `calvin check` 未读取 user layer promptpack 的安全配置（`[security]`）
+
+**现象**：
+- 用户在 `~/.calvin/.promptpack/config.toml` 里配置安全选项（例如 `security.allow_naked = true`）。
+- `calvin check` 仍按默认/项目配置执行，不会反映 user layer 的安全设置。
+
+**PRD 期望**：
+- PRD §11.2：promptpack layer 的 `config.toml` 参与合并；高层级 section 覆盖低层级 section。
+
+**根因**：
+- `run_doctor` 仅读取 `./.promptpack/config.toml`，且对缺失/错误配置会 `unwrap_or_default()`（静默回退）。
+
+**修复（架构级）**：
+- 增加 library 侧的分层 config 合并：`src/config/promptpack_layers.rs`
+  - 对 top-level section 做 override（`format/security/targets/sync/output/mcp/deploy`；`sources` 例外不参与以避免循环依赖）
+- `run_doctor` / `run_doctor_with_callback` 使用合并后的配置：`src/security/report.rs`
+- 新增覆盖测试：`tests/cli_check_respects_user_layer_promptpack_security_config.rs`
+
+### 1.8 `calvin init` 生成的 `config.toml` schema 过时（误导用户）
+
+**现象**：
+- `calvin init` 生成的 `.promptpack/config.toml` 仍包含历史字段（例如 `targets.include/exclude`、`deploy.default_scope`），与当前实现不一致，容易导致“看似配置了但不生效”的误判。
+
+**修复**：
+- 更新 init 模板为当前 schema：`targets.enabled`、有效的 `[sync]`、`[output]` 字段：`src/commands/init.rs`
+- 新增覆盖测试：`tests/cli_init_project_config_template.rs`
+
 ## 2. 变更摘要（关键文件）
 
-- `src/commands/interactive/state.rs`：空 user layer 也算 layer
+- `src/commands/interactive/state.rs`：interactive state 基于 `LayerResolver`（尊重 user_layer_path/additional_layers）
 - `src/commands/interactive/menu.rs`：user-layer-only 菜单加入 Clean；并且 deploy 使用 `cwd/.promptpack` 作为项目层输入（而非把 user layer 当 project layer）
 - `src/application/deploy/options.rs`：`DeployOptions.project_root`
 - `src/application/deploy/use_case.rs`：文件系统访问统一走 “解析后的绝对路径”，避免 CWD 依赖
 - `src/commands/deploy/cmd.rs`：project root 固定为当前目录
 - `src/commands/clean.rs`：lockfile 定位与 project root 对齐（current_dir）
-- `src/commands/deploy/layer_config.rs`：按 layer 读取 `config.toml` 的 `[targets]` 并在 interactive 模式下做 targets 确认
+- `src/config/promptpack_layers.rs`：分层 promptpack `config.toml` 的 section-level override 合并
+- `src/security/report.rs`：doctor/check 使用合并后的配置（不再只读项目 `.promptpack/config.toml`）
+- `src/commands/deploy/layer_config.rs`：deploy targets 选择复用 `merge_promptpack_layer_configs`，并在 interactive 模式下做 targets 确认
+- `src/commands/init.rs`：init 模板更新为当前 config schema（targets.enabled 等）
 - 新增测试：
   - `tests/cli_interactive_user_layer_empty.rs`
+  - `tests/cli_interactive_user_layer_path_config.rs`
+  - `tests/cli_interactive_additional_layers_only.rs`
   - `tests/cli_deploy_source_external.rs`
   - `tests/cli_deploy_user_layer_targets_config.rs`
+  - `tests/cli_check_respects_user_layer_promptpack_security_config.rs`
+  - `tests/cli_init_project_config_template.rs`
+  - `tests/config_promptpack_layer_merge_section_override.rs`
 
 ## 3. 验证
 

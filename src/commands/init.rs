@@ -226,18 +226,26 @@ version = "1.0"
 const CONFIG_TEMPLATE: &str = r#"# Calvin Configuration
 # See: https://github.com/calvin-cli/calvin/docs/configuration.md
 
+[format]
+version = "1.0"
+
 [targets]
-# Uncomment to enable specific targets (default: all)
-# include = ["claude", "cursor"]
-# exclude = ["codex"]
+# Specify which platforms to deploy to (default: all)
+# Valid values: claude-code (or "claude"), cursor, vscode, antigravity, codex
+# enabled = ["claude-code", "cursor"]
 
 [security]
 # Security mode: yolo, balanced, strict
 mode = "balanced"
+allow_naked = false
 
-[deploy]
-# Default scope for assets without explicit scope
-# default_scope = "project"
+[sync]
+atomic_writes = true
+respect_lockfile = true
+
+[output]
+verbosity = "normal"
+
 "#;
 
 const README_TEMPLATE: &str = r#"# PromptPack

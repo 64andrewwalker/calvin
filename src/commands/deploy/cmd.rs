@@ -262,7 +262,7 @@ pub fn cmd_deploy_with_explicit_target(
         &options_for_bridge.targets,
         interactive,
         json,
-        super::layer_config::LayerInputs {
+        calvin::config::PromptpackLayerInputs {
             project_root: project_root.clone(),
             project_layer_path: project_layer_path.clone(),
             user_layer_path: user_layer_path.clone(),
