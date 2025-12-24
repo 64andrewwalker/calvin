@@ -59,43 +59,43 @@
 
 ### Tasks
 
-- [ ] **1.1** 定义 `Layer` 和 `LayerSource` 类型
-  - [ ] `src/domain/entities/layer.rs`
-  - [ ] 包含 name, path, assets
-  - [ ] 添加单元测试
+- [x] **1.1** 定义 `Layer` 和 `LayerSource` 类型
+  - [x] `src/domain/entities/layer.rs`
+  - [x] 包含 name, path, assets
+  - [x] 添加单元测试
 
-- [ ] **1.2** 实现层解析逻辑
-  - [ ] 检测用户层 `~/.calvin/.promptpack`
-  - [ ] 检测项目层 `./.promptpack`
-  - [ ] 返回有序层列表
-  - [ ] 添加测试
+- [x] **1.2** 实现层解析逻辑
+  - [x] 检测用户层 `~/.calvin/.promptpack`
+  - [x] 检测项目层 `./.promptpack`
+  - [x] 返回有序层列表
+  - [x] 添加测试
 
-- [ ] **1.3** 实现 asset 合并逻辑
-  - [ ] `src/domain/services/layer_merger.rs`
-  - [ ] 相同 ID 高层覆盖低层
-  - [ ] 不同 ID 全部保留
-  - [ ] 记录覆盖关系
-  - [ ] 添加测试
+- [x] **1.3** 实现 asset 合并逻辑
+  - [x] `src/domain/services/layer_merger.rs`
+  - [x] 相同 ID 高层覆盖低层
+  - [x] 不同 ID 全部保留
+  - [x] 记录覆盖关系
+  - [x] 添加测试
 
-- [ ] **1.4** 定义 `LayerLoader` Port 和实现
-  - [ ] `src/domain/ports/layer_loader.rs`
-  - [ ] `src/infrastructure/layer/fs_loader.rs`
-  - [ ] 添加测试
+- [x] **1.4** 定义 `LayerLoader` Port 和实现
+  - [x] `src/domain/ports/layer_loader.rs`
+  - [x] `src/infrastructure/layer/fs_loader.rs`
+  - [x] 添加测试
 
-- [ ] **1.5** 更新 `deploy` 命令
-  - [ ] 使用新的层系统
-  - [ ] verbose 模式显示层信息
-  - [ ] 添加集成测试
+- [x] **1.5** 更新 `deploy` 命令
+  - [x] 使用新的层系统
+  - [x] verbose 模式显示层信息
+  - [x] 添加集成测试
 
-- [ ] **1.6** 处理 Asset 层迁移 (PRD §5.5)
-  - [ ] 检测 asset 从一个层移动到另一个层
-  - [ ] 更新 lockfile source_layer
-  - [ ] 添加测试
+- [x] **1.6** 处理 Asset 层迁移 (PRD §5.5)
+  - [x] 检测 asset 从一个层移动到另一个层
+  - [x] 更新 lockfile source_layer
+  - [x] 添加测试
 
-- [ ] **1.7** 符号链接处理 (PRD §5.6)
-  - [ ] 跟随符号链接
-  - [ ] 检测循环符号链接
-  - [ ] 添加测试
+- [x] **1.7** 符号链接处理 (PRD §5.6)
+  - [x] 跟随符号链接
+  - [x] 检测循环符号链接
+  - [x] 添加测试
 
 **验收标准**:
 
@@ -264,12 +264,12 @@
 
 ## Integration Tests
 
-- [ ] 测试：只有项目层
-- [ ] 测试：只有用户层
-- [ ] 测试：项目层 + 用户层
+- [x] 测试：只有项目层
+- [x] 测试：只有用户层
+- [x] 测试：项目层 + 用户层
 - [ ] 测试：三层（用户 + 团队 + 项目）
-- [ ] 测试：层覆盖
-- [ ] 测试：lockfile 迁移
+- [x] 测试：层覆盖
+- [x] 测试：lockfile 迁移
 - [ ] 测试：registry 持久化
 - [ ] 测试：`--source` 参数
 - [ ] 测试：`--layer` 参数
@@ -281,7 +281,7 @@
 | Phase | Status | Start Date | End Date | Notes |
 |-------|--------|------------|----------|-------|
 | 0 | ✅ Complete | 2025-12-20 | 2025-12-24 | Lockfile migration |
-| 1 | ⬜ Not Started | | | Core layer system |
+| 1 | ✅ Complete | 2025-12-24 | 2025-12-24 | Core layer system |
 | 2 | ⬜ Not Started | | | Global registry |
 | 3 | ⬜ Not Started | | | Config & CLI |
 | 4 | ⬜ Not Started | | | Visibility & tooling |

@@ -107,3 +107,46 @@ PROJECT SHARED
         lockfile
     );
 }
+
+#[test]
+fn deploy_succeeds_with_user_layer_only_when_project_layer_missing() {
+    let dir = tempdir().unwrap();
+    let project_dir = dir.path();
+
+    fs::create_dir_all(project_dir.join(".git")).unwrap();
+
+    let fake_home = project_dir.join("fake_home");
+    fs::create_dir_all(&fake_home).unwrap();
+    let user_layer = fake_home.join(".calvin/.promptpack");
+
+    write_asset(
+        &user_layer,
+        "solo.md",
+        r#"---
+kind: policy
+description: Solo (user only)
+scope: project
+targets: [cursor]
+---
+SOLO USER
+"#,
+    );
+
+    let bin = env!("CARGO_BIN_EXE_calvin");
+    let output = Command::new(bin)
+        .current_dir(project_dir)
+        .env("HOME", &fake_home)
+        .env("XDG_CONFIG_HOME", fake_home.join(".config"))
+        .args(["deploy", "--yes", "--targets", "cursor"])
+        .output()
+        .unwrap();
+
+    assert!(
+        output.status.success(),
+        "deploy failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    assert!(project_dir.join("calvin.lock").exists());
+    assert!(project_dir.join(".cursor/rules/solo/RULE.md").exists());
+}

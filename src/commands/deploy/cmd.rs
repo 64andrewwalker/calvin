@@ -133,6 +133,32 @@ pub fn cmd_deploy_with_explicit_target(
     let target_for_bridge = target.clone();
     let options_for_bridge = options.clone();
 
+    // Verbose: show resolved layer stack (Phase 1 multi-layer visibility)
+    if !json && verbose > 0 {
+        use calvin::domain::services::LayerResolver;
+        if let Some(home) = dirs::home_dir() {
+            let remote_mode = matches!(target_for_bridge, DeployTarget::Remote(_));
+            let resolver = LayerResolver::new(project_root.clone())
+                .with_user_layer_path(home.join(".calvin/.promptpack"))
+                .with_remote_mode(remote_mode);
+
+            match resolver.resolve() {
+                Ok(resolution) => {
+                    println!("Layers:");
+                    for layer in resolution.layers {
+                        println!("  - [{}] {}", layer.name, layer.path.original().display());
+                    }
+                    for warning in resolution.warnings {
+                        eprintln!("Warning: {}", warning);
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Warning: failed to resolve layers: {}", e);
+                }
+            }
+        }
+    }
+
     // Render header
     if !json {
         let action = if dry_run {
