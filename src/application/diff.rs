@@ -266,6 +266,10 @@ where
         assets: &[crate::domain::entities::Asset],
         options: &DiffOptions,
     ) -> Result<Vec<OutputFile>, String> {
+        use crate::domain::entities::AssetKind;
+        use crate::domain::services::CompilerService;
+        use std::path::PathBuf;
+
         let mut outputs = Vec::new();
 
         // Filter adapters based on targets
@@ -278,6 +282,10 @@ where
                     || options.targets.contains(&a.target())
             })
             .collect();
+
+        // Check if Cursor needs to generate its own commands
+        // (when Cursor is selected but Claude Code is not)
+        let cursor_needs_commands = CompilerService::cursor_needs_commands(&options.targets);
 
         // Compile each asset with each adapter
         for asset in assets {
@@ -293,6 +301,21 @@ where
                 match adapter.compile(asset) {
                     Ok(adapter_outputs) => outputs.extend(adapter_outputs),
                     Err(e) => return Err(e.to_string()),
+                }
+
+                // Special handling for Cursor: add commands if Claude Code is not selected
+                if adapter.target() == Target::Cursor
+                    && cursor_needs_commands
+                    && matches!(asset.kind(), AssetKind::Action | AssetKind::Agent)
+                {
+                    let commands_base = match asset.scope() {
+                        Scope::User => PathBuf::from("~/.cursor/commands"),
+                        Scope::Project => PathBuf::from(".cursor/commands"),
+                    };
+                    let command_path = commands_base.join(format!("{}.md", asset.id()));
+                    let footer = adapter.footer(&asset.source_path_normalized());
+                    let content = CompilerService::generate_command_content(asset, &footer);
+                    outputs.push(OutputFile::new(command_path, content, Target::Cursor));
                 }
             }
         }
