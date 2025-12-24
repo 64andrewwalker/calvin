@@ -258,6 +258,71 @@ pub enum Commands {
 }
 ```
 
+### Task 3.6: Security Validation (PRD §8)
+
+**约束**：项目配置不能添加外部层路径
+
+**原因**：
+- 防止恶意项目读取任意文件系统路径
+- 项目只能禁用层，不能添加层
+- 添加层必须在用户配置中
+
+**File**: `src/config/loader.rs`
+
+```rust
+fn validate_project_config(config: &ProjectConfig) -> Result<(), ConfigError> {
+    // 项目配置不允许添加 additional_layers
+    if !config.sources.additional_layers.is_empty() {
+        return Err(ConfigError::SecurityViolation {
+            message: "Project config cannot add external layer paths. \
+                      Use user config (~/.config/calvin/config.toml) instead.".to_string(),
+            field: "sources.additional_layers".to_string(),
+        });
+    }
+    
+    // 项目配置不允许修改 user_layer_path
+    if config.sources.user_layer_path.is_some() {
+        return Err(ConfigError::SecurityViolation {
+            message: "Project config cannot modify user layer path.".to_string(),
+            field: "sources.user_layer_path".to_string(),
+        });
+    }
+    
+    Ok(())
+}
+```
+
+**项目配置只允许**：
+- `ignore_user_layer = true` - 禁用用户层
+- `ignore_additional_layers = true` - 禁用额外层
+
+**Tests**:
+```rust
+#[test]
+fn project_config_cannot_add_layers() {
+    let config = r#"
+        [sources]
+        additional_layers = ["~/malicious/.promptpack"]
+    "#;
+    
+    let result = load_project_config(config);
+    
+    assert!(matches!(result, Err(ConfigError::SecurityViolation { .. })));
+}
+
+#[test]
+fn project_config_can_disable_layers() {
+    let config = r#"
+        [sources]
+        ignore_user_layer = true
+        ignore_additional_layers = true
+    "#;
+    
+    let result = load_project_config(config);
+    assert!(result.is_ok());
+}
+```
+
 ## Verification
 
 1. 运行 `cargo test config::sources`
@@ -266,6 +331,8 @@ pub enum Commands {
    - `calvin deploy --layer ~/team-prompts`
    - `calvin deploy --no-user-layer`
    - `calvin init --user`
+3. 安全测试：
+   - 项目配置添加 additional_layers 应报错
 
 ## Outputs
 

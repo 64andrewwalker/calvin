@@ -410,6 +410,167 @@ fn fs_loader_error_on_missing_path() {
 2. 使用 `merge_layers` 合并 assets
 3. verbose 模式显示层信息
 
+### Task 1.6: Handle Asset Layer Migration (PRD §5.5)
+
+**场景**：Asset 在不同层之间迁移时的处理
+
+```
+1. 第一次 deploy：asset "review" 来自 project 层
+2. 用户删除 project 层的 review.md，但 user 层有同名 asset
+3. 第二次 deploy：asset "review" 现在来自 user 层
+```
+
+**行为**：
+- 输出路径相同 → 更新 lockfile 的 source_layer，不产生 orphan
+- 输出路径不同 → 旧路径成为 orphan，新路径是新文件
+
+**File**: `src/domain/services/layer_merger.rs`
+
+```rust
+fn detect_layer_migrations(
+    old_lockfile: &Lockfile,
+    new_outputs: &[OutputFile],
+) -> Vec<LayerMigration> {
+    let mut migrations = Vec::new();
+    
+    for output in new_outputs {
+        if let Some(old_entry) = old_lockfile.get(&output.key) {
+            if old_entry.source_layer != Some(output.source_layer.clone()) {
+                migrations.push(LayerMigration {
+                    output_key: output.key.clone(),
+                    from_layer: old_entry.source_layer.clone(),
+                    to_layer: output.source_layer.clone(),
+                });
+            }
+        }
+    }
+    
+    migrations
+}
+```
+
+**Tests**:
+```rust
+#[test]
+fn detect_migration_project_to_user() {
+    let old_lockfile = create_lockfile_with_entry(
+        "project:.claude/commands/review.md",
+        "sha256:abc",
+        Some("project"),
+    );
+    
+    let new_outputs = vec![OutputFile {
+        key: "project:.claude/commands/review.md".to_string(),
+        source_layer: "user".to_string(),
+        // ...
+    }];
+    
+    let migrations = detect_layer_migrations(&old_lockfile, &new_outputs);
+    
+    assert_eq!(migrations.len(), 1);
+    assert_eq!(migrations[0].from_layer, Some("project".to_string()));
+    assert_eq!(migrations[0].to_layer, "user".to_string());
+}
+```
+
+### Task 1.7: Symlink Handling (PRD §5.6)
+
+**策略**：跟随符号链接，但记录原始路径用于显示
+
+**File**: `src/domain/services/layer_resolver.rs`
+
+```rust
+fn resolve_layer_path(path: &Path) -> Result<ResolvedPath, LayerError> {
+    // 检测循环符号链接
+    let mut seen = HashSet::new();
+    let mut current = path.to_path_buf();
+    
+    while current.is_symlink() {
+        if !seen.insert(current.clone()) {
+            return Err(LayerError::CircularSymlink { 
+                path: path.to_path_buf(),
+                chain: format_symlink_chain(&seen),
+            });
+        }
+        current = current.read_link().map_err(|_| LayerError::SymlinkReadError {
+            path: current.clone(),
+        })?;
+    }
+    
+    let canonical = path.canonicalize().map_err(|_| LayerError::PathNotFound {
+        path: path.to_path_buf(),
+    })?;
+    
+    Ok(ResolvedPath {
+        original: path.to_path_buf(),
+        resolved: canonical,
+    })
+}
+```
+
+**Tests**:
+```rust
+#[test]
+fn resolve_symlink_layer() {
+    let dir = tempdir().unwrap();
+    let real_layer = dir.path().join("real/.promptpack");
+    let symlink_layer = dir.path().join("link/.promptpack");
+    
+    fs::create_dir_all(&real_layer).unwrap();
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(&real_layer, &symlink_layer).unwrap();
+    
+    let resolved = resolve_layer_path(&symlink_layer).unwrap();
+    assert_eq!(resolved.original, symlink_layer);
+    assert_eq!(resolved.resolved, real_layer.canonicalize().unwrap());
+}
+
+#[test]
+fn detect_circular_symlink() {
+    // Create A -> B -> A
+    let dir = tempdir().unwrap();
+    let a = dir.path().join("a");
+    let b = dir.path().join("b");
+    
+    #[cfg(unix)]
+    {
+        std::os::unix::fs::symlink(&b, &a).unwrap();
+        std::os::unix::fs::symlink(&a, &b).unwrap();
+    }
+    
+    let result = resolve_layer_path(&a);
+    assert!(matches!(result, Err(LayerError::CircularSymlink { .. })));
+}
+```
+
+### Note: Remote Deploy Behavior (PRD §14.3)
+
+当使用 `--remote` 时，多层系统简化为：
+- **只使用项目层** (`.promptpack/`)
+- **忽略用户层和额外层**
+
+**原因**：
+- Remote deploy 的目的是"把这个项目部署到远程"
+- 远程机器的用户层可能不存在或不同
+- 保持行为简单可预测
+
+此行为在 `LayerResolver` 中通过参数控制：
+```rust
+let resolver = LayerResolver::new()
+    .with_remote_mode(is_remote);  // 只使用项目层
+```
+
+### Note: Watch Mode Behavior (PRD §14.4)
+
+**默认行为**：只监听项目层
+
+**原因**：
+- 用户层变化是罕见的（全局配置）
+- 监听多个目录有性能开销
+- 用户可以手动重新运行 `calvin deploy`
+
+**未来选项**：`--watch-all-layers` 标志（Phase 5）
+
 ## Verification
 
 1. 运行 `cargo test layer`

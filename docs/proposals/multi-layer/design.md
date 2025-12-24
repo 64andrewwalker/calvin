@@ -187,6 +187,43 @@ Priority: Low → High
 - 支持 `calvin clean --all` 批量清理
 - 不需要遍历文件系统查找项目
 
+### D6: Remote Deploy 行为 (PRD §14.3)
+
+**决定**：`--remote` 模式只使用项目层
+
+**理由**：
+- Remote deploy 的目的是"把这个项目部署到远程"
+- 远程机器的用户层可能不存在或不同
+- 保持行为简单可预测
+
+### D7: Watch Mode 行为 (PRD §14.4)
+
+**决定**：默认只监听项目层
+
+**理由**：
+- 用户层变化是罕见的（全局配置）
+- 监听多个目录有性能开销
+- 用户可以手动重新运行 `calvin deploy`
+
+**未来选项**：`--watch-all-layers` 标志（Phase 5）
+
+### D8: 项目配置安全限制 (PRD §8)
+
+**决定**：项目配置只能禁用层，不能添加层
+
+**理由**：
+- 防止恶意项目读取任意文件系统路径
+- 添加层必须在用户配置中（用户控制）
+- 项目只能选择"不使用"某些层
+
+**允许**：
+- `ignore_user_layer = true`
+- `ignore_additional_layers = true`
+
+**禁止**：
+- `additional_layers = [...]`
+- `user_layer_path = "..."`
+
 ---
 
 ## Error Handling Principles
@@ -204,10 +241,14 @@ Priority: Low → High
 |------|------|
 | 没有任何 layer | 错误 |
 | User layer 不存在 | 静默跳过 |
+| User layer 是 broken symlink | 警告 + 跳过 |
 | Additional layer 不存在 | 警告 + 继续 |
+| Additional layer 是 broken symlink | 警告 + 继续 |
 | Project layer 不存在 | 警告 + 使用其他层 |
+| 循环符号链接 | 错误 |
 | Asset ID 冲突 (同层) | 错误 |
 | Asset ID 冲突 (跨层) | 提示覆盖 |
+| 权限不足读取层 | 错误 |
 
 ### E3: 层级上下文
 

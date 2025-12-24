@@ -76,15 +76,25 @@
   - [ ] 记录覆盖关系
   - [ ] 添加测试
 
-- [ ] **1.4** 更新 `FsAssetRepository`
-  - [ ] 支持从多个路径加载
-  - [ ] 返回带层信息的 assets
+- [ ] **1.4** 定义 `LayerLoader` Port 和实现
+  - [ ] `src/domain/ports/layer_loader.rs`
+  - [ ] `src/infrastructure/layer/fs_loader.rs`
   - [ ] 添加测试
 
 - [ ] **1.5** 更新 `deploy` 命令
   - [ ] 使用新的层系统
   - [ ] verbose 模式显示层信息
   - [ ] 添加集成测试
+
+- [ ] **1.6** 处理 Asset 层迁移 (PRD §5.5)
+  - [ ] 检测 asset 从一个层移动到另一个层
+  - [ ] 更新 lockfile source_layer
+  - [ ] 添加测试
+
+- [ ] **1.7** 符号链接处理 (PRD §5.6)
+  - [ ] 跟随符号链接
+  - [ ] 检测循环符号链接
+  - [ ] 添加测试
 
 **验收标准**:
 - `calvin deploy` 能检测并使用用户层
@@ -159,9 +169,16 @@
   - [ ] 创建用户层目录
   - [ ] 添加测试
 
+- [ ] **3.6** 安全验证 (PRD §8)
+  - [ ] 项目配置不能添加 additional_layers
+  - [ ] 项目配置不能修改 user_layer_path
+  - [ ] 只允许禁用层
+  - [ ] 添加测试
+
 **验收标准**:
 - 所有新 CLI 参数正常工作
 - 配置文件解析正确
+- 安全验证通过
 
 ---
 
