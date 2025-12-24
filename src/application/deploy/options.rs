@@ -13,8 +13,12 @@ pub struct DeployOptions {
     pub source: PathBuf,
     /// Explicit user layer path override (defaults to `~/.calvin/.promptpack`)
     pub user_layer_path: Option<PathBuf>,
+    /// Whether to use the user layer (ignored in remote mode)
+    pub use_user_layer: bool,
     /// Additional layer paths (lowest → highest, before project layer)
     pub additional_layers: Vec<PathBuf>,
+    /// Whether to use additional layers (ignored in remote mode)
+    pub use_additional_layers: bool,
     /// Deploy scope (project or user)
     pub scope: Scope,
     /// Target platforms to deploy to
@@ -36,7 +40,9 @@ impl DeployOptions {
         Self {
             source: source.into(),
             user_layer_path: None,
+            use_user_layer: true,
             additional_layers: Vec::new(),
+            use_additional_layers: true,
             scope: Scope::default(),
             targets: Vec::new(),
             remote_mode: false,
@@ -62,8 +68,18 @@ impl DeployOptions {
         self
     }
 
+    pub fn with_user_layer_enabled(mut self, enabled: bool) -> Self {
+        self.use_user_layer = enabled;
+        self
+    }
+
     pub fn with_additional_layers(mut self, layers: Vec<PathBuf>) -> Self {
         self.additional_layers = layers;
+        self
+    }
+
+    pub fn with_additional_layers_enabled(mut self, enabled: bool) -> Self {
+        self.use_additional_layers = enabled;
         self
     }
 

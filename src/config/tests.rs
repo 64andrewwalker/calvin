@@ -260,6 +260,116 @@ version = "1.0"
     );
 }
 
+// === Phase 3: Multi-layer sources config ===
+
+#[test]
+fn parse_sources_config() {
+    use std::path::PathBuf;
+
+    let toml = r#"
+[sources]
+use_user_layer = true
+user_layer_path = "~/my-prompts/.promptpack"
+additional_layers = ["~/team/.promptpack"]
+"#;
+
+    let config: Config = toml::from_str(toml).unwrap();
+    assert!(config.sources.use_user_layer);
+    assert_eq!(
+        config.sources.user_layer_path,
+        Some(PathBuf::from("~/my-prompts/.promptpack"))
+    );
+    assert_eq!(config.sources.additional_layers.len(), 1);
+}
+
+#[test]
+fn sources_config_defaults() {
+    let config: Config = toml::from_str("").unwrap();
+    assert!(config.sources.use_user_layer);
+    assert!(config.sources.user_layer_path.is_none());
+    assert!(config.sources.additional_layers.is_empty());
+}
+
+#[test]
+fn env_override_sources_use_user_layer() {
+    // SAFETY: Single-threaded test, no concurrent access to env vars
+    unsafe { std::env::set_var("CALVIN_SOURCES_USE_USER_LAYER", "false") };
+    let config = Config::default().with_env_overrides();
+    assert!(!config.sources.use_user_layer);
+    unsafe { std::env::remove_var("CALVIN_SOURCES_USE_USER_LAYER") };
+}
+
+#[test]
+fn env_override_sources_user_layer_path() {
+    // SAFETY: Single-threaded test, no concurrent access to env vars
+    unsafe { std::env::set_var("CALVIN_SOURCES_USER_LAYER_PATH", "/tmp/prompts") };
+    let config = Config::default().with_env_overrides();
+    assert_eq!(
+        config.sources.user_layer_path,
+        Some(std::path::PathBuf::from("/tmp/prompts"))
+    );
+    unsafe { std::env::remove_var("CALVIN_SOURCES_USER_LAYER_PATH") };
+}
+
+#[test]
+fn project_config_cannot_add_sources_additional_layers() {
+    use crate::config::loader::load_or_default_with_warnings;
+
+    let dir = tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join(".promptpack")).unwrap();
+    std::fs::write(
+        dir.path().join(".promptpack/config.toml"),
+        r#"
+[sources]
+additional_layers = ["~/malicious/.promptpack"]
+"#,
+    )
+    .unwrap();
+
+    let result = load_or_default_with_warnings(Some(dir.path()));
+    assert!(result.is_err(), "expected security violation");
+}
+
+#[test]
+fn project_config_cannot_override_sources_user_layer_path() {
+    use crate::config::loader::load_or_default_with_warnings;
+
+    let dir = tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join(".promptpack")).unwrap();
+    std::fs::write(
+        dir.path().join(".promptpack/config.toml"),
+        r#"
+[sources]
+user_layer_path = "~/malicious/.promptpack"
+"#,
+    )
+    .unwrap();
+
+    let result = load_or_default_with_warnings(Some(dir.path()));
+    assert!(result.is_err(), "expected security violation");
+}
+
+#[test]
+fn project_config_can_disable_layers_via_ignore_flags() {
+    use crate::config::loader::load_or_default_with_warnings;
+
+    let dir = tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join(".promptpack")).unwrap();
+    std::fs::write(
+        dir.path().join(".promptpack/config.toml"),
+        r#"
+[sources]
+ignore_user_layer = true
+ignore_additional_layers = true
+"#,
+    )
+    .unwrap();
+
+    let (config, _warnings) = load_or_default_with_warnings(Some(dir.path())).unwrap();
+    assert!(config.sources.ignore_user_layer);
+    assert!(config.sources.ignore_additional_layers);
+}
+
 /// Test that explicit list `enabled = ["claude-code"]` returns only specified targets
 #[test]
 fn test_enabled_targets_explicit_list() {

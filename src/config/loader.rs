@@ -79,26 +79,62 @@ pub fn load_or_default(project_root: Option<&Path>) -> Config {
 pub fn load_or_default_with_warnings(
     project_root: Option<&Path>,
 ) -> CalvinResult<(Config, Vec<ConfigWarning>)> {
-    // Try project config first
-    if let Some(root) = project_root {
-        let project_config = root.join(".promptpack/config.toml");
-        if project_config.exists() {
-            let (config, warnings) = load_with_warnings(&project_config)?;
-            return Ok((with_env_overrides(config), warnings));
-        }
+    let user_config_path = dirs_config_dir().map(|d| d.join("calvin/config.toml"));
+    let project_config_path = project_root.map(|r| r.join(".promptpack/config.toml"));
+
+    let mut warnings: Vec<ConfigWarning> = Vec::new();
+
+    let mut merged: toml::Value = toml::Value::Table(toml::map::Map::new());
+
+    // User config (lower priority than project config)
+    if let Some(user_config) = user_config_path.as_ref().filter(|p| p.exists()) {
+        let content = fs::read_to_string(user_config)?;
+        let user_value: toml::Value = toml::from_str(&content).map_err(|e| {
+            crate::error::CalvinError::InvalidFrontmatter {
+                file: user_config.to_path_buf(),
+                message: e.to_string(),
+            }
+        })?;
+
+        let (_parsed, w) = load_with_warnings(user_config)?;
+        warnings.extend(w);
+
+        merge_toml(&mut merged, user_value);
     }
 
-    // Try user config
-    if let Some(user_config_dir) = dirs_config_dir() {
-        let user_config = user_config_dir.join("calvin/config.toml");
-        if user_config.exists() {
-            let (config, warnings) = load_with_warnings(&user_config)?;
-            return Ok((with_env_overrides(config), warnings));
-        }
+    // Project config (highest priority config file)
+    if let Some(project_config) = project_config_path.as_ref().filter(|p| p.exists()) {
+        let content = fs::read_to_string(project_config)?;
+        let project_value: toml::Value = toml::from_str(&content).map_err(|e| {
+            crate::error::CalvinError::InvalidFrontmatter {
+                file: project_config.to_path_buf(),
+                message: e.to_string(),
+            }
+        })?;
+
+        validate_project_sources_config(project_config, &project_value)?;
+
+        let (_parsed, w) = load_with_warnings(project_config)?;
+        warnings.extend(w);
+
+        merge_toml(&mut merged, project_value);
     }
 
-    // Return defaults with env overrides (no warnings for defaults)
-    Ok((with_env_overrides(Config::default()), vec![]))
+    // Deserialize merged config. If no configs present, this yields defaults.
+    let config: Config = match merged {
+        toml::Value::Table(ref t) if t.is_empty() => Config::default(),
+        _ => merged
+            .try_into()
+            .map_err(|e| crate::error::CalvinError::InvalidFrontmatter {
+                file: project_config_path
+                    .and_then(|p| p.exists().then_some(p))
+                    .or_else(|| user_config_path.and_then(|p| p.exists().then_some(p)))
+                    .unwrap_or_else(|| PathBuf::from("config.toml")),
+                message: e.to_string(),
+            })?,
+    };
+
+    Ok((with_env_overrides(config), warnings))
 }
 
 /// Apply environment variable overrides (CALVIN_* prefix)
@@ -147,6 +183,16 @@ pub fn with_env_overrides(mut config: Config) -> Config {
     // CALVIN_ATOMIC_WRITES
     if let Ok(val) = std::env::var("CALVIN_ATOMIC_WRITES") {
         config.sync.atomic_writes = val.to_lowercase() != "false" && val != "0";
+    }
+
+    // CALVIN_SOURCES_USE_USER_LAYER
+    if let Ok(val) = std::env::var("CALVIN_SOURCES_USE_USER_LAYER") {
+        config.sources.use_user_layer = val.to_lowercase() != "false" && val != "0";
+    }
+
+    // CALVIN_SOURCES_USER_LAYER_PATH
+    if let Ok(val) = std::env::var("CALVIN_SOURCES_USER_LAYER_PATH") {
+        config.sources.user_layer_path = Some(PathBuf::from(val));
     }
 
     config
@@ -234,6 +280,48 @@ fn dirs_config_dir() -> Option<PathBuf> {
                 .ok()
                 .map(|h| PathBuf::from(h).join(".config"))
         })
+}
+
+fn validate_project_sources_config(path: &Path, value: &toml::Value) -> CalvinResult<()> {
+    let Some(sources) = value.get("sources") else {
+        return Ok(());
+    };
+    let Some(table) = sources.as_table() else {
+        return Err(crate::error::CalvinError::ConfigSecurityViolation {
+            file: path.to_path_buf(),
+            message: "[sources] must be a table".to_string(),
+        });
+    };
+
+    const ALLOWED_KEYS: &[&str] = &["ignore_user_layer", "ignore_additional_layers"];
+    for key in table.keys() {
+        if !ALLOWED_KEYS.contains(&key.as_str()) {
+            return Err(crate::error::CalvinError::ConfigSecurityViolation {
+                file: path.to_path_buf(),
+                message: format!("project config cannot set sources.{key}"),
+            });
+        }
+    }
+
+    Ok(())
+}
+
+fn merge_toml(base: &mut toml::Value, overlay: toml::Value) {
+    match (base, overlay) {
+        (toml::Value::Table(base_table), toml::Value::Table(overlay_table)) => {
+            for (k, v) in overlay_table {
+                match base_table.get_mut(&k) {
+                    Some(existing) => merge_toml(existing, v),
+                    None => {
+                        base_table.insert(k, v);
+                    }
+                }
+            }
+        }
+        (base_slot, overlay_value) => {
+            *base_slot = overlay_value;
+        }
+    }
 }
 
 fn find_line_number(content: &str, needle: &str) -> Option<usize> {

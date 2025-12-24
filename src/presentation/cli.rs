@@ -80,6 +80,18 @@ pub enum Commands {
         /// Target platforms (will prompt interactively if not specified)
         #[arg(short, long, value_delimiter = ',')]
         targets: Option<Vec<Target>>,
+
+        /// Additional promptpack layers (can be specified multiple times)
+        #[arg(long = "layer", value_name = "PATH")]
+        layers: Vec<PathBuf>,
+
+        /// Disable user layer (~/.calvin/.promptpack)
+        #[arg(long)]
+        no_user_layer: bool,
+
+        /// Disable additional configured layers
+        #[arg(long)]
+        no_additional_layers: bool,
     },
 
     /// Check configuration and security (replaces doctor + audit)
@@ -154,6 +166,10 @@ pub enum Commands {
         /// Directory to initialize (default: current directory)
         #[arg(default_value = ".")]
         path: PathBuf,
+
+        /// Initialize user-level promptpack (~/.calvin/.promptpack)
+        #[arg(long)]
+        user: bool,
 
         /// Template to use (minimal, standard, full)
         #[arg(short, long, default_value = "standard")]
@@ -389,11 +405,13 @@ mod tests {
         let cli = Cli::try_parse_from(["calvin", "init"]).unwrap();
         if let Some(Commands::Init {
             path,
+            user,
             template,
             force,
         }) = cli.command
         {
             assert_eq!(path, PathBuf::from("."));
+            assert!(!user);
             assert_eq!(template, "standard");
             assert!(!force);
         } else {

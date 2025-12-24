@@ -22,6 +22,8 @@ pub use crate::domain::value_objects::DeployTarget;
 
 pub use types::{
     AnimationMode, ColorMode, Config, DenyConfig, DeployConfig, FormatConfig, McpConfig,
-    McpServerConfig, OutputConfig, SecurityConfig, SecurityMcpConfig, SecurityMode, SyncConfig,
-    TargetsConfig, Verbosity,
+    McpServerConfig, OutputConfig, SecurityConfig, SecurityMcpConfig, SecurityMode, SourcesConfig,
+    SyncConfig, TargetsConfig, Verbosity,
 };
+
+pub use types::default_user_layer_path;

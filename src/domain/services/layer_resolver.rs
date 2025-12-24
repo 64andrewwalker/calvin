@@ -35,6 +35,7 @@ pub enum LayerResolveError {
 #[derive(Debug, Clone)]
 pub struct LayerResolver {
     project_root: PathBuf,
+    project_layer_path: Option<PathBuf>,
     user_layer_path: Option<PathBuf>,
     additional_layers: Vec<PathBuf>,
     remote_mode: bool,
@@ -44,10 +45,16 @@ impl LayerResolver {
     pub fn new(project_root: PathBuf) -> Self {
         Self {
             project_root,
+            project_layer_path: None,
             user_layer_path: None,
             additional_layers: Vec::new(),
             remote_mode: false,
         }
+    }
+
+    pub fn with_project_layer_path(mut self, path: PathBuf) -> Self {
+        self.project_layer_path = Some(path);
+        self
     }
 
     pub fn with_user_layer_path(mut self, path: PathBuf) -> Self {
@@ -69,7 +76,10 @@ impl LayerResolver {
     pub fn resolve(&self) -> Result<LayerResolution, LayerResolveError> {
         let mut resolution = LayerResolution::default();
 
-        let project_layer = self.project_root.join(".promptpack");
+        let project_layer = self
+            .project_layer_path
+            .clone()
+            .unwrap_or_else(|| self.project_root.join(".promptpack"));
 
         if self.remote_mode {
             if let Some(layer) = self.try_add_layer(

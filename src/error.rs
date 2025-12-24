@@ -72,6 +72,10 @@ pub enum CalvinError {
     /// File system error (from domain::ports::file_system)
     #[error("file system error: {0}")]
     FileSystem(String),
+
+    /// Configuration security violation (project config attempted forbidden settings)
+    #[error("config security violation in {file}: {message}\n  → Security: Project config may only disable layers\n  → Fix: Move layer paths to user config (~/.config/calvin/config.toml)")]
+    ConfigSecurityViolation { file: PathBuf, message: String },
 }
 
 use std::path::Path;

@@ -158,38 +158,38 @@
 
 ### Tasks
 
-- [ ] **3.1** 扩展 Config 支持 `[sources]`
-  - [ ] `SourcesConfig` 类型
-  - [ ] 默认值
-  - [ ] 添加测试
+- [x] **3.1** 扩展 Config 支持 `[sources]`
+  - [x] `SourcesConfig` 类型
+  - [x] 默认值
+  - [x] 添加测试
 
-- [ ] **3.2** 实现 `--source` 参数
-  - [ ] 覆盖项目层检测
-  - [ ] 添加测试
+- [x] **3.2** 实现 `--source` 参数
+  - [x] 覆盖项目层检测
+  - [x] 添加测试
 
-- [ ] **3.3** 实现 `--layer` 参数
-  - [ ] 添加额外层
-  - [ ] 可多次指定
-  - [ ] 添加测试
+- [x] **3.3** 实现 `--layer` 参数
+  - [x] 添加额外层
+  - [x] 可多次指定
+  - [x] 添加测试
 
-- [ ] **3.4** 实现 `--no-user-layer` 和 `--no-additional-layers`
-  - [ ] 禁用层
-  - [ ] 添加测试
+- [x] **3.4** 实现 `--no-user-layer` 和 `--no-additional-layers`
+  - [x] 禁用层
+  - [x] 添加测试
 
-- [ ] **3.5** 实现 `calvin init --user`
-  - [ ] 创建用户层目录
-  - [ ] 添加测试
+- [x] **3.5** 实现 `calvin init --user`
+  - [x] 创建用户层目录
+  - [x] 添加测试
 
-- [ ] **3.6** 环境变量支持 (PRD §14.5)
-  - [ ] `CALVIN_SOURCES_USE_USER_LAYER`
-  - [ ] `CALVIN_SOURCES_USER_LAYER_PATH`
-  - [ ] 添加测试
+- [x] **3.6** 环境变量支持 (PRD §14.5)
+  - [x] `CALVIN_SOURCES_USE_USER_LAYER`
+  - [x] `CALVIN_SOURCES_USER_LAYER_PATH`
+  - [x] 添加测试
 
-- [ ] **3.7** 安全验证 (PRD §8)
-  - [ ] 项目配置不能添加 additional_layers
-  - [ ] 项目配置不能修改 user_layer_path
-  - [ ] 只允许禁用层
-  - [ ] 添加测试
+- [x] **3.7** 安全验证 (PRD §8)
+  - [x] 项目配置不能添加 additional_layers
+  - [x] 项目配置不能修改 user_layer_path
+  - [x] 只允许禁用层
+  - [x] 添加测试
 
 **验收标准**:
 
@@ -267,12 +267,12 @@
 - [x] 测试：只有项目层
 - [x] 测试：只有用户层
 - [x] 测试：项目层 + 用户层
-- [ ] 测试：三层（用户 + 团队 + 项目）
+- [x] 测试：三层（用户 + 团队 + 项目）
 - [x] 测试：层覆盖
 - [x] 测试：lockfile 迁移
 - [x] 测试：registry 持久化
-- [ ] 测试：`--source` 参数
-- [ ] 测试：`--layer` 参数
+- [x] 测试：`--source` 参数
+- [x] 测试：`--layer` 参数
 
 ---
 
@@ -283,7 +283,7 @@
 | 0 | ✅ Complete | 2025-12-20 | 2025-12-24 | Lockfile migration |
 | 1 | ✅ Complete | 2025-12-24 | 2025-12-24 | Core layer system |
 | 2 | ✅ Complete | 2025-12-24 | 2025-12-24 | Global registry |
-| 3 | ⬜ Not Started | | | Config & CLI |
+| 3 | ✅ Complete | 2025-12-24 | 2025-12-24 | Config & CLI |
 | 4 | ⬜ Not Started | | | Visibility & tooling |
 
 Legend: ⬜ Not Started | 🟡 In Progress | ✅ Complete

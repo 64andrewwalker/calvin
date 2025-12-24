@@ -27,6 +27,9 @@ pub fn cmd_deploy(
     home: bool,
     remote: Option<String>,
     targets: &Option<Vec<Target>>,
+    layers: &[std::path::PathBuf],
+    no_user_layer: bool,
+    no_additional_layers: bool,
     force: bool,
     interactive: bool,
     dry_run: bool,
@@ -42,6 +45,9 @@ pub fn cmd_deploy(
         false, // explicit_project: use config default
         remote,
         targets,
+        layers,
+        no_user_layer,
+        no_additional_layers,
         force,
         interactive,
         dry_run,
@@ -63,6 +69,9 @@ pub fn cmd_deploy_with_explicit_target(
     explicit_project: bool,
     remote: Option<String>,
     targets: &Option<Vec<Target>>,
+    layers: &[std::path::PathBuf],
+    no_user_layer: bool,
+    no_additional_layers: bool,
     force: bool,
     interactive: bool,
     dry_run: bool,
@@ -133,28 +142,68 @@ pub fn cmd_deploy_with_explicit_target(
     let target_for_bridge = target.clone();
     let options_for_bridge = options.clone();
 
+    let is_remote_target = matches!(&target_for_bridge, DeployTarget::Remote(_));
+
+    let mut user_layer_path = config.sources.user_layer_path.clone();
+    let use_user_layer = !is_remote_target
+        && !no_user_layer
+        && config.sources.use_user_layer
+        && !config.sources.ignore_user_layer;
+    if !use_user_layer {
+        user_layer_path = None;
+    }
+
+    let mut additional_layers: Vec<std::path::PathBuf> = if config.sources.ignore_additional_layers
+    {
+        Vec::new()
+    } else {
+        config.sources.additional_layers.clone()
+    };
+    if !no_additional_layers {
+        additional_layers.extend(layers.iter().cloned());
+    } else {
+        additional_layers.clear();
+    }
+    let use_additional_layers = !is_remote_target && !no_additional_layers;
+
     // Verbose: show resolved layer stack (Phase 1 multi-layer visibility)
     if !json && verbose > 0 {
         use calvin::domain::services::LayerResolver;
-        if let Some(home) = dirs::home_dir() {
-            let remote_mode = matches!(target_for_bridge, DeployTarget::Remote(_));
-            let resolver = LayerResolver::new(project_root.clone())
-                .with_user_layer_path(home.join(".calvin/.promptpack"))
-                .with_remote_mode(remote_mode);
+        let project_layer_path = if source.is_relative() {
+            project_root.join(source)
+        } else {
+            source.to_path_buf()
+        };
+        let mut resolver = LayerResolver::new(project_root.clone())
+            .with_project_layer_path(project_layer_path)
+            .with_additional_layers(if use_additional_layers {
+                additional_layers.clone()
+            } else {
+                Vec::new()
+            })
+            .with_remote_mode(is_remote_target);
 
-            match resolver.resolve() {
-                Ok(resolution) => {
-                    println!("Layers:");
-                    for layer in resolution.layers {
-                        println!("  - [{}] {}", layer.name, layer.path.original().display());
-                    }
-                    for warning in resolution.warnings {
-                        eprintln!("Warning: {}", warning);
-                    }
+        if use_user_layer {
+            if let Some(user_layer_path) = user_layer_path
+                .clone()
+                .or_else(|| Some(calvin::config::default_user_layer_path()))
+            {
+                resolver = resolver.with_user_layer_path(user_layer_path);
+            }
+        }
+
+        match resolver.resolve() {
+            Ok(resolution) => {
+                println!("Layers:");
+                for layer in resolution.layers {
+                    println!("  - [{}] {}", layer.name, layer.path.original().display());
                 }
-                Err(e) => {
-                    eprintln!("Warning: failed to resolve layers: {}", e);
+                for warning in resolution.warnings {
+                    eprintln!("Warning: {}", warning);
                 }
+            }
+            Err(e) => {
+                eprintln!("Warning: failed to resolve layers: {}", e);
             }
         }
     }
@@ -215,8 +264,6 @@ pub fn cmd_deploy_with_explicit_target(
     };
 
     // Run deploy
-    let is_remote_target = matches!(&target_for_bridge, DeployTarget::Remote(_));
-
     let result = if is_remote_target {
         // Remote: use new engine with SyncDestination abstraction
         if let DeployTarget::Remote(remote_spec) = &target_for_bridge {
@@ -226,6 +273,12 @@ pub fn cmd_deploy_with_explicit_target(
                 &options_for_bridge,
                 cleanup,
                 &effective_targets,
+                super::bridge::LayerInputs {
+                    user_layer_path: None,
+                    use_user_layer: false,
+                    additional_layers: Vec::new(),
+                    use_additional_layers: false,
+                },
             );
             super::bridge::run_remote_deployment(
                 remote_spec,
@@ -247,6 +300,12 @@ pub fn cmd_deploy_with_explicit_target(
             &options_for_bridge,
             cleanup,
             &effective_targets,
+            super::bridge::LayerInputs {
+                user_layer_path: user_layer_path.clone(),
+                use_user_layer,
+                additional_layers: additional_layers.clone(),
+                use_additional_layers,
+            },
         );
         let use_case = super::bridge::create_use_case_for_targets(&effective_targets);
         let json_sink = Arc::new(JsonEventSink::stdout());
@@ -259,6 +318,12 @@ pub fn cmd_deploy_with_explicit_target(
             &options_for_bridge,
             cleanup,
             &effective_targets,
+            super::bridge::LayerInputs {
+                user_layer_path: user_layer_path.clone(),
+                use_user_layer,
+                additional_layers: additional_layers.clone(),
+                use_additional_layers,
+            },
         );
         let use_case = super::bridge::create_use_case_for_targets(&effective_targets);
         use_case.execute(&use_case_options)

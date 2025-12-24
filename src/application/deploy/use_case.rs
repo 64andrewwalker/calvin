@@ -180,7 +180,9 @@ where
             &DeployOptions {
                 source: options.lockfile_path.clone(),
                 user_layer_path: None,
+                use_user_layer: true,
                 additional_layers: Vec::new(),
+                use_additional_layers: true,
                 scope: options.scope,
                 targets: vec![],
                 remote_mode: false,
@@ -412,16 +414,26 @@ where
             .map(|p| p.to_path_buf())
             .unwrap_or_else(|| PathBuf::from("."));
 
-        let user_layer_path = options
-            .user_layer_path
-            .clone()
-            .or_else(default_user_layer_path);
+        let project_layer_path = if options.source.is_relative() {
+            project_root.join(&options.source)
+        } else {
+            options.source.clone()
+        };
 
         let mut layer_resolver = LayerResolver::new(project_root)
-            .with_additional_layers(options.additional_layers.clone())
+            .with_project_layer_path(project_layer_path)
+            .with_additional_layers(if options.use_additional_layers {
+                options.additional_layers.clone()
+            } else {
+                Vec::new()
+            })
             .with_remote_mode(options.remote_mode);
-        if !options.remote_mode {
-            if let Some(user_layer_path) = user_layer_path {
+        if !options.remote_mode && options.use_user_layer {
+            if let Some(user_layer_path) = options
+                .user_layer_path
+                .clone()
+                .or_else(default_user_layer_path)
+            {
                 layer_resolver = layer_resolver.with_user_layer_path(user_layer_path);
             }
         }

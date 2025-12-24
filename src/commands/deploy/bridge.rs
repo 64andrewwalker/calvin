@@ -14,16 +14,26 @@ use calvin::presentation::factory::{
 use super::options::DeployOptions as RunnerOptions;
 use super::targets::DeployTarget;
 
+#[derive(Debug, Clone, Default)]
+pub struct LayerInputs {
+    pub user_layer_path: Option<std::path::PathBuf>,
+    pub use_user_layer: bool,
+    pub additional_layers: Vec<std::path::PathBuf>,
+    pub use_additional_layers: bool,
+}
+
 /// Convert runner options to use case options
 ///
 /// The `effective_targets` parameter should be the final list of targets to deploy to,
 /// after applying CLI > config > default priority.
+#[allow(clippy::too_many_arguments)]
 pub fn convert_options(
     source: &std::path::Path,
     target: &DeployTarget,
     runner_options: &RunnerOptions,
     cleanup: bool,
     effective_targets: &[calvin::Target],
+    layers: LayerInputs,
 ) -> UseCaseOptions {
     // Determine scope based on target
     let scope = match target {
@@ -46,8 +56,10 @@ pub fn convert_options(
 
     UseCaseOptions {
         source: source.to_path_buf(),
-        user_layer_path: None,
-        additional_layers: Vec::new(),
+        user_layer_path: layers.user_layer_path,
+        use_user_layer: layers.use_user_layer,
+        additional_layers: layers.additional_layers,
+        use_additional_layers: layers.use_additional_layers,
         scope,
         targets,
         remote_mode: matches!(target, DeployTarget::Remote(_)),
@@ -114,6 +126,12 @@ mod tests {
             &runner_options,
             false,
             &effective_targets,
+            LayerInputs {
+                user_layer_path: None,
+                use_user_layer: true,
+                additional_layers: Vec::new(),
+                use_additional_layers: true,
+            },
         );
 
         assert_eq!(options.scope, Scope::Project);
@@ -130,6 +148,12 @@ mod tests {
             &runner_options,
             false,
             &effective_targets,
+            LayerInputs {
+                user_layer_path: None,
+                use_user_layer: true,
+                additional_layers: Vec::new(),
+                use_additional_layers: true,
+            },
         );
 
         assert_eq!(options.scope, Scope::User);
@@ -147,6 +171,12 @@ mod tests {
             &runner_options,
             false,
             &effective_targets,
+            LayerInputs {
+                user_layer_path: None,
+                use_user_layer: true,
+                additional_layers: Vec::new(),
+                use_additional_layers: true,
+            },
         );
 
         assert!(options.force);
@@ -164,6 +194,12 @@ mod tests {
             &runner_options,
             false,
             &effective_targets,
+            LayerInputs {
+                user_layer_path: None,
+                use_user_layer: true,
+                additional_layers: Vec::new(),
+                use_additional_layers: true,
+            },
         );
 
         assert!(options.dry_run);
@@ -180,6 +216,12 @@ mod tests {
             &runner_options,
             true,
             &effective_targets,
+            LayerInputs {
+                user_layer_path: None,
+                use_user_layer: true,
+                additional_layers: Vec::new(),
+                use_additional_layers: true,
+            },
         );
 
         assert!(options.clean_orphans);
@@ -196,6 +238,12 @@ mod tests {
             &runner_options,
             false,
             &effective_targets,
+            LayerInputs {
+                user_layer_path: None,
+                use_user_layer: true,
+                additional_layers: Vec::new(),
+                use_additional_layers: true,
+            },
         );
 
         assert_eq!(options.targets.len(), 2);
