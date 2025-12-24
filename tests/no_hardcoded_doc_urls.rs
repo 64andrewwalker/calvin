@@ -34,15 +34,19 @@ fn should_check_file(path: &Path) -> bool {
         return false;
     }
 
+    // Normalize path separators for cross-platform comparison
+    // Windows uses '\', Unix uses '/'
+    let normalized_path = path_str.replace('\\', "/");
+
     // Skip allowed files
     for allowed in ALLOWED_FILES {
-        if path_str.contains(allowed) {
+        if normalized_path.contains(allowed) {
             return false;
         }
     }
 
     // Skip test fixtures and generated files
-    if path_str.contains("target/") || path_str.contains("fixtures/") {
+    if normalized_path.contains("target/") || normalized_path.contains("fixtures/") {
         return false;
     }
 
