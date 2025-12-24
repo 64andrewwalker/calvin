@@ -111,38 +111,38 @@
 
 ### Tasks
 
-- [ ] **2.1** 定义 `Registry` 和 `ProjectEntry` 类型
-  - [ ] `src/domain/entities/registry.rs` (Entity 在 domain 层)
-  - [ ] `src/domain/ports/registry_repository.rs` (Port 定义)
-  - [ ] 添加测试
+- [x] **2.1** 定义 `Registry` 和 `ProjectEntry` 类型
+  - [x] `src/domain/entities/registry.rs` (Entity 在 domain 层)
+  - [x] `src/domain/ports/registry_repository.rs` (Port 定义)
+  - [x] 添加测试
 
-- [ ] **2.2** 实现 Registry 持久化
-  - [ ] 读写 `~/.calvin/registry.toml`
-  - [ ] 支持 upsert 和 prune
-  - [ ] 添加测试
+- [x] **2.2** 实现 Registry 持久化
+  - [x] 读写 `~/.calvin/registry.toml`
+  - [x] 支持 upsert 和 prune
+  - [x] 添加测试
 
-- [ ] **2.3** 创建 RegistryUseCase (Application 层)
-  - [ ] `src/application/registry/use_case.rs`
-  - [ ] 添加测试
+- [x] **2.3** 创建 RegistryUseCase (Application 层)
+  - [x] `src/application/registry/use_case.rs`
+  - [x] 添加测试
 
-- [ ] **2.4** deploy 时自动注册
-  - [ ] 成功后更新 registry
-  - [ ] 添加测试
+- [x] **2.4** deploy 时自动注册
+  - [x] 成功后更新 registry
+  - [x] 添加测试
 
-- [ ] **2.5** 创建 Presentation 层文件
-  - [ ] `src/commands/projects.rs`
-  - [ ] `src/ui/views/projects.rs`
+- [x] **2.5** 创建 Presentation 层文件
+  - [x] `src/commands/projects.rs`
+  - [x] `src/ui/views/projects.rs`
 
-- [ ] **2.6** 实现 `calvin projects` 命令
-  - [ ] 列出所有项目
-  - [ ] 支持 `--prune` 清理失效
-  - [ ] 添加 UI 渲染
-  - [ ] 添加测试
+- [x] **2.6** 实现 `calvin projects` 命令
+  - [x] 列出所有项目
+  - [x] 支持 `--prune` 清理失效
+  - [x] 添加 UI 渲染
+  - [x] 添加测试
 
-- [ ] **2.7** 实现 `calvin clean --all`
-  - [ ] 从 registry 读取所有项目
-  - [ ] 批量清理
-  - [ ] 添加测试
+- [x] **2.7** 实现 `calvin clean --all`
+  - [x] 从 registry 读取所有项目
+  - [x] 批量清理
+  - [x] 添加测试
 
 **验收标准**:
 
@@ -270,7 +270,7 @@
 - [ ] 测试：三层（用户 + 团队 + 项目）
 - [x] 测试：层覆盖
 - [x] 测试：lockfile 迁移
-- [ ] 测试：registry 持久化
+- [x] 测试：registry 持久化
 - [ ] 测试：`--source` 参数
 - [ ] 测试：`--layer` 参数
 
@@ -282,7 +282,7 @@
 |-------|--------|------------|----------|-------|
 | 0 | ✅ Complete | 2025-12-20 | 2025-12-24 | Lockfile migration |
 | 1 | ✅ Complete | 2025-12-24 | 2025-12-24 | Core layer system |
-| 2 | ⬜ Not Started | | | Global registry |
+| 2 | ✅ Complete | 2025-12-24 | 2025-12-24 | Global registry |
 | 3 | ⬜ Not Started | | | Config & CLI |
 | 4 | ⬜ Not Started | | | Visibility & tooling |
 

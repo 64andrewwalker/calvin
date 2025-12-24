@@ -171,6 +171,7 @@ pub fn compile_assets(
 }
 
 #[cfg(test)]
+#[allow(deprecated)]
 mod tests {
     use super::*;
     use crate::config::Config;

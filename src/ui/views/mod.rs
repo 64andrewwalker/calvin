@@ -5,5 +5,6 @@ pub mod diff;
 pub mod interactive;
 pub mod migrate;
 pub mod parse;
+pub mod projects;
 pub mod version;
 pub mod watch;

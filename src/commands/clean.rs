@@ -39,6 +39,10 @@ pub fn cmd_clean(
     color: Option<ColorWhen>,
     no_animation: bool,
 ) -> Result<()> {
+    if all {
+        return cmd_clean_all(dry_run, yes, force, json, verbose, color, no_animation);
+    }
+
     // Load config for UI context
     let config = calvin::config::Config::load_or_default(Some(source));
 
@@ -46,20 +50,18 @@ pub fn cmd_clean(
     let ui = UiContext::new(json, verbose, color, no_animation, &config);
 
     // Determine scope
-    // --all means clean both home and project (no scope filter)
     // --home means clean only home
     // --project means clean only project
     // None of the above: interactive mode (unless --yes or --dry-run)
-    let scope = match (home, project, all) {
-        (true, false, false) => Some(Scope::User),
-        (false, true, false) => Some(Scope::Project),
-        (false, false, true) => None,  // All scopes, non-interactive
-        (false, false, false) => None, // Interactive mode
+    let scope = match (home, project) {
+        (true, false) => Some(Scope::User),
+        (false, true) => Some(Scope::Project),
+        (false, false) => None, // Interactive mode
         _ => unreachable!("clap conflicts_with should prevent this"),
     };
 
     // Determine if a scope was explicitly specified (for interactive mode detection)
-    let scope_specified = home || project || all;
+    let scope_specified = home || project;
 
     // Build use case dependencies
     let lockfile_repo = TomlLockfileRepository::new();
@@ -148,6 +150,225 @@ pub fn cmd_clean(
 
     // Exit with code 1 if there were errors
     if has_errors {
+        std::process::exit(1);
+    }
+
+    Ok(())
+}
+
+fn cmd_clean_all(
+    dry_run: bool,
+    yes: bool,
+    force: bool,
+    json: bool,
+    verbose: u8,
+    color: Option<ColorWhen>,
+    no_animation: bool,
+) -> Result<()> {
+    use crate::ui::blocks::header::CommandHeader;
+    use crate::ui::blocks::summary::ResultSummary;
+    use crate::ui::primitives::icon::Icon;
+    use crate::ui::primitives::text::ColoredText;
+    use crate::ui::widgets::list::{ItemStatus, StatusList};
+    use calvin::presentation::factory::create_registry_use_case;
+
+    let cwd = std::env::current_dir()?;
+    let config = calvin::config::Config::load_or_default(Some(&cwd));
+    let ui = UiContext::new(json, verbose, color, no_animation, &config);
+
+    let registry = create_registry_use_case();
+    let projects = registry.list_projects();
+
+    if projects.is_empty() {
+        if json {
+            println!(r#"{{"type":"clean_all_complete","projects":0}}"#);
+        } else {
+            println!(
+                "{} {}",
+                Icon::Pending.colored(ui.caps.supports_color, ui.caps.supports_unicode),
+                ColoredText::dim("No projects in registry.").render(ui.caps.supports_color)
+            );
+            println!(
+                "{}",
+                ColoredText::dim("Run `calvin deploy` in a project to register it.")
+                    .render(ui.caps.supports_color)
+            );
+        }
+        return Ok(());
+    }
+
+    if json {
+        println!(
+            r#"{{"type":"clean_all_start","projects":{}}}"#,
+            projects.len()
+        );
+    } else {
+        let mut header = CommandHeader::new(Icon::Trash, "Calvin Clean All");
+        header.add("Projects", projects.len().to_string());
+        print!(
+            "{}",
+            header.render(ui.caps.supports_color, ui.caps.supports_unicode)
+        );
+        println!();
+        println!(
+            "{}",
+            ColoredText::dim("Will clean these projects:").render(ui.caps.supports_color)
+        );
+        for project in &projects {
+            println!(
+                "  {} {}",
+                Icon::Pending.colored(ui.caps.supports_color, ui.caps.supports_unicode),
+                project.path.display()
+            );
+        }
+        println!();
+
+        if !yes {
+            use dialoguer::Confirm;
+            let confirmed = Confirm::new()
+                .with_prompt("Clean all projects?")
+                .default(false)
+                .interact()?;
+            if !confirmed {
+                println!(
+                    "{} {}",
+                    Icon::Warning.colored(ui.caps.supports_color, ui.caps.supports_unicode),
+                    ColoredText::warning("Aborted.").render(ui.caps.supports_color)
+                );
+                return Ok(());
+            }
+        }
+    }
+
+    let lockfile_repo = TomlLockfileRepository::new();
+    let fs = LocalFs::new();
+    let use_case = CleanUseCase::new(lockfile_repo, fs);
+
+    let options = CleanOptions::new()
+        .with_scope(None)
+        .with_dry_run(dry_run)
+        .with_force(force);
+
+    let original_cwd = std::env::current_dir()?;
+
+    let mut list = StatusList::with_visible_count(10);
+    for project in &projects {
+        list.add(project.path.display().to_string());
+    }
+
+    let mut total_deleted = 0usize;
+    let mut error_count = 0usize;
+
+    for (idx, project) in projects.iter().enumerate() {
+        if !json {
+            list.update(idx, ItemStatus::InProgress);
+            print!(
+                "{}",
+                list.render(ui.caps.supports_color, ui.caps.supports_unicode)
+            );
+        }
+
+        if !project.lockfile.exists() {
+            error_count += 1;
+            if json {
+                println!(
+                    r#"{{"type":"project_skipped","path":"{}","reason":"missing_lockfile"}}"#,
+                    project.path.display()
+                );
+            } else {
+                list.update(idx, ItemStatus::Warning);
+                list.update_detail(idx, "missing lockfile".to_string());
+            }
+            continue;
+        }
+
+        if let Err(e) = std::env::set_current_dir(&project.path) {
+            error_count += 1;
+            if json {
+                println!(
+                    r#"{{"type":"project_error","path":"{}","error":"{}"}}"#,
+                    project.path.display(),
+                    e.to_string().replace('\\', "\\\\").replace('"', "\\\"")
+                );
+            } else {
+                list.update(idx, ItemStatus::Error);
+                list.update_detail(idx, "chdir failed".to_string());
+            }
+            continue;
+        }
+
+        let result = if dry_run {
+            use_case.execute(&project.lockfile, &options)
+        } else {
+            use_case.execute_confirmed(&project.lockfile, &options)
+        };
+
+        total_deleted += result.deleted.len();
+
+        if result.is_success() {
+            if json {
+                println!(
+                    r#"{{"type":"project_complete","path":"{}","deleted":{},"skipped":{},"errors":{}}}"#,
+                    project.path.display(),
+                    result.deleted.len(),
+                    result.skipped.len(),
+                    result.error_count()
+                );
+            } else {
+                list.update(idx, ItemStatus::Success);
+                list.update_detail(idx, format!("{} files", result.deleted.len()));
+            }
+        } else {
+            error_count += 1;
+            if json {
+                println!(
+                    r#"{{"type":"project_complete","path":"{}","deleted":{},"skipped":{},"errors":{}}}"#,
+                    project.path.display(),
+                    result.deleted.len(),
+                    result.skipped.len(),
+                    result.error_count()
+                );
+            } else {
+                list.update(idx, ItemStatus::Error);
+                list.update_detail(idx, "errors".to_string());
+            }
+        }
+
+        let _ = std::env::set_current_dir(&original_cwd);
+    }
+
+    let _ = std::env::set_current_dir(&original_cwd);
+
+    if json {
+        println!(
+            r#"{{"type":"clean_all_complete","projects":{},"deleted":{},"errors":{}}}"#,
+            projects.len(),
+            total_deleted,
+            error_count
+        );
+        if error_count > 0 {
+            std::process::exit(1);
+        }
+        return Ok(());
+    }
+
+    println!();
+    let mut summary = if error_count == 0 {
+        ResultSummary::success("Clean Complete")
+    } else {
+        ResultSummary::partial("Clean Completed with Errors")
+    };
+    summary.add_stat("projects", projects.len());
+    summary.add_stat("files removed", total_deleted);
+    if error_count > 0 {
+        summary.add_warning(format!("{} projects had errors", error_count));
+    }
+    print!(
+        "{}",
+        summary.render(ui.caps.supports_color, ui.caps.supports_unicode)
+    );
+
+    if error_count > 0 {
         std::process::exit(1);
     }
 

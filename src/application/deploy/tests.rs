@@ -197,7 +197,7 @@ fn deploy_registers_project_in_registry() {
 
     let entries = registry_repo.entries.lock().unwrap();
     assert_eq!(entries.len(), 1);
-    assert_eq!(entries[0].path, dir.path().to_path_buf());
+    assert_eq!(entries[0].path, dir.path().canonicalize().unwrap());
     assert_eq!(entries[0].lockfile, dir.path().join("calvin.lock"));
     assert_eq!(entries[0].asset_count, 1);
 }

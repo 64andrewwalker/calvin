@@ -197,7 +197,7 @@ mod tests {
     /// In real usage, paths are stored as absolute (with ~) for home scope
     /// or relative for project scope, but relative paths need to be resolved
     /// against the current working directory.
-
+    ///
     /// Helper to normalize path for lockfile key (use forward slashes for cross-platform)
     fn normalize_path_for_key(path: &Path) -> String {
         path.to_string_lossy().replace('\\', "/")

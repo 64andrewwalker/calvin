@@ -146,6 +146,9 @@ fn dispatch(
             color,
             no_animation,
         ),
+        Commands::Projects { prune } => {
+            commands::projects::cmd_projects(prune, json, verbose, color, no_animation)
+        }
     }
 }
 

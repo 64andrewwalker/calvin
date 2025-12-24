@@ -178,7 +178,7 @@ pub enum Commands {
         #[arg(long, conflicts_with = "all")]
         project: bool,
 
-        /// Clean all deployments (home + project)
+        /// Clean all projects in the global registry
         #[arg(long)]
         all: bool,
 
@@ -193,6 +193,13 @@ pub enum Commands {
         /// Force delete even if files were modified
         #[arg(short, long)]
         force: bool,
+    },
+
+    /// List all Calvin-managed projects (global registry)
+    Projects {
+        /// Remove invalid projects from registry
+        #[arg(long)]
+        prune: bool,
     },
 }
 

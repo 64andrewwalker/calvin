@@ -5,4 +5,5 @@ pub mod deploy;
 pub mod explain;
 pub mod init;
 pub mod interactive;
+pub mod projects;
 pub mod watch;

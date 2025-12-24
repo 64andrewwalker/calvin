@@ -33,8 +33,7 @@ pub fn create_deploy_use_case() -> ConcreteDeployUseCase {
     let file_system = LocalFs::new();
     let adapters = all_adapters();
 
-    let registry_repo = TomlRegistryRepository::new();
-    let registry_use_case = RegistryUseCase::new(Arc::new(registry_repo));
+    let registry_use_case = create_registry_use_case();
 
     DeployUseCase::new(asset_repo, lockfile_repo, file_system, adapters)
         .with_registry_use_case(Arc::new(registry_use_case))
@@ -50,8 +49,7 @@ pub fn create_deploy_use_case_with_adapters(
     let lockfile_repo = TomlLockfileRepository::new();
     let file_system = LocalFs::new();
 
-    let registry_repo = TomlRegistryRepository::new();
-    let registry_use_case = RegistryUseCase::new(Arc::new(registry_repo));
+    let registry_use_case = create_registry_use_case();
 
     DeployUseCase::new(asset_repo, lockfile_repo, file_system, adapters)
         .with_registry_use_case(Arc::new(registry_use_case))
@@ -98,8 +96,7 @@ pub fn create_deploy_use_case_for_remote(
     let file_system = DestinationFs::new(destination);
     let adapters = all_adapters();
 
-    let registry_repo = TomlRegistryRepository::new();
-    let registry_use_case = RegistryUseCase::new(Arc::new(registry_repo));
+    let registry_use_case = create_registry_use_case();
 
     DeployUseCase::new(asset_repo, lockfile_repo, file_system, adapters)
         .with_registry_use_case(Arc::new(registry_use_case))
@@ -118,11 +115,20 @@ pub fn create_deploy_use_case_for_remote_with_adapters(
     let destination = Arc::new(RemoteDestination::new(remote_spec, source));
     let file_system = DestinationFs::new(destination);
 
-    let registry_repo = TomlRegistryRepository::new();
-    let registry_use_case = RegistryUseCase::new(Arc::new(registry_repo));
+    let registry_use_case = create_registry_use_case();
 
     DeployUseCase::new(asset_repo, lockfile_repo, file_system, adapters)
         .with_registry_use_case(Arc::new(registry_use_case))
+}
+
+/// Create a registry use case with filesystem-backed persistence.
+pub fn create_registry_use_case() -> RegistryUseCase {
+    let registry_repo = TomlRegistryRepository::new();
+    RegistryUseCase::new(Arc::new(registry_repo))
+}
+
+pub fn registry_path() -> std::path::PathBuf {
+    TomlRegistryRepository::new().path().to_path_buf()
 }
 
 /// Create adapters for specific targets
@@ -175,6 +181,11 @@ mod tests {
     fn create_deploy_use_case_returns_valid_use_case() {
         let _use_case = create_deploy_use_case();
         // If this compiles, the factory is correctly wiring dependencies
+    }
+
+    #[test]
+    fn create_registry_use_case_returns_valid_use_case() {
+        let _use_case = create_registry_use_case();
     }
 
     #[test]

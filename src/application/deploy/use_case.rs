@@ -384,7 +384,14 @@ where
             return;
         };
 
-        if let Err(e) = registry.register_project(project_root, lockfile_path, asset_count) {
+        let project_root = project_root
+            .canonicalize()
+            .unwrap_or_else(|_| project_root.to_path_buf());
+        let lockfile_path = lockfile_path
+            .canonicalize()
+            .unwrap_or_else(|_| lockfile_path.to_path_buf());
+
+        if let Err(e) = registry.register_project(&project_root, &lockfile_path, asset_count) {
             result.add_warning(format!("Failed to update registry: {}", e));
         }
     }

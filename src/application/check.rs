@@ -181,32 +181,40 @@ mod tests {
 
     #[test]
     fn check_result_is_success_when_no_errors() {
-        let mut result = CheckResult::default();
-        result.passed = 5;
-        result.warnings = 2;
+        let result = CheckResult {
+            passed: 5,
+            warnings: 2,
+            ..Default::default()
+        };
         assert!(result.is_success());
     }
 
     #[test]
     fn check_result_not_success_when_errors() {
-        let mut result = CheckResult::default();
-        result.passed = 5;
-        result.errors = 1;
+        let result = CheckResult {
+            passed: 5,
+            errors: 1,
+            ..Default::default()
+        };
         assert!(!result.is_success());
     }
 
     #[test]
     fn check_result_is_clean_when_no_warnings_or_errors() {
-        let mut result = CheckResult::default();
-        result.passed = 5;
+        let result = CheckResult {
+            passed: 5,
+            ..Default::default()
+        };
         assert!(result.is_clean());
     }
 
     #[test]
     fn check_result_not_clean_when_warnings() {
-        let mut result = CheckResult::default();
-        result.passed = 5;
-        result.warnings = 1;
+        let result = CheckResult {
+            passed: 5,
+            warnings: 1,
+            ..Default::default()
+        };
         assert!(!result.is_clean());
     }
 
@@ -220,7 +228,7 @@ mod tests {
         let result = use_case.execute(dir.path(), options).unwrap();
 
         // Should have some checks (at least the basic ones)
-        assert!(result.items.len() > 0);
+        assert!(!result.items.is_empty());
     }
 
     #[test]
