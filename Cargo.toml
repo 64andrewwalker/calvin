@@ -1,6 +1,6 @@
 [package]
 name = "calvin"
-version = "0.5.0"
+version = "0.5.1"
 edition = "2021"
 authors = ["Calvin Contributors"]
 description = "PromptOps compiler and synchronization tool for AI coding assistants"
