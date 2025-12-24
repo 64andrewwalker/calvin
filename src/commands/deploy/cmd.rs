@@ -88,8 +88,7 @@ pub fn cmd_deploy_with_explicit_target(
         anyhow::bail!("--home and --remote cannot be used together");
     }
 
-    // Determine project root
-    let project_root = source.parent().unwrap_or(source).to_path_buf();
+    let project_root = std::env::current_dir()?;
 
     // Load configuration early to determine effective target
     let config = calvin::config::Config::load_or_default(Some(&project_root));
@@ -166,16 +165,17 @@ pub fn cmd_deploy_with_explicit_target(
     }
     let use_additional_layers = !is_remote_target && !no_additional_layers;
 
+    let project_layer_path = if source.is_relative() {
+        project_root.join(source)
+    } else {
+        source.to_path_buf()
+    };
+
     // Verbose: show resolved layer stack (Phase 1 multi-layer visibility)
     if !json && verbose > 0 {
         use calvin::domain::services::LayerResolver;
-        let project_layer_path = if source.is_relative() {
-            project_root.join(source)
-        } else {
-            source.to_path_buf()
-        };
         let mut resolver = LayerResolver::new(project_root.clone())
-            .with_project_layer_path(project_layer_path)
+            .with_project_layer_path(project_layer_path.clone())
             .with_additional_layers(if use_additional_layers {
                 additional_layers.clone()
             } else {
@@ -257,17 +257,28 @@ pub fn cmd_deploy_with_explicit_target(
 
     // Determine effective targets: CLI > config > default
     // This is resolved once and used for both adapters and options
-    let effective_targets = if options_for_bridge.targets.is_empty() {
-        config.enabled_targets()
-    } else {
-        options_for_bridge.targets.clone()
-    };
+    let effective_targets = super::layer_config::resolve_effective_targets(
+        &config,
+        &options_for_bridge.targets,
+        interactive,
+        json,
+        super::layer_config::LayerInputs {
+            project_root: project_root.clone(),
+            project_layer_path: project_layer_path.clone(),
+            user_layer_path: user_layer_path.clone(),
+            use_user_layer,
+            additional_layers: additional_layers.clone(),
+            use_additional_layers,
+            remote_mode: is_remote_target,
+        },
+    )?;
 
     // Run deploy
     let result = if is_remote_target {
         // Remote: use new engine with SyncDestination abstraction
         if let DeployTarget::Remote(remote_spec) = &target_for_bridge {
             let use_case_options = super::bridge::convert_options(
+                &project_root,
                 source,
                 &target_for_bridge,
                 &options_for_bridge,
@@ -295,6 +306,7 @@ pub fn cmd_deploy_with_explicit_target(
         use std::sync::Arc;
 
         let use_case_options = super::bridge::convert_options(
+            &project_root,
             source,
             &target_for_bridge,
             &options_for_bridge,
@@ -313,6 +325,7 @@ pub fn cmd_deploy_with_explicit_target(
     } else {
         // Non-JSON local mode: use new DeployUseCase architecture
         let use_case_options = super::bridge::convert_options(
+            &project_root,
             source,
             &target_for_bridge,
             &options_for_bridge,

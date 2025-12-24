@@ -28,6 +28,7 @@ pub struct LayerInputs {
 /// after applying CLI > config > default priority.
 #[allow(clippy::too_many_arguments)]
 pub fn convert_options(
+    project_root: &std::path::Path,
     source: &std::path::Path,
     target: &DeployTarget,
     runner_options: &RunnerOptions,
@@ -56,6 +57,7 @@ pub fn convert_options(
 
     UseCaseOptions {
         source: source.to_path_buf(),
+        project_root: project_root.to_path_buf(),
         user_layer_path: layers.user_layer_path,
         use_user_layer: layers.use_user_layer,
         additional_layers: layers.additional_layers,
@@ -121,6 +123,7 @@ mod tests {
         let runner_options = RunnerOptions::new();
         let effective_targets = vec![calvin::Target::Cursor];
         let options = convert_options(
+            std::path::Path::new("/project"),
             std::path::Path::new("/project/.promptpack"),
             &DeployTarget::Project(PathBuf::from("/project")),
             &runner_options,
@@ -143,6 +146,7 @@ mod tests {
         let runner_options = RunnerOptions::new();
         let effective_targets = vec![calvin::Target::Cursor];
         let options = convert_options(
+            std::path::Path::new("/project"),
             std::path::Path::new("/project/.promptpack"),
             &DeployTarget::Home,
             &runner_options,
@@ -166,6 +170,7 @@ mod tests {
         let effective_targets = vec![calvin::Target::Cursor];
 
         let options = convert_options(
+            std::path::Path::new("/project"),
             std::path::Path::new("/project/.promptpack"),
             &DeployTarget::Project(PathBuf::from("/project")),
             &runner_options,
@@ -189,6 +194,7 @@ mod tests {
         let effective_targets = vec![calvin::Target::Cursor];
 
         let options = convert_options(
+            std::path::Path::new("/project"),
             std::path::Path::new("/project/.promptpack"),
             &DeployTarget::Project(PathBuf::from("/project")),
             &runner_options,
@@ -211,6 +217,7 @@ mod tests {
         let effective_targets = vec![calvin::Target::Cursor];
 
         let options = convert_options(
+            std::path::Path::new("/project"),
             std::path::Path::new("/project/.promptpack"),
             &DeployTarget::Project(PathBuf::from("/project")),
             &runner_options,
@@ -233,6 +240,7 @@ mod tests {
         let effective_targets = vec![calvin::Target::ClaudeCode, calvin::Target::Cursor];
 
         let options = convert_options(
+            std::path::Path::new("/project"),
             std::path::Path::new("/project/.promptpack"),
             &DeployTarget::Project(PathBuf::from("/project")),
             &runner_options,

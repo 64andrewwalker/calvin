@@ -11,6 +11,8 @@ use crate::domain::value_objects::{Scope, Target};
 pub struct DeployOptions {
     /// Source directory (.promptpack)
     pub source: PathBuf,
+    /// Project root directory (where project-scoped outputs + `calvin.lock` live)
+    pub project_root: PathBuf,
     /// Explicit user layer path override (defaults to `~/.calvin/.promptpack`)
     pub user_layer_path: Option<PathBuf>,
     /// Whether to use the user layer (ignored in remote mode)
@@ -37,8 +39,20 @@ pub struct DeployOptions {
 
 impl DeployOptions {
     pub fn new(source: impl Into<PathBuf>) -> Self {
+        let source: PathBuf = source.into();
+        let project_root = if source.is_absolute() {
+            source
+                .parent()
+                .filter(|p| !p.as_os_str().is_empty())
+                .map(|p| p.to_path_buf())
+                .unwrap_or_else(|| PathBuf::from("."))
+        } else {
+            PathBuf::from(".")
+        };
+
         Self {
-            source: source.into(),
+            source,
+            project_root,
             user_layer_path: None,
             use_user_layer: true,
             additional_layers: Vec::new(),
@@ -55,6 +69,11 @@ impl DeployOptions {
 
     pub fn with_scope(mut self, scope: Scope) -> Self {
         self.scope = scope;
+        self
+    }
+
+    pub fn with_project_root(mut self, root: impl Into<PathBuf>) -> Self {
+        self.project_root = root.into();
         self
     }
 

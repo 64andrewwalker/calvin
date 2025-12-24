@@ -1,6 +1,6 @@
 //! Interactive menu selections
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use anyhow::Result;
 use dialoguer::{Confirm, Input, Select};
@@ -69,12 +69,13 @@ pub fn interactive_user_layer_only(
     println!("No .promptpack/ in this directory.\n");
 
     let items = vec![
-        "[1] Deploy user layer to this project",
-        "[2] Deploy user layer to home directory",
-        "[3] Set up a project .promptpack here",
-        "[4] Show layer info",
-        "[5] Explain yourself",
-        "[6] Quit",
+        "[1] Deploy to this project",
+        "[2] Deploy to home directory",
+        "[3] Clean deployed files",
+        "[4] Set up a project .promptpack here",
+        "[5] Show layer info",
+        "[6] Explain yourself",
+        "[7] Quit",
     ];
 
     let selection = Select::new()
@@ -83,14 +84,11 @@ pub fn interactive_user_layer_only(
         .default(0)
         .interact()?;
 
-    // User layer as source
-    let user_layer = dirs::home_dir()
-        .map(|h| h.join(".calvin").join(".promptpack"))
-        .unwrap_or_else(|| PathBuf::from("~/.calvin/.promptpack"));
+    let source = cwd.join(".promptpack");
 
     match selection {
         0 => commands::deploy::cmd_deploy_with_explicit_target(
-            &user_layer,
+            &source,
             false,
             true, // explicit_project
             None,
@@ -108,7 +106,7 @@ pub fn interactive_user_layer_only(
             no_animation,
         ),
         1 => commands::deploy::cmd_deploy_with_explicit_target(
-            &user_layer,
+            &source,
             true, // home
             false,
             None,
@@ -125,9 +123,22 @@ pub fn interactive_user_layer_only(
             color,
             no_animation,
         ),
-        2 => wizard::setup_wizard(cwd, ui),
-        3 => commands::layers::cmd_layers(false, verbose, color, no_animation),
-        4 => commands::explain::cmd_explain(false, false, verbose),
+        2 => commands::clean::cmd_clean(
+            &source,
+            false, // home
+            false, // project
+            false, // all
+            false, // dry_run
+            false, // yes
+            false, // force
+            false, // json
+            verbose,
+            color,
+            no_animation,
+        ),
+        3 => wizard::setup_wizard(cwd, ui),
+        4 => commands::layers::cmd_layers(false, verbose, color, no_animation),
+        5 => commands::explain::cmd_explain(false, false, verbose),
         _ => Ok(()),
     }
 }
@@ -269,7 +280,8 @@ fn deploy_both(
 
     use crate::ui::views::deploy::{render_deploy_header, render_deploy_summary};
 
-    let config = calvin::config::Config::load_or_default(Some(source));
+    let project_root = source.parent().unwrap_or_else(|| Path::new("."));
+    let config = calvin::config::Config::load_or_default(Some(project_root));
     let ui = crate::ui::context::UiContext::new(false, verbose, color, no_animation, &config);
 
     // One header, two deploy phases.

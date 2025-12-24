@@ -43,9 +43,7 @@ pub fn detect_state(cwd: &Path) -> ProjectState {
     if let Some(user_layer) = get_user_layer_path() {
         if user_layer.is_dir() {
             let total = count_prompt_markdown_files(&user_layer);
-            if total > 0 {
-                return ProjectState::UserLayerOnly(AssetCount { total });
-            }
+            return ProjectState::UserLayerOnly(AssetCount { total });
         }
     }
 

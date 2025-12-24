@@ -12,6 +12,10 @@ calvin [OPTIONS] [COMMAND]
 
 - TTY: opens an interactive menu
 - `--json`: prints detected project state as JSON
+  - `state = "no_promptpack"`: no project `.promptpack/` and no other layers
+  - `state = "user_layer_only"`: no project `.promptpack/`, but user layer exists (can be 0 assets)
+  - `state = "empty_promptpack"`: `.promptpack/` exists but contains no assets
+  - `state = "configured"`: `.promptpack/` exists and contains assets
 
 ## Global Options
 
@@ -55,9 +59,21 @@ Calvin automatically loads assets from multiple layers in priority order:
 
 1. **User layer** (lowest priority): `~/.calvin/.promptpack/`
 2. **Additional layers** (middle priority): Custom paths via `--layer`
-3. **Project layer** (highest priority): `./.promptpack/`
+3. **Project layer** (highest priority): `./.promptpack/` (or `--source <PATH>`)
 
 When assets with the same ID exist in multiple layers, higher-priority layers override lower ones. Use `-v` to see the resolved layer stack.
+
+**Target selection:**
+
+- `--targets` (CLI) has highest priority.
+- `CALVIN_TARGETS` (env) overrides config files.
+- Otherwise, deploy reads `[targets]` from the resolved layer stack (e.g. `~/.calvin/.promptpack/config.toml`, additional layers, then project `config.toml`); higher-priority layers override lower ones.
+- In interactive mode (TTY, without `--yes`, and without `--targets`), Calvin asks you to confirm target platforms before deploying.
+
+**Lockfile location:**
+
+- Project deployments track state in `./calvin.lock` (project root)
+- `--source` changes the project layer input, but does not change where `calvin.lock` is written
 
 **Orphan Cleanup:**
 

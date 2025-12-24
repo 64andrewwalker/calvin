@@ -43,8 +43,10 @@ pub fn cmd_clean(
         return cmd_clean_all(dry_run, yes, force, json, verbose, color, no_animation);
     }
 
+    let project_root = std::env::current_dir()?;
+
     // Load config for UI context
-    let config = calvin::config::Config::load_or_default(Some(source));
+    let config = calvin::config::Config::load_or_default(Some(&project_root));
 
     // Build UI context for proper icon rendering
     let ui = UiContext::new(json, verbose, color, no_animation, &config);
@@ -68,12 +70,8 @@ pub fn cmd_clean(
     let fs = LocalFs::new();
 
     // Get lockfile path (project-root lockfile, with legacy migration)
-    let project_root = source
-        .parent()
-        .filter(|p| !p.as_os_str().is_empty())
-        .unwrap_or_else(|| Path::new("."));
     let (lockfile_path, migration_note) =
-        resolve_lockfile_path(project_root, source, &lockfile_repo);
+        resolve_lockfile_path(&project_root, source, &lockfile_repo);
     if !json {
         if let Some(note) = migration_note {
             eprintln!("ℹ {}", note);
