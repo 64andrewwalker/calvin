@@ -17,6 +17,7 @@ pub mod config;
 pub mod conflict;
 pub mod events;
 pub mod fs;
+pub mod layer;
 pub mod repositories;
 pub mod sync;
 
@@ -26,5 +27,6 @@ pub use config::TomlConfigRepository;
 pub use conflict::InteractiveResolver;
 pub use events::JsonEventSink;
 pub use fs::{LocalFs, RemoteFs};
+pub use layer::FsLayerLoader;
 pub use repositories::{FsAssetRepository, TomlLockfileRepository};
 pub use sync::{LocalHomeDestination, LocalProjectDestination, RemoteDestination};
