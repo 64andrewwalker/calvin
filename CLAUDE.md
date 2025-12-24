@@ -89,6 +89,8 @@ src/
 
 7. **Security by default** - Never weaken security. Deny lists are mandatory, not optional.
 
+8. **Never fail silently** - Invalid input should warn users, not silently fall back to defaults. A typo like `strct` vs `strict` should produce a helpful message, not silent misbehavior.
+
 ## Common Tasks
 
 ### Adding a new CLI command

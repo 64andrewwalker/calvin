@@ -357,3 +357,32 @@ fn test_config_load_with_warnings_reports_unknown_key_with_suggestion() {
     assert_eq!(warnings[0].line, Some(1));
     assert_eq!(warnings[0].suggestion, Some("security".to_string()));
 }
+
+// === TDD: Env Var Validation Refactor - Verbosity ===
+
+#[test]
+fn test_verbosity_valid_values_contains_all_variants() {
+    assert!(Verbosity::VALID_VALUES.contains(&"quiet"));
+    assert!(Verbosity::VALID_VALUES.contains(&"normal"));
+    assert!(Verbosity::VALID_VALUES.contains(&"verbose"));
+    assert!(Verbosity::VALID_VALUES.contains(&"debug"));
+    assert_eq!(Verbosity::VALID_VALUES.len(), 4);
+}
+
+#[test]
+fn test_verbosity_from_str_valid_values() {
+    assert_eq!(Verbosity::parse_str("quiet"), Some(Verbosity::Quiet));
+    assert_eq!(Verbosity::parse_str("normal"), Some(Verbosity::Normal));
+    assert_eq!(Verbosity::parse_str("verbose"), Some(Verbosity::Verbose));
+    assert_eq!(Verbosity::parse_str("debug"), Some(Verbosity::Debug));
+    // Case insensitive
+    assert_eq!(Verbosity::parse_str("QUIET"), Some(Verbosity::Quiet));
+    assert_eq!(Verbosity::parse_str("Debug"), Some(Verbosity::Debug));
+}
+
+#[test]
+fn test_verbosity_from_str_invalid_values() {
+    assert_eq!(Verbosity::parse_str("invalid"), None);
+    assert_eq!(Verbosity::parse_str(""), None);
+    assert_eq!(Verbosity::parse_str("quite"), None); // typo
+}

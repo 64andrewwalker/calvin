@@ -1,0 +1,171 @@
+---
+title: Configuration
+description: Configure Calvin using environment variables and config.toml
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+
+# Configuration
+
+Calvin supports multiple configuration methods with clear priority order:
+
+1. **CLI flags** (highest priority)
+2. **Environment variables** (`CALVIN_*`)
+3. **Project config** (`.promptpack/config.toml`)
+4. **User config** (`~/.config/calvin/config.toml`)
+5. **Built-in defaults** (lowest priority)
+
+## Environment Variables
+
+Configure Calvin behavior through environment variables:
+
+| Variable | Description | Valid Values | Default |
+|----------|-------------|--------------|---------|
+| `CALVIN_SECURITY_MODE` | Security enforcement level | `yolo`, `balanced`, `strict` | `balanced` |
+| `CALVIN_VERBOSITY` | Output verbosity | `quiet`, `normal`, `verbose`, `debug` | `normal` |
+| `CALVIN_TARGETS` | Target platforms (comma-separated) | See targets below | All targets |
+| `CALVIN_ATOMIC_WRITES` | Use atomic file writes | `true`, `false`, `0`, `1` | `true` |
+
+### Valid Targets
+
+The following target names are valid for `CALVIN_TARGETS`:
+
+| Target | Aliases |
+|--------|---------|
+| `claude-code` | `claude` |
+| `cursor` | — |
+| `vscode` | `vs-code` |
+| `antigravity` | — |
+| `codex` | — |
+| `all` | (meta-target, expands to all) |
+
+### Typo Detection
+
+<Callout type="info">
+Calvin provides helpful suggestions when you mistype environment variable values.
+</Callout>
+
+If you set an invalid value, Calvin will warn you and suggest corrections:
+
+```bash
+$ CALVIN_SECURITY_MODE=strct calvin deploy
+Warning: Invalid CALVIN_SECURITY_MODE value 'strct'. Did you mean 'strict'?
+Valid values: yolo, balanced, strict
+```
+
+## Project Configuration
+
+Create `.promptpack/config.toml` in your project:
+
+```toml
+# Format version
+[format]
+version = "1.0"
+
+# Security settings
+[security]
+mode = "balanced"  # yolo | balanced | strict
+allow_naked = false
+
+# Security deny list
+[security.deny]
+patterns = ["*.secret", "*.key"]
+
+# Target platforms
+[targets]
+enabled = ["claude-code", "cursor", "vscode"]
+
+# Sync settings
+[sync]
+atomic_writes = true
+
+# Output settings
+[output]
+verbosity = "normal"  # quiet | normal | verbose | debug
+color = "auto"        # auto | always | never
+
+# Deploy settings
+[deploy]
+target = "project"  # project | home
+```
+
+### Target Configuration
+
+The `[targets]` section controls which platforms receive deployments:
+
+```toml
+[targets]
+enabled = ["cursor", "claude-code"]
+```
+
+<Callout type="warning">
+**Important Semantics:**
+- **Missing `enabled` field** = Deploy to all targets (default)
+- **`enabled = []`** (empty list) = Deploy to NO targets
+- **`enabled = ["cursor"]`** = Deploy only to specified targets
+</Callout>
+
+### Overriding with CLI
+
+CLI flags always take precedence over configuration:
+
+```bash
+# Config says cursor only, but CLI overrides to claude-code
+calvin deploy -t claude-code
+
+# Config says balanced, but CLI sets strict
+calvin deploy --security-mode strict
+```
+
+## Security Modes
+
+| Mode | Behavior |
+|------|----------|
+| `yolo` | No enforcement, INFO logs only |
+| `balanced` | Generate protections, WARN on issues |
+| `strict` | Block on security violations |
+
+## Examples
+
+### Minimal Configuration
+
+```toml
+[targets]
+enabled = ["cursor", "vscode"]
+```
+
+### Team Configuration
+
+```toml
+[format]
+version = "1.0"
+
+[security]
+mode = "strict"
+
+[security.deny]
+patterns = ["*.env", "*.secret", "credentials/*"]
+
+[targets]
+enabled = ["claude-code", "cursor", "vscode"]
+
+[deploy]
+target = "project"
+```
+
+### Personal Global Config
+
+Create at `~/.config/calvin/config.toml`:
+
+```toml
+[security]
+mode = "balanced"
+
+[output]
+verbosity = "verbose"
+color = "always"
+
+[deploy]
+target = "home"
+```
+
