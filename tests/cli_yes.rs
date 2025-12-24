@@ -6,6 +6,8 @@ use tempfile::tempdir;
 #[test]
 fn test_deploy_yes_overwrites_conflicts() {
     let dir = tempdir().unwrap();
+    let fake_home = dir.path().join("fake_home");
+    fs::create_dir_all(&fake_home).unwrap();
 
     // Avoid the "not a git repository" interactive confirmation prompt.
     fs::create_dir_all(dir.path().join(".git")).unwrap();
@@ -31,6 +33,8 @@ Hello world.
     // First deploy: creates lockfile + output.
     let status = Command::new(bin)
         .current_dir(dir.path())
+        .env("HOME", &fake_home)
+        .env("XDG_CONFIG_HOME", fake_home.join(".config"))
         .args([
             "deploy",
             "--source",
@@ -51,6 +55,8 @@ Hello world.
     // Second deploy with --yes should overwrite the conflict (no prompt).
     let status = Command::new(bin)
         .current_dir(dir.path())
+        .env("HOME", &fake_home)
+        .env("XDG_CONFIG_HOME", fake_home.join(".config"))
         .args([
             "deploy",
             "--source",

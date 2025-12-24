@@ -11,10 +11,16 @@ use crate::domain::value_objects::{Scope, Target};
 pub struct DeployOptions {
     /// Source directory (.promptpack)
     pub source: PathBuf,
+    /// Explicit user layer path override (defaults to `~/.calvin/.promptpack`)
+    pub user_layer_path: Option<PathBuf>,
+    /// Additional layer paths (lowest → highest, before project layer)
+    pub additional_layers: Vec<PathBuf>,
     /// Deploy scope (project or user)
     pub scope: Scope,
     /// Target platforms to deploy to
     pub targets: Vec<Target>,
+    /// Remote deploy mode: only use project layer (PRD §14.3)
+    pub remote_mode: bool,
     /// Force overwrite without conflict detection
     pub force: bool,
     /// Interactive conflict resolution
@@ -29,8 +35,11 @@ impl DeployOptions {
     pub fn new(source: impl Into<PathBuf>) -> Self {
         Self {
             source: source.into(),
+            user_layer_path: None,
+            additional_layers: Vec::new(),
             scope: Scope::default(),
             targets: Vec::new(),
+            remote_mode: false,
             force: false,
             interactive: false,
             dry_run: false,
@@ -45,6 +54,21 @@ impl DeployOptions {
 
     pub fn with_targets(mut self, targets: Vec<Target>) -> Self {
         self.targets = targets;
+        self
+    }
+
+    pub fn with_user_layer_path(mut self, path: impl Into<PathBuf>) -> Self {
+        self.user_layer_path = Some(path.into());
+        self
+    }
+
+    pub fn with_additional_layers(mut self, layers: Vec<PathBuf>) -> Self {
+        self.additional_layers = layers;
+        self
+    }
+
+    pub fn with_remote_mode(mut self, remote_mode: bool) -> Self {
+        self.remote_mode = remote_mode;
         self
     }
 

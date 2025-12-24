@@ -11,6 +11,8 @@ fn bin() -> &'static str {
 #[test]
 fn deploy_migrates_old_lockfile() {
     let dir = tempdir().unwrap();
+    let fake_home = dir.path().join("fake_home");
+    std::fs::create_dir_all(&fake_home).unwrap();
     let promptpack = dir.path().join(".promptpack");
     std::fs::create_dir_all(&promptpack).unwrap();
 
@@ -45,6 +47,8 @@ enabled = ["cursor"]
 
     let output = Command::new(bin())
         .current_dir(dir.path())
+        .env("HOME", &fake_home)
+        .env("XDG_CONFIG_HOME", fake_home.join(".config"))
         .args(["deploy", "--yes"])
         .output()
         .unwrap();

@@ -79,8 +79,12 @@ enabled = ["cursor"]
 
 fn run_deploy(dir: &tempfile::TempDir, args: &[&str]) -> std::process::Output {
     let bin = env!("CARGO_BIN_EXE_calvin");
+    let fake_home = dir.path().join("fake_home");
+    fs::create_dir_all(&fake_home).unwrap();
     Command::new(bin)
         .current_dir(dir.path())
+        .env("HOME", &fake_home)
+        .env("XDG_CONFIG_HOME", fake_home.join(".config"))
         .args(["deploy"])
         .args(args)
         .output()

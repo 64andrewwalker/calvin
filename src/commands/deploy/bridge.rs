@@ -46,8 +46,11 @@ pub fn convert_options(
 
     UseCaseOptions {
         source: source.to_path_buf(),
+        user_layer_path: None,
+        additional_layers: Vec::new(),
         scope,
         targets,
+        remote_mode: matches!(target, DeployTarget::Remote(_)),
         force: runner_options.force,
         interactive: runner_options.interactive,
         dry_run: runner_options.dry_run,

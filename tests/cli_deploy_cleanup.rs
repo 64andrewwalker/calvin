@@ -42,9 +42,13 @@ enabled = ["cursor"]
 fn test_deploy_cleanup_flag_accepted() {
     let dir = create_test_project();
     let bin = env!("CARGO_BIN_EXE_calvin");
+    let fake_home = dir.path().join("fake_home");
+    std::fs::create_dir_all(&fake_home).unwrap();
 
     let output = Command::new(bin)
         .current_dir(dir.path())
+        .env("HOME", &fake_home)
+        .env("XDG_CONFIG_HOME", fake_home.join(".config"))
         .args(["deploy", "--cleanup", "--dry-run"])
         .output()
         .unwrap();
@@ -60,10 +64,14 @@ fn test_deploy_cleanup_flag_accepted() {
 fn test_deploy_no_cleanup_warns_only() {
     let dir = create_test_project();
     let bin = env!("CARGO_BIN_EXE_calvin");
+    let fake_home = dir.path().join("fake_home");
+    std::fs::create_dir_all(&fake_home).unwrap();
 
     // First deploy to create lockfile
     let output = Command::new(bin)
         .current_dir(dir.path())
+        .env("HOME", &fake_home)
+        .env("XDG_CONFIG_HOME", fake_home.join(".config"))
         .args(["deploy", "--yes"])
         .output()
         .unwrap();
@@ -88,6 +96,8 @@ New content
     // Deploy without --cleanup should warn but not delete
     let output = Command::new(bin)
         .current_dir(dir.path())
+        .env("HOME", &fake_home)
+        .env("XDG_CONFIG_HOME", fake_home.join(".config"))
         .args(["deploy", "--yes"])
         .output()
         .unwrap();
@@ -108,9 +118,13 @@ New content
 fn test_deploy_cleanup_json_events() {
     let dir = create_test_project();
     let bin = env!("CARGO_BIN_EXE_calvin");
+    let fake_home = dir.path().join("fake_home");
+    std::fs::create_dir_all(&fake_home).unwrap();
 
     let output = Command::new(bin)
         .current_dir(dir.path())
+        .env("HOME", &fake_home)
+        .env("XDG_CONFIG_HOME", fake_home.join(".config"))
         .args(["deploy", "--cleanup", "--json", "--yes"])
         .output()
         .unwrap();

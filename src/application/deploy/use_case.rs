@@ -27,8 +27,8 @@ use crate::domain::ports::{
     SafeResolver, TargetAdapter,
 };
 use crate::domain::services::{
-    has_calvin_signature, FileAction, OrphanDetectionResult, OrphanDetector, PlannedFile, Planner,
-    SyncPlan, TargetFileState,
+    has_calvin_signature, merge_layers, FileAction, LayerResolveError, LayerResolver, MergedAsset,
+    OrphanDetectionResult, OrphanDetector, PlannedFile, Planner, SyncPlan, TargetFileState,
 };
 use crate::domain::value_objects::{Scope, Target};
 
@@ -171,8 +171,11 @@ where
             &lockfile,
             &DeployOptions {
                 source: options.lockfile_path.clone(),
+                user_layer_path: None,
+                additional_layers: Vec::new(),
                 scope: options.scope,
                 targets: vec![],
+                remote_mode: false,
                 force: false,
                 interactive: false,
                 dry_run: options.dry_run,
@@ -205,6 +208,7 @@ where
                 &resolved_plan,
                 &result,
                 options.scope,
+                None,
             ) {
                 result.add_warning(warning);
             }
@@ -238,13 +242,17 @@ where
         let mut result = DeployResult::new();
 
         // Step 1: Load assets
-        let assets = match self.load_assets(&options.source) {
+        let layered_assets = match self.load_assets_from_layers(options) {
             Ok(assets) => assets,
             Err(e) => {
                 result.errors.push(format!("Failed to load assets: {}", e));
                 return result;
             }
         };
+        for warning in layered_assets.warnings {
+            result.add_warning(warning);
+        }
+        let assets = layered_assets.assets;
 
         // Step 1.5: Apply scope policy - when deploying to User scope, force all assets to User
         let assets = self.apply_scope_policy(assets, options.scope);
@@ -258,8 +266,12 @@ where
         });
 
         // Step 2: Compile assets
-        let outputs = match self.compile_assets(&assets, &options.targets) {
-            Ok(outputs) => outputs,
+        let (outputs, provenance_by_output_path) = match self.compile_assets(
+            &assets,
+            &options.targets,
+            &layered_assets.merged_assets_by_id,
+        ) {
+            Ok(result) => result,
             Err(e) => {
                 result.errors.push(format!("Compilation failed: {}", e));
                 return result;
@@ -314,9 +326,13 @@ where
         if !options.dry_run {
             self.execute_plan_with_events(&resolved_plan, &mut result, &event_sink);
             self.delete_orphans_with_events(&orphans, &mut result, &event_sink);
-            if let Some(warning) =
-                self.update_lockfile(&lockfile_path, &resolved_plan, &result, options.scope)
-            {
+            if let Some(warning) = self.update_lockfile(
+                &lockfile_path,
+                &resolved_plan,
+                &result,
+                options.scope,
+                Some(&provenance_by_output_path),
+            ) {
                 result.add_warning(warning);
             }
         } else {
@@ -347,6 +363,63 @@ where
             .map_err(|e| format!("{}", e))
     }
 
+    fn load_assets_from_layers(&self, options: &DeployOptions) -> Result<LayeredAssets, String> {
+        // Determine project root from source path
+        let project_root = options
+            .source
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .map(|p| p.to_path_buf())
+            .unwrap_or_else(|| PathBuf::from("."));
+
+        let user_layer_path = options
+            .user_layer_path
+            .clone()
+            .or_else(default_user_layer_path);
+
+        let mut layer_resolver = LayerResolver::new(project_root)
+            .with_additional_layers(options.additional_layers.clone())
+            .with_remote_mode(options.remote_mode);
+        if !options.remote_mode {
+            if let Some(user_layer_path) = user_layer_path {
+                layer_resolver = layer_resolver.with_user_layer_path(user_layer_path);
+            }
+        }
+
+        let resolution = layer_resolver.resolve().map_err(|e| match e {
+            LayerResolveError::NoLayersFound => "No layers found".to_string(),
+            _ => e.to_string(),
+        })?;
+
+        let mut layers = resolution.layers;
+        for layer in &mut layers {
+            layer.assets = self
+                .load_assets(layer.path.resolved())
+                .map_err(|e| format!("Failed to load layer '{}': {}", layer.name, e))?;
+        }
+
+        let merge_result = merge_layers(&layers);
+        let assets: Vec<Asset> = merge_result
+            .assets
+            .values()
+            .map(|m| m.asset.clone())
+            .collect();
+
+        let mut warnings = resolution.warnings;
+        for override_info in &merge_result.overrides {
+            warnings.push(format!(
+                "Asset '{}' from {} overridden by {}",
+                override_info.asset_id, override_info.from_layer, override_info.by_layer
+            ));
+        }
+
+        Ok(LayeredAssets {
+            assets,
+            merged_assets_by_id: merge_result.assets,
+            warnings,
+        })
+    }
+
     /// Apply scope policy to assets
     ///
     /// When deploying to User scope (--home), force all assets to use User scope.
@@ -372,12 +445,22 @@ where
         &self,
         assets: &[Asset],
         targets: &[Target],
-    ) -> Result<Vec<OutputFile>, String> {
+        merged_assets_by_id: &std::collections::HashMap<String, MergedAsset>,
+    ) -> Result<
+        (
+            Vec<OutputFile>,
+            std::collections::HashMap<PathBuf, crate::domain::entities::OutputProvenance>,
+        ),
+        String,
+    > {
         use crate::domain::entities::AssetKind;
+        use crate::domain::entities::OutputProvenance;
         use crate::domain::services::CompilerService;
         use std::path::PathBuf;
 
         let mut outputs = Vec::new();
+        let mut provenance_by_output_path: std::collections::HashMap<PathBuf, OutputProvenance> =
+            std::collections::HashMap::new();
 
         // Determine which adapters to use
         // Empty targets list means "no targets" (not "all targets")
@@ -411,7 +494,27 @@ where
                 }
 
                 match adapter.compile(asset) {
-                    Ok(adapter_outputs) => outputs.extend(adapter_outputs),
+                    Ok(adapter_outputs) => {
+                        let provenance = merged_assets_by_id.get(asset.id()).map(|m| {
+                            let base = OutputProvenance::new(
+                                m.source_layer.clone(),
+                                m.source_layer_path.clone(),
+                                asset.id().to_string(),
+                                m.source_file.clone(),
+                            );
+                            match &m.overrides {
+                                Some(overrides) => base.with_overrides(overrides.clone()),
+                                None => base,
+                            }
+                        });
+
+                        for output in adapter_outputs {
+                            if let Some(provenance) = provenance.clone() {
+                                provenance_by_output_path.insert(output.path().clone(), provenance);
+                            }
+                            outputs.push(output);
+                        }
+                    }
                     Err(e) => {
                         return Err(format!(
                             "Adapter {} failed on {}: {}",
@@ -453,7 +556,7 @@ where
             }
         }
 
-        Ok(outputs)
+        Ok((outputs, provenance_by_output_path))
     }
 
     /// Plan the sync operation
@@ -773,6 +876,9 @@ where
         plan: &SyncPlan,
         result: &DeployResult,
         scope: Scope,
+        provenance_by_output_path: Option<
+            &std::collections::HashMap<PathBuf, crate::domain::entities::OutputProvenance>,
+        >,
     ) -> Option<String> {
         use sha2::{Digest, Sha256};
         use std::collections::HashSet;
@@ -783,24 +889,34 @@ where
         let written_set: HashSet<_> = result.written.iter().collect();
         let skipped_set: HashSet<_> = result.skipped.iter().collect();
 
-        // Update hashes for written files and ensure skipped files are tracked
+        // Update hashes for written and skipped files (and keep provenance in sync)
         for file in &plan.files {
             let key = Lockfile::make_key(scope, &file.path.display().to_string());
 
             if written_set.contains(&file.path) {
-                // File was written - update lockfile with new hash
                 let mut hasher = Sha256::new();
                 hasher.update(file.content.as_bytes());
                 let hash = format!("sha256:{:x}", hasher.finalize());
-                lockfile.set(&key, &hash);
-            } else if skipped_set.contains(&file.path) && !lockfile.contains(&key) {
-                // File was skipped (content identical) but not in lockfile
-                // This happens when lockfile was lost but files still exist
-                // Add it to lockfile so we track it going forward
+                match provenance_by_output_path
+                    .and_then(|m| m.get(&file.path))
+                    .cloned()
+                {
+                    Some(provenance) => lockfile.set_with_provenance(&key, &hash, provenance),
+                    None => lockfile.set(&key, &hash),
+                }
+            } else if skipped_set.contains(&file.path) {
+                // File was skipped (content identical, or conflict resolved to skip).
+                // Still update lockfile so we track it going forward, and keep provenance in sync.
                 let mut hasher = Sha256::new();
                 hasher.update(file.content.as_bytes());
                 let hash = format!("sha256:{:x}", hasher.finalize());
-                lockfile.set(&key, &hash);
+                match provenance_by_output_path
+                    .and_then(|m| m.get(&file.path))
+                    .cloned()
+                {
+                    Some(provenance) => lockfile.set_with_provenance(&key, &hash, provenance),
+                    None => lockfile.set(&key, &hash),
+                }
             }
         }
 
@@ -817,4 +933,15 @@ where
             None
         }
     }
+}
+
+#[derive(Debug)]
+struct LayeredAssets {
+    assets: Vec<Asset>,
+    merged_assets_by_id: std::collections::HashMap<String, MergedAsset>,
+    warnings: Vec<String>,
+}
+
+fn default_user_layer_path() -> Option<PathBuf> {
+    dirs::home_dir().map(|h| h.join(".calvin/.promptpack"))
 }

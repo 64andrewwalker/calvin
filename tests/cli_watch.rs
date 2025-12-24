@@ -9,6 +9,13 @@ use std::thread;
 use std::time::Duration;
 use tempfile::tempdir;
 
+fn calvin_cmd(fake_home: &Path) -> Command {
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_calvin"));
+    cmd.env("HOME", fake_home);
+    cmd.env("XDG_CONFIG_HOME", fake_home.join(".config"));
+    cmd
+}
+
 /// Helper to create a minimal .promptpack structure for watch tests
 fn setup_watch_test(dir: &Path) -> std::path::PathBuf {
     let promptpack = dir.join(".promptpack");
@@ -47,11 +54,13 @@ This is the initial content.
 fn watch_produces_json_start_event() {
     let temp = tempdir().unwrap();
     let project_dir = temp.path();
+    let fake_home = temp.path().join("fake_home");
+    fs::create_dir_all(&fake_home).unwrap();
 
     setup_watch_test(project_dir);
 
     // Start watch in JSON mode, but kill it after a short time
-    let mut child = Command::new(env!("CARGO_BIN_EXE_calvin"))
+    let mut child = calvin_cmd(&fake_home)
         .arg("watch")
         .arg("--json")
         .current_dir(project_dir)
@@ -83,11 +92,13 @@ fn watch_produces_json_start_event() {
 fn watch_does_initial_sync() {
     let temp = tempdir().unwrap();
     let project_dir = temp.path();
+    let fake_home = temp.path().join("fake_home");
+    fs::create_dir_all(&fake_home).unwrap();
 
     setup_watch_test(project_dir);
 
     // Start watch, let it do initial sync, then kill
-    let mut child = Command::new(env!("CARGO_BIN_EXE_calvin"))
+    let mut child = calvin_cmd(&fake_home)
         .arg("watch")
         .arg("--json")
         .current_dir(project_dir)
@@ -124,11 +135,13 @@ fn watch_does_initial_sync() {
 fn watch_home_flag_uses_correct_scope() {
     let temp = tempdir().unwrap();
     let project_dir = temp.path();
+    let fake_home = temp.path().join("fake_home");
+    fs::create_dir_all(&fake_home).unwrap();
 
     setup_watch_test(project_dir);
 
     // Start watch with --home in dry-run (JSON shows scope info)
-    let mut child = Command::new(env!("CARGO_BIN_EXE_calvin"))
+    let mut child = calvin_cmd(&fake_home)
         .arg("watch")
         .arg("--home")
         .arg("--json")
@@ -162,10 +175,12 @@ fn watch_home_flag_uses_correct_scope() {
 fn watch_compiles_with_asset_pipeline() {
     let temp = tempdir().unwrap();
     let project_dir = temp.path();
+    let fake_home = temp.path().join("fake_home");
+    fs::create_dir_all(&fake_home).unwrap();
     let promptpack = setup_watch_test(project_dir);
 
     // First do a normal deploy to establish baseline
-    let deploy_output = Command::new(env!("CARGO_BIN_EXE_calvin"))
+    let deploy_output = calvin_cmd(&fake_home)
         .arg("deploy")
         .arg("--yes")
         .current_dir(project_dir)
@@ -203,7 +218,7 @@ This content was updated!
     fs::write(promptpack.join("watch-test.md"), updated_content).unwrap();
 
     // Start watch - it should detect the change on initial scan
-    let mut child = Command::new(env!("CARGO_BIN_EXE_calvin"))
+    let mut child = calvin_cmd(&fake_home)
         .arg("watch")
         .arg("--json")
         .current_dir(project_dir)
@@ -245,6 +260,8 @@ This content was updated!
 fn watch_respects_scope_policy() {
     let temp = tempdir().unwrap();
     let project_dir = temp.path();
+    let fake_home = temp.path().join("fake_home");
+    fs::create_dir_all(&fake_home).unwrap();
     let promptpack = project_dir.join(".promptpack");
     fs::create_dir_all(&promptpack).unwrap();
 
@@ -282,7 +299,7 @@ This should go to project directory.
     fs::write(promptpack.join("project-action.md"), project_action).unwrap();
 
     // Deploy without --home (uses Keep policy)
-    let output = Command::new(env!("CARGO_BIN_EXE_calvin"))
+    let output = calvin_cmd(&fake_home)
         .arg("deploy")
         .arg("--yes")
         .current_dir(project_dir)
