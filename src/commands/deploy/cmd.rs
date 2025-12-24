@@ -333,9 +333,9 @@ pub fn cmd_deploy_with_explicit_target(
     if json {
         // Already emitted in the JSON block above
     } else {
-        // Estimate assets from written files (rough)
-        let asset_count = result.written.len() / 4; // ~4 files per asset
-        let target_count = 5; // All targets
+        // Use actual asset count from result
+        let asset_count = result.asset_count;
+        let target_count = effective_targets.len().max(1); // Use actual target count
         print!(
             "{}",
             render_deploy_summary(
