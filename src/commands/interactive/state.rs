@@ -11,23 +11,45 @@ pub struct AssetCount {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProjectState {
+    /// No .promptpack/ in project AND no user layer
     NoPromptPack,
+    /// No .promptpack/ in project, but user layer exists at ~/.calvin/.promptpack
+    UserLayerOnly(AssetCount),
+    /// .promptpack/ exists but is empty
     EmptyPromptPack,
+    /// .promptpack/ exists with assets
     Configured(AssetCount),
+}
+
+/// Get the user layer path (~/.calvin/.promptpack)
+fn get_user_layer_path() -> Option<std::path::PathBuf> {
+    dirs::home_dir().map(|home| home.join(".calvin").join(".promptpack"))
 }
 
 pub fn detect_state(cwd: &Path) -> ProjectState {
     let promptpack_dir = cwd.join(".promptpack");
-    if !promptpack_dir.is_dir() {
-        return ProjectState::NoPromptPack;
+
+    // First check project layer
+    if promptpack_dir.is_dir() {
+        let total = count_prompt_markdown_files(&promptpack_dir);
+        if total == 0 {
+            return ProjectState::EmptyPromptPack;
+        } else {
+            return ProjectState::Configured(AssetCount { total });
+        }
     }
 
-    let total = count_prompt_markdown_files(&promptpack_dir);
-    if total == 0 {
-        ProjectState::EmptyPromptPack
-    } else {
-        ProjectState::Configured(AssetCount { total })
+    // No project layer - check for user layer
+    if let Some(user_layer) = get_user_layer_path() {
+        if user_layer.is_dir() {
+            let total = count_prompt_markdown_files(&user_layer);
+            if total > 0 {
+                return ProjectState::UserLayerOnly(AssetCount { total });
+            }
+        }
     }
+
+    ProjectState::NoPromptPack
 }
 
 fn count_prompt_markdown_files(root: &Path) -> usize {
@@ -72,7 +94,18 @@ mod tests {
     #[test]
     fn test_detect_state_no_promptpack() {
         let dir = tempdir().unwrap();
-        assert_eq!(detect_state(dir.path()), ProjectState::NoPromptPack);
+        let state = detect_state(dir.path());
+        // When no project .promptpack exists, we get either:
+        // - NoPromptPack (if no user layer exists)
+        // - UserLayerOnly (if user layer exists at ~/.calvin/.promptpack)
+        assert!(
+            matches!(
+                state,
+                ProjectState::NoPromptPack | ProjectState::UserLayerOnly(_)
+            ),
+            "Expected NoPromptPack or UserLayerOnly, got {:?}",
+            state
+        );
     }
 
     #[test]

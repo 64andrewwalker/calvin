@@ -1,6 +1,6 @@
 //! Interactive menu selections
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use dialoguer::{Confirm, Input, Select};
@@ -49,6 +49,85 @@ pub fn interactive_first_run(
             Ok(())
         }
         3 => commands::explain::cmd_explain(false, false, verbose),
+        _ => Ok(()),
+    }
+}
+
+/// Menu shown when only user layer (~/.calvin/.promptpack) exists, no project layer
+pub fn interactive_user_layer_only(
+    cwd: &Path,
+    asset_count: usize,
+    ui: &crate::ui::context::UiContext,
+    verbose: u8,
+    color: Option<ColorWhen>,
+    no_animation: bool,
+) -> Result<()> {
+    println!(
+        "Found {} prompts in user layer (~/.calvin/.promptpack)\n",
+        asset_count
+    );
+    println!("No .promptpack/ in this directory.\n");
+
+    let items = vec![
+        "[1] Deploy user layer to this project",
+        "[2] Deploy user layer to home directory",
+        "[3] Set up a project .promptpack here",
+        "[4] Show layer info",
+        "[5] Explain yourself",
+        "[6] Quit",
+    ];
+
+    let selection = Select::new()
+        .with_prompt("What would you like to do?")
+        .items(&items)
+        .default(0)
+        .interact()?;
+
+    // User layer as source
+    let user_layer = dirs::home_dir()
+        .map(|h| h.join(".calvin").join(".promptpack"))
+        .unwrap_or_else(|| PathBuf::from("~/.calvin/.promptpack"));
+
+    match selection {
+        0 => commands::deploy::cmd_deploy_with_explicit_target(
+            &user_layer,
+            false,
+            true, // explicit_project
+            None,
+            &None,
+            &[],
+            false,
+            false,
+            false,
+            true,
+            false,
+            false,
+            false,
+            verbose,
+            color,
+            no_animation,
+        ),
+        1 => commands::deploy::cmd_deploy_with_explicit_target(
+            &user_layer,
+            true, // home
+            false,
+            None,
+            &None,
+            &[],
+            false,
+            false,
+            false,
+            true,
+            false,
+            false,
+            false,
+            verbose,
+            color,
+            no_animation,
+        ),
+        2 => wizard::setup_wizard(cwd, ui),
+        3 => commands::layers::cmd_layers(false, verbose, color, no_animation),
+        4 => commands::explain::cmd_explain(false, false, verbose),
         _ => Ok(()),
     }
 }
