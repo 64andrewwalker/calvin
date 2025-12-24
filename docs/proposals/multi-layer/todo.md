@@ -1,6 +1,8 @@
 # Multi-Layer PromptPack Implementation TODO
 
 > Track implementation progress. Each phase must be completed with tests before moving to the next.
+> 
+> **UI 规范**: 所有新命令的 UI 必须遵循 `docs/ui-components-spec.md`
 
 ## Phase 0: Lockfile Migration
 

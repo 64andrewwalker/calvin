@@ -3,18 +3,48 @@
 > **Priority**: Low (Polish)  
 > **Estimated Effort**: 1-2 days  
 > **Dependencies**: Phase 1-3 complete
+> **UI Reference**: `docs/ui-components-spec.md`
 
 ## Objective
 
 添加可视化命令和工具，帮助用户理解和调试多层系统。
 
+## UI Design Principles
+
+所有新命令必须遵循 `docs/ui-components-spec.md` 规范：
+
+1. **使用设计令牌** (`src/ui/theme.rs`)
+   - 颜色：SUCCESS (green), ERROR (red), WARNING (yellow), INFO (cyan), DIM (dimmed)
+   - 图标：统一使用 `icons` 模块
+   - 边框：使用圆角边框字符
+
+2. **使用现有组件**
+   - `CommandHeader` - 命令头部
+   - `Box` - 边框容器
+   - `ResultSummary` - 结果摘要
+   - `StatusList` - 状态列表
+
+3. **降级支持**
+   - 无 Unicode 时降级到 ASCII
+   - 无颜色时降级到纯文本
+   - CI 环境禁用动画
+
 ## Detailed Tasks
 
 ### Task 4.1: Implement `calvin layers` Command
 
-**File**: `src/commands/layers.rs`
+**Files**:
+- `src/commands/layers.rs` - Command handler
+- `src/ui/views/layers.rs` - View renderer
+
+**UI 规范遵循**:
+- 使用 `CommandHeader` 显示命令头部
+- 使用 `Box` 组件包裹层列表
+- 使用 `StatusList` 显示每层详情
+- 使用 `ResultSummary` 显示合并统计
 
 ```rust
+// src/commands/layers.rs
 pub fn run_layers(json: bool) -> Result<()> {
     let config = Config::load_or_default(Some(&std::env::current_dir()?));
     let project_root = std::env::current_dir()?;
@@ -26,45 +56,70 @@ pub fn run_layers(json: bool) -> Result<()> {
         let output = serde_json::to_string_pretty(&layers)?;
         println!("{}", output);
     } else {
-        render_layers_view(&layers);
+        let view = LayersView::new(&layers);
+        view.render();
     }
     
     Ok(())
 }
+```
 
-fn render_layers_view(layers: &[Layer]) {
-    println!("╭─────────────────────────────────────────────────────────────────╮");
-    println!("│  📚 Layer Stack                                                 │");
-    println!("╰─────────────────────────────────────────────────────────────────╯");
-    println!();
-    println!("Priority: high → low");
-    println!("┌───────────────────────────────────────────────────────────────┐");
-    
-    for (i, layer) in layers.iter().enumerate().rev() {
-        let priority = layers.len() - i;
-        let layer_type = match layer.layer_type {
-            LayerType::User => "[user]   ",
-            LayerType::Custom => "[custom] ",
-            LayerType::Project => "[project]",
-        };
-        println!(
-            "│  {}. {} {:<35} {:>3} assets │",
-            priority,
-            layer_type,
-            truncate(&layer.path.display().to_string(), 35),
-            layer.assets.len()
-        );
+```rust
+// src/ui/views/layers.rs
+use crate::ui::blocks::{CommandHeader, ResultSummary};
+use crate::ui::widgets::StatusList;
+use crate::ui::theme::icons;
+
+pub struct LayersView<'a> {
+    layers: &'a [Layer],
+}
+
+impl<'a> LayersView<'a> {
+    pub fn new(layers: &'a [Layer]) -> Self {
+        Self { layers }
     }
     
-    println!("└───────────────────────────────────────────────────────────────┘");
-    println!();
-    
-    // 统计
-    let total_assets: usize = layers.iter().map(|l| l.assets.len()).sum();
-    let merged = merge_layers(layers);
-    let overridden = total_assets - merged.assets.len();
-    
-    println!("Merged: {} assets ({} overridden)", merged.assets.len(), overridden);
+    pub fn render(&self) {
+        // 1. Header
+        let mut header = CommandHeader::new(icons::CHECK, "Calvin Layers");
+        header.add("Project", std::env::current_dir().unwrap().display().to_string());
+        header.render();
+        
+        // 2. Layer stack (使用 Box 组件)
+        println!();
+        let mut layer_box = Box::with_title("Layer Stack (high → low)");
+        layer_box.with_style(BoxStyle::Info);
+        
+        for (i, layer) in self.layers.iter().enumerate().rev() {
+            let priority = self.layers.len() - i;
+            let layer_type = match layer.layer_type {
+                LayerType::User => format!("{} [user]", icons::PENDING),
+                LayerType::Custom => format!("{} [custom]", icons::PARTIAL),
+                LayerType::Project => format!("{} [project]", icons::SELECTED),
+            };
+            layer_box.add_line(format!(
+                "{}. {} {} ({} assets)",
+                priority,
+                layer_type,
+                truncate(&layer.path.display().to_string(), 35),
+                layer.assets.len()
+            ));
+        }
+        layer_box.render();
+        
+        // 3. Summary
+        let total_assets: usize = self.layers.iter().map(|l| l.assets.len()).sum();
+        let merged = merge_layers(self.layers);
+        let overridden = total_assets - merged.len();
+        
+        println!();
+        println!(
+            "{} Merged: {} assets ({} overridden by higher layers)",
+            icons::SUCCESS.green(),
+            merged.len(),
+            overridden
+        );
+    }
 }
 ```
 
@@ -83,10 +138,19 @@ pub enum Commands {
 
 ### Task 4.2: Implement `calvin provenance` Command
 
-**File**: `src/commands/provenance.rs`
+**Files**:
+- `src/commands/provenance.rs` - Command handler
+- `src/ui/views/provenance.rs` - View renderer
+
+**UI 规范遵循**:
+- 使用 `CommandHeader` 显示命令头部
+- 使用 `StatusList` 显示每个输出文件的来源
+- 使用 DIM 颜色显示次要信息
+- 使用 `icons::ARROW` 显示来源指向
 
 ```rust
-pub fn run_provenance(json: bool) -> Result<()> {
+// src/commands/provenance.rs
+pub fn run_provenance(json: bool, filter: Option<String>) -> Result<()> {
     let project_root = std::env::current_dir()?;
     let lockfile_path = project_root.join("calvin.lock");
     
@@ -102,50 +166,82 @@ pub fn run_provenance(json: bool) -> Result<()> {
         let output = serde_json::to_string_pretty(&lockfile)?;
         println!("{}", output);
     } else {
-        render_provenance_report(&lockfile);
+        let view = ProvenanceView::new(&lockfile, filter.as_deref());
+        view.render();
     }
     
     Ok(())
 }
+```
 
-fn render_provenance_report(lockfile: &Lockfile) {
-    println!("╭─────────────────────────────────────────────────────────────────╮");
-    println!("│  📋 Output Provenance Report                                    │");
-    println!("╰─────────────────────────────────────────────────────────────────╯");
-    println!();
-    
-    let entries: Vec<_> = lockfile.entries().collect();
-    
-    for (key, entry) in entries {
-        // 解析 key 获取输出路径
-        let (_, path) = Lockfile::parse_key(key).unwrap_or((Scope::Project, key));
+```rust
+// src/ui/views/provenance.rs
+use crate::ui::blocks::CommandHeader;
+use crate::ui::theme::{icons, colors, dim, info};
+
+pub struct ProvenanceView<'a> {
+    lockfile: &'a Lockfile,
+    filter: Option<&'a str>,
+}
+
+impl<'a> ProvenanceView<'a> {
+    pub fn render(&self) {
+        // 1. Header
+        let mut header = CommandHeader::new(icons::CHECK, "Calvin Provenance");
+        header.add("Lockfile", "calvin.lock");
+        header.render();
         
-        println!("{}", path);
-        
-        if let Some(source_file) = entry.source_file() {
-            println!("├─ Source: {}", source_file.display());
-        }
-        if let Some(layer) = entry.source_layer() {
-            println!("├─ Layer:  {}", layer);
-        }
-        if let Some(asset) = entry.source_asset() {
-            println!("├─ Asset:  {}", asset);
-        }
-        if let Some(overrides) = entry.overrides() {
-            println!("└─ Note:   Overrides '{}' from {} layer", 
-                entry.source_asset().unwrap_or("?"), overrides);
-        } else {
-            println!("└─");
-        }
         println!();
+        
+        let entries: Vec<_> = self.lockfile.entries()
+            .filter(|(k, _)| self.filter.map_or(true, |f| k.contains(f)))
+            .collect();
+        
+        if entries.is_empty() {
+            println!("{} No outputs found.", dim("○"));
+            return;
+        }
+        
+        // 2. Output list with provenance
+        for (key, entry) in &entries {
+            let (_, path) = Lockfile::parse_key(key).unwrap_or((Scope::Project, key));
+            
+            // 输出路径 (INFO 颜色)
+            println!("{}", info(path));
+            
+            // 来源信息 (DIM 颜色，使用 ARROW 图标)
+            if let Some(source_file) = entry.source_file() {
+                println!("  {} Source: {}", icons::ARROW, dim(source_file.display()));
+            }
+            if let Some(layer) = entry.source_layer() {
+                let layer_icon = match layer.as_str() {
+                    "project" => icons::SELECTED,
+                    "user" => icons::PENDING,
+                    _ => icons::PARTIAL,
+                };
+                println!("  {} Layer:  {} {}", icons::ARROW, layer_icon, layer);
+            }
+            if let Some(overrides) = entry.overrides() {
+                println!(
+                    "  {} {}",
+                    icons::WARNING.yellow(),
+                    format!("Overrides asset from '{}' layer", overrides).yellow()
+                );
+            }
+            println!();
+        }
+        
+        // 3. Summary
+        let layers: HashSet<_> = entries.iter()
+            .filter_map(|(_, e)| e.source_layer())
+            .collect();
+        
+        println!("{}", dim(format!(
+            "Total: {} output files from {} layers",
+            entries.len(),
+            layers.len()
+        )));
     }
-    
-    // 统计
-    let layers: HashSet<_> = entries.iter()
-        .filter_map(|(_, e)| e.source_layer())
-        .collect();
-    
-    println!("Total: {} output files from {} layers", entries.len(), layers.len());
 }
 ```
 

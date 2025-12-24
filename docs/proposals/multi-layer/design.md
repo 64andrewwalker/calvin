@@ -157,17 +157,56 @@ Priority: Low → High
 
 ## UI Principles
 
-### U1: 层级可视化
+> **参考文档**: `docs/ui-components-spec.md`
+
+### U1: 使用现有组件
+
+所有新命令必须使用现有 UI 组件：
+
+| 组件 | 用途 | 新命令使用 |
+|-----|------|-----------|
+| `CommandHeader` | 命令头部 | layers, projects, provenance, migrate |
+| `Box` | 边框容器 | layers (层列表), projects (项目表) |
+| `ResultSummary` | 结果摘要 | clean --all, migrate |
+| `StatusList` | 状态列表 | clean --all (进度) |
+| `Spinner` | 加载动画 | migrate (迁移中) |
+
+### U2: 遵循设计令牌
+
+颜色只能使用 `src/ui/theme.rs` 中定义的 5 种：
+- `SUCCESS` (green) - 成功状态
+- `ERROR` (red) - 错误状态
+- `WARNING` (yellow) - 警告状态
+- `INFO` (cyan) - 信息/标题
+- `DIM` (dimmed) - 次要信息
+
+图标只能使用 `icons` 模块中定义的：
+- 新命令需要的图标：`LAYERS` (待添加)、`DEPLOY`、`CLEAN`、`CHECK`
+
+### U3: 层级可视化
 
 在 verbose 模式下，始终显示层级栈和来源信息。
 
-### U2: 覆盖关系清晰
+层类型的视觉区分：
+```
+● [project] ./.promptpack           ← 已选中 (SELECTED)
+◐ [custom]  ~/team/.promptpack      ← 部分 (PARTIAL)
+○ [user]    ~/.calvin/.promptpack   ← 基础 (PENDING)
+```
 
-当发生覆盖时，明确显示哪个层覆盖了哪个层。
+### U4: 覆盖关系清晰
 
-### U3: 一致的视觉风格
+当发生覆盖时，明确显示哪个层覆盖了哪个层：
+```
+⚠ Asset 'review' from user layer overridden by project layer
+```
 
-使用现有 UI 组件（Box, Icon, ColoredText）保持一致性。
+### U5: 降级支持
+
+所有 UI 必须支持：
+- 无 Unicode 环境降级到 ASCII
+- 无颜色环境降级到纯文本
+- CI 环境禁用动画、简化输出
 
 ---
 

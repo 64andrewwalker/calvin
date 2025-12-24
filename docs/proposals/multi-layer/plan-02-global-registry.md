@@ -3,6 +3,7 @@
 > **Priority**: Medium  
 > **Estimated Effort**: 2-3 days  
 > **Dependencies**: Phase 1 complete
+> **UI Reference**: `docs/ui-components-spec.md`
 
 ## Objective
 
@@ -318,79 +319,201 @@ pub fn run_projects(prune: bool, json: bool) -> Result<()> {
 }
 ```
 
-**UI**:
+**UI 设计** (遵循 `docs/ui-components-spec.md`):
+
+**文件**: `src/ui/views/projects.rs`
+
 ```rust
-fn render_projects_table(registry: &Registry) {
-    println!("╭─────────────────────────────────────────────────────────────────╮");
-    println!("│  📂 Calvin-managed Projects                                     │");
-    println!("╰─────────────────────────────────────────────────────────────────╯");
-    println!();
-    
-    if registry.projects.is_empty() {
-        println!("No projects found. Run `calvin deploy` in a project to register it.");
-        return;
-    }
-    
-    println!("┌──────────────────────────────────┬─────────┬──────────────────┐");
-    println!("│ Project                          │ Assets  │ Last Deployed    │");
-    println!("├──────────────────────────────────┼─────────┼──────────────────┤");
-    
-    for project in &registry.projects {
-        let ago = humanize_duration(Utc::now() - project.last_deployed);
+use crate::ui::blocks::CommandHeader;
+use crate::ui::widgets::Box;
+use crate::ui::theme::{icons, dim, info, warning};
+
+pub struct ProjectsView<'a> {
+    registry: &'a Registry,
+    pruned: Option<&'a [PathBuf]>,
+}
+
+impl<'a> ProjectsView<'a> {
+    pub fn render(&self) {
+        // 1. Header (使用 CommandHeader 组件)
+        let mut header = CommandHeader::new(icons::DEPLOY, "Calvin Projects");
+        header.add("Registry", "~/.calvin/registry.toml");
+        header.render();
+        
+        println!();
+        
+        // 2. 显示已清理的项目 (如果有)
+        if let Some(pruned) = self.pruned {
+            if !pruned.is_empty() {
+                for path in pruned {
+                    println!("{} Removed: {}", warning(icons::WARNING), dim(path.display()));
+                }
+                println!();
+            }
+        }
+        
+        // 3. 项目列表 (使用 Box 组件)
+        if self.registry.projects.is_empty() {
+            println!("{} No projects found.", dim(icons::PENDING));
+            println!();
+            println!("{}", dim("Run `calvin deploy` in a project to register it."));
+            return;
+        }
+        
+        let mut project_box = Box::with_title("Managed Projects");
+        project_box.with_style(BoxStyle::Info);
+        
+        // 表头 (使用 DIM 颜色)
+        project_box.add_line(format!(
+            "{:<40} {:>8} {:>16}",
+            "Project", "Assets", "Last Deployed"
+        ));
+        project_box.add_line(dim("─".repeat(66)));
+        
+        // 项目列表
+        for project in &self.registry.projects {
+            let ago = humanize_duration(Utc::now() - project.last_deployed);
+            let status_icon = if project.lockfile.exists() {
+                icons::SUCCESS
+            } else {
+                icons::WARNING
+            };
+            project_box.add_line(format!(
+                "{} {:<38} {:>8} {:>16}",
+                status_icon,
+                truncate(&project.path.display().to_string(), 38),
+                project.asset_count,
+                ago
+            ));
+        }
+        
+        project_box.render();
+        
+        // 4. 汇总
+        println!();
         println!(
-            "│ {:<32} │ {:>7} │ {:<16} │",
-            truncate(&project.path.display().to_string(), 32),
-            project.asset_count,
-            ago
+            "{} Total: {} projects",
+            icons::SUCCESS.green(),
+            self.registry.projects.len()
         );
     }
-    
-    println!("└──────────────────────────────────┴─────────┴──────────────────┘");
-    println!();
-    println!("Total: {} projects", registry.projects.len());
 }
 ```
 
 ### Task 2.5: Implement `calvin clean --all`
 
-**File**: `src/commands/clean.rs`
+**Files**:
+- `src/commands/clean.rs` - 添加 `--all` 参数处理
+- `src/ui/views/clean.rs` - 复用现有 CleanView，扩展支持批量
+
+**UI 设计** (遵循 `docs/ui-components-spec.md`):
 
 ```rust
+// src/commands/clean.rs
 pub fn run_clean_all(dry_run: bool, yes: bool) -> Result<()> {
     let registry = RegistryRepository::load();
     
     if registry.projects.is_empty() {
-        eprintln!("No projects in registry.");
+        println!("{} No projects in registry.", dim(icons::PENDING));
         return Ok(());
     }
     
-    println!("Found {} projects:", registry.projects.len());
-    for project in &registry.projects {
-        println!("  - {}", project.path.display());
-    }
+    // 1. Header
+    let mut header = CommandHeader::new(icons::CLEAN, "Calvin Clean All");
+    header.add("Projects", registry.projects.len().to_string());
+    header.render();
     
+    println!();
+    
+    // 2. 项目列表预览
+    println!("Will clean {} projects:", registry.projects.len());
+    for project in &registry.projects {
+        println!("  {} {}", icons::PENDING, project.path.display());
+    }
+    println!();
+    
+    // 3. 确认 (使用 dialoguer 保持一致性)
     if !yes {
-        // 确认
-        print!("Clean all projects? [y/N] ");
-        let mut input = String::new();
-        std::io::stdin().read_line(&mut input)?;
-        if !input.trim().eq_ignore_ascii_case("y") {
-            println!("Aborted.");
+        let confirm = dialoguer::Confirm::new()
+            .with_prompt("Clean all projects?")
+            .default(false)
+            .interact()?;
+        
+        if !confirm {
+            println!("{} Aborted.", warning(icons::WARNING));
             return Ok(());
         }
     }
     
+    // 4. 执行清理 (使用 StatusList 显示进度)
+    let mut status_list = StatusList::new();
     for project in &registry.projects {
-        println!("\nCleaning {}...", project.path.display());
+        status_list.add(project.path.display().to_string());
+    }
+    
+    let mut total_files = 0;
+    let mut errors = Vec::new();
+    
+    for (i, project) in registry.projects.iter().enumerate() {
+        status_list.update(i, ItemStatus::InProgress);
+        status_list.render();
+        
         let options = CleanOptions::new().with_scope(None);
         
         if dry_run {
-            let result = clean_use_case.execute(&project.lockfile, &options);
-            // 显示预览
+            // Dry run - 只统计
+            match clean_use_case.preview(&project.lockfile, &options) {
+                Ok(result) => {
+                    total_files += result.files.len();
+                    status_list.update(i, ItemStatus::Success);
+                    status_list.update_detail(i, format!("{} files", result.files.len()));
+                }
+                Err(e) => {
+                    errors.push((project.path.clone(), e.to_string()));
+                    status_list.update(i, ItemStatus::Error);
+                }
+            }
         } else {
-            let result = clean_use_case.execute_confirmed(&project.lockfile, &options);
-            // 显示结果
+            // 实际清理
+            match clean_use_case.execute_confirmed(&project.lockfile, &options) {
+                Ok(result) => {
+                    total_files += result.files_removed;
+                    status_list.update(i, ItemStatus::Success);
+                    status_list.update_detail(i, format!("{} removed", result.files_removed));
+                }
+                Err(e) => {
+                    errors.push((project.path.clone(), e.to_string()));
+                    status_list.update(i, ItemStatus::Error);
+                }
+            }
         }
+    }
+    
+    status_list.render();
+    
+    // 5. 结果摘要 (使用 ResultSummary)
+    println!();
+    if dry_run {
+        let mut summary = ResultSummary::partial("Dry Run Complete");
+        summary.add_stat("projects", registry.projects.len());
+        summary.add_stat("files to remove", total_files);
+        if !errors.is_empty() {
+            summary.add_warning(format!("{} errors", errors.len()));
+        }
+        summary.with_next_step("Run without --dry-run to apply changes");
+        summary.render();
+    } else {
+        let mut summary = if errors.is_empty() {
+            ResultSummary::success("Clean Complete")
+        } else {
+            ResultSummary::partial("Clean Completed with Errors")
+        };
+        summary.add_stat("projects cleaned", registry.projects.len() - errors.len());
+        summary.add_stat("files removed", total_files);
+        if !errors.is_empty() {
+            summary.add_warning(format!("{} errors", errors.len()));
+        }
+        summary.render();
     }
     
     Ok(())
