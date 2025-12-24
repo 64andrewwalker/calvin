@@ -224,6 +224,23 @@ pub enum Verbosity {
     Debug,
 }
 
+impl Verbosity {
+    /// All valid string representations for this enum
+    pub const VALID_VALUES: &'static [&'static str] = &["quiet", "normal", "verbose", "debug"];
+
+    /// Parse a string into Verbosity (case-insensitive)
+    /// Returns None for invalid values
+    pub fn parse_str(s: &str) -> Option<Self> {
+        match s.trim().to_lowercase().as_str() {
+            "quiet" => Some(Self::Quiet),
+            "normal" => Some(Self::Normal),
+            "verbose" => Some(Self::Verbose),
+            "debug" => Some(Self::Debug),
+            _ => None,
+        }
+    }
+}
+
 /// MCP Server configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct McpServerConfig {

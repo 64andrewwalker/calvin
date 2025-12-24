@@ -7,10 +7,13 @@
 //! 4. User config (~/.config/calvin/config.toml)
 //! 5. Built-in defaults (lowest priority)
 
+mod env_validator;
 mod loader;
 #[cfg(test)]
 mod tests;
 mod types;
+
+pub use env_validator::{levenshtein, EnvVarValidator};
 
 // Re-export ConfigWarning from domain layer (for backward compatibility)
 pub use crate::domain::value_objects::ConfigWarning;

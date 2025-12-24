@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use crate::domain::value_objects::{ConfigWarning, DeployTarget, Target};
 use crate::error::CalvinResult;
 
+use super::env_validator::EnvVarValidator;
 use super::types::{Config, SecurityMode, Verbosity};
 
 /// Load configuration and collect non-fatal warnings (e.g. unknown keys).
@@ -102,41 +103,45 @@ pub fn load_or_default_with_warnings(
 
 /// Apply environment variable overrides (CALVIN_* prefix)
 pub fn with_env_overrides(mut config: Config) -> Config {
-    // CALVIN_SECURITY_MODE
+    // CALVIN_SECURITY_MODE - with validation and helpful warnings
     if let Ok(mode) = std::env::var("CALVIN_SECURITY_MODE") {
-        config.security.mode = match mode.to_lowercase().as_str() {
-            "yolo" => SecurityMode::Yolo,
-            "strict" => SecurityMode::Strict,
-            _ => SecurityMode::Balanced,
-        };
+        config.security.mode = EnvVarValidator::new(
+            "CALVIN_SECURITY_MODE",
+            SecurityMode::VALID_VALUES,
+        )
+        .parse(&mode, SecurityMode::parse_str, SecurityMode::Balanced);
     }
 
-    // CALVIN_TARGETS (comma-separated)
+    // CALVIN_TARGETS (comma-separated) - with validation and helpful warnings
     if let Ok(targets) = std::env::var("CALVIN_TARGETS") {
-        let parsed: Vec<Target> = targets
-            .split(',')
-            .filter_map(|s| match s.trim().to_lowercase().as_str() {
-                "claude-code" | "claudecode" => Some(Target::ClaudeCode),
-                "cursor" => Some(Target::Cursor),
-                "vscode" | "vs-code" => Some(Target::VSCode),
-                "antigravity" => Some(Target::Antigravity),
-                "codex" => Some(Target::Codex),
-                _ => None,
-            })
-            .collect();
-        if !parsed.is_empty() {
+        let mut parsed: Vec<Target> = Vec::new();
+        let mut had_invalid = false;
+
+        for s in targets.split(',') {
+            let trimmed = s.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+            match Target::from_str_with_suggestion(trimmed) {
+                Ok(target) if target != Target::All => parsed.push(target),
+                Ok(_) => {} // Ignore 'all' - it's meta
+                Err(e) => {
+                    eprintln!("Warning: {}", e);
+                    had_invalid = true;
+                }
+            }
+        }
+
+        // Only apply if we got some valid targets, or if there were no invalid ones
+        if !parsed.is_empty() || !had_invalid {
             config.targets.enabled = Some(parsed);
         }
     }
 
-    // CALVIN_VERBOSITY
+    // CALVIN_VERBOSITY - with validation and helpful warnings
     if let Ok(verbosity) = std::env::var("CALVIN_VERBOSITY") {
-        config.output.verbosity = match verbosity.to_lowercase().as_str() {
-            "quiet" => Verbosity::Quiet,
-            "verbose" => Verbosity::Verbose,
-            "debug" => Verbosity::Debug,
-            _ => Verbosity::Normal,
-        };
+        config.output.verbosity = EnvVarValidator::new("CALVIN_VERBOSITY", Verbosity::VALID_VALUES)
+            .parse(&verbosity, Verbosity::parse_str, Verbosity::Normal);
     }
 
     // CALVIN_ATOMIC_WRITES

@@ -548,3 +548,96 @@ fn deploy_cli_targets_overrides_config() {
         claude_dir.exists()
     );
 }
+
+// ============================================================================
+// Environment Variable Validation Tests
+// ============================================================================
+
+/// Run deploy with environment variables
+fn run_deploy_with_env(
+    dir: &tempfile::TempDir,
+    args: &[&str],
+    env_vars: &[(&str, &str)],
+) -> std::process::Output {
+    let bin = env!("CARGO_BIN_EXE_calvin");
+    let mut cmd = Command::new(bin);
+    cmd.current_dir(dir.path()).args(["deploy"]).args(args);
+
+    for (key, value) in env_vars {
+        cmd.env(key, value);
+    }
+
+    cmd.output().unwrap()
+}
+
+#[test]
+fn deploy_warns_on_invalid_security_mode_env() {
+    let dir = create_test_project();
+
+    // Set invalid security mode with typo
+    let output = run_deploy_with_env(&dir, &["--yes"], &[("CALVIN_SECURITY_MODE", "strct")]);
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    // Should contain warning about invalid value
+    assert!(
+        stderr.contains("Warning:") && stderr.contains("CALVIN_SECURITY_MODE"),
+        "Should warn about invalid CALVIN_SECURITY_MODE. stderr: {}",
+        stderr
+    );
+
+    // Should suggest the correct value
+    assert!(
+        stderr.contains("strict") || stderr.contains("Did you mean"),
+        "Should suggest 'strict'. stderr: {}",
+        stderr
+    );
+}
+
+#[test]
+fn deploy_warns_on_invalid_verbosity_env() {
+    let dir = create_test_project();
+
+    // Set invalid verbosity with typo
+    let output = run_deploy_with_env(&dir, &["--yes"], &[("CALVIN_VERBOSITY", "quite")]);
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    // Should contain warning about invalid value
+    assert!(
+        stderr.contains("Warning:") && stderr.contains("CALVIN_VERBOSITY"),
+        "Should warn about invalid CALVIN_VERBOSITY. stderr: {}",
+        stderr
+    );
+
+    // Should list valid values
+    assert!(
+        stderr.contains("quiet") || stderr.contains("Valid values"),
+        "Should mention valid values. stderr: {}",
+        stderr
+    );
+}
+
+#[test]
+fn deploy_warns_on_invalid_target_env() {
+    let dir = create_test_project();
+
+    // Set invalid target with typo
+    let output = run_deploy_with_env(&dir, &["--yes"], &[("CALVIN_TARGETS", "cluade-code")]);
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    // Should contain warning about invalid target
+    assert!(
+        stderr.contains("Warning:") || stderr.contains("Unknown target"),
+        "Should warn about invalid target. stderr: {}",
+        stderr
+    );
+
+    // Should suggest the correct value
+    assert!(
+        stderr.contains("claude-code") || stderr.contains("Did you mean"),
+        "Should suggest 'claude-code'. stderr: {}",
+        stderr
+    );
+}
