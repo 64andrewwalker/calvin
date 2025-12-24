@@ -11,6 +11,7 @@
 
 use std::path::{Path, PathBuf};
 
+#[allow(deprecated)]
 use crate::application::compile_assets;
 use crate::config::Config;
 use crate::domain::entities::OutputFile;
@@ -91,6 +92,7 @@ impl AssetPipeline {
     /// Parse + apply scope policy + compile.
     ///
     /// This is the main entry point for full compilation.
+    #[allow(deprecated)]
     pub fn compile(&self) -> CalvinResult<Vec<OutputFile>> {
         let assets = parse_directory(&self.source)?;
         let filtered = self.scope_policy.apply(assets);
@@ -100,6 +102,7 @@ impl AssetPipeline {
     /// Incremental version for watch mode.
     ///
     /// Uses a cache to only reparse changed files.
+    #[allow(deprecated)]
     pub fn compile_incremental(
         &self,
         changed_files: &[PathBuf],

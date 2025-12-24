@@ -16,8 +16,12 @@
 //! ## Migration Note
 //!
 //! This function accepts legacy `PromptAsset` and `Target` types for backward
-//! compatibility. For new code using domain types, use the `compile_assets` method
-//! on `DeployUseCase` or `DiffUseCase` directly.
+//! compatibility. For new code using domain types, use `CompilerService` directly.
+//!
+//! ## Deprecation Notice
+//!
+//! This module uses `CompilerService` internally. Consider using `CompilerService`
+//! directly for new code.
 
 use std::path::PathBuf;
 
@@ -39,21 +43,7 @@ fn to_domain_target(target: &Target) -> DomainTarget {
     }
 }
 
-/// Generate Cursor command file content (same format as ClaudeCode)
-fn generate_cursor_command_content(asset: &Asset, footer: &str) -> String {
-    let has_description = !asset.description().trim().is_empty();
-
-    if has_description {
-        format!(
-            "{}\n\n{}\n\n{}",
-            asset.description(),
-            asset.content().trim(),
-            footer
-        )
-    } else {
-        format!("{}\n\n{}", asset.content().trim(), footer)
-    }
-}
+// Note: generate_cursor_command_content is now in CompilerService
 
 /// Compile assets to output files
 ///
@@ -67,6 +57,11 @@ fn generate_cursor_command_content(asset: &Asset, footer: &str) -> String {
 ///
 /// # Returns
 /// A vector of `OutputFile` ready for deployment
+///
+/// # Deprecated
+/// Use `CompilerService` directly for new code. This function is maintained
+/// for backward compatibility with legacy `PromptAsset` types.
+#[deprecated(since = "0.6.0", note = "Use CompilerService directly for new code")]
 pub fn compile_assets(
     assets: &[PromptAsset],
     targets: &[Target],
@@ -80,15 +75,9 @@ pub fn compile_assets(
     // Convert targets to domain targets
     let domain_targets: Vec<DomainTarget> = targets.iter().map(to_domain_target).collect();
 
-    // Check if Claude Code is in the target list.
-    // This affects Cursor's behavior - if Claude Code is not selected, Cursor needs to generate commands.
-    let has_claude_code = targets.is_empty() || targets.contains(&Target::ClaudeCode);
-    let has_cursor = targets.is_empty() || targets.contains(&Target::Cursor);
-
-    // Use cursor adapter with commands enabled if:
-    // 1. Cursor is selected AND
-    // 2. Claude Code is NOT selected
-    let cursor_needs_commands = has_cursor && !has_claude_code;
+    // Use CompilerService to determine if Cursor needs to generate commands
+    use crate::domain::services::CompilerService;
+    let cursor_needs_commands = CompilerService::cursor_needs_commands(&domain_targets);
 
     // Get new infrastructure adapters
     let adapters = all_adapters();
@@ -134,7 +123,7 @@ pub fn compile_assets(
                     };
                     let command_path = commands_base.join(format!("{}.md", asset.id()));
                     let footer = adapter.footer(&asset.source_path_normalized());
-                    let content = generate_cursor_command_content(asset, &footer);
+                    let content = CompilerService::generate_command_content(asset, &footer);
                     outputs.push(OutputFile::new(command_path, content, DomainTarget::Cursor));
                 }
             }
