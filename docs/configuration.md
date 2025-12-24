@@ -44,7 +44,14 @@ additional_allowlist = ["my-internal-mcp"]
 # TARGET ADAPTERS
 #───────────────────────────────────────────────────────────────
 [targets]
-enabled = ["claude-code", "cursor", "vscode", "antigravity"]  # default: all
+# Specify which platforms to deploy to. Default: all platforms.
+# Valid values: claude-code (or "claude"), cursor, vscode, antigravity, codex, all
+enabled = ["claude-code", "cursor", "vscode", "antigravity", "codex"]
+
+# Semantic notes:
+# - enabled = ["claude"]       → Deploy only to Claude Code (alias supported)
+# - enabled = []               → Deploy to NO targets (explicitly disabled)
+# - enabled field missing      → Deploy to ALL targets (default behavior)
 
 #───────────────────────────────────────────────────────────────
 # SYNC BEHAVIOR
@@ -150,7 +157,8 @@ mode = "balanced"
 allow_naked = false
 
 [targets]
-enabled = ["claude-code", "cursor", "vscode", "antigravity"]
+# When 'enabled' field is missing, deploys to all platforms
+enabled = ["claude-code", "cursor", "vscode", "antigravity", "codex"]
 
 [sync]
 atomic_writes = true
@@ -159,3 +167,16 @@ respect_lockfile = true
 [output]
 verbosity = "normal"
 ```
+
+---
+
+## Target Name Reference
+
+| Name | Aliases | Platform |
+|------|---------|----------|
+| `claude-code` | `claude` | Claude Code (Anthropic) |
+| `cursor` | - | Cursor IDE |
+| `vscode` | `vs-code` | VS Code with GitHub Copilot |
+| `antigravity` | - | Google Antigravity/Gemini |
+| `codex` | - | OpenAI Codex CLI |
+| `all` | - | All platforms (meta-target) |
