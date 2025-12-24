@@ -19,4 +19,4 @@ pub use lockfile_namespace::{lockfile_key, parse_lockfile_key, LockfileNamespace
 pub use path::{PathError, SafePath};
 pub use scope::Scope;
 pub use security_mode::SecurityMode;
-pub use target::Target;
+pub use target::{Target, TargetParseError};

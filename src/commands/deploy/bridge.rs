@@ -15,11 +15,15 @@ use super::options::DeployOptions as RunnerOptions;
 use super::targets::DeployTarget;
 
 /// Convert runner options to use case options
+///
+/// The `effective_targets` parameter should be the final list of targets to deploy to,
+/// after applying CLI > config > default priority.
 pub fn convert_options(
     source: &std::path::Path,
     target: &DeployTarget,
     runner_options: &RunnerOptions,
     cleanup: bool,
+    effective_targets: &[calvin::Target],
 ) -> UseCaseOptions {
     // Determine scope based on target
     let scope = match target {
@@ -27,9 +31,8 @@ pub fn convert_options(
         DeployTarget::Project(_) | DeployTarget::Remote(_) => Scope::Project,
     };
 
-    // Convert targets
-    let targets: Vec<DomainTarget> = runner_options
-        .targets
+    // Convert effective_targets (already resolved with CLI > config priority)
+    let targets: Vec<DomainTarget> = effective_targets
         .iter()
         .map(|t| match t {
             calvin::Target::ClaudeCode => DomainTarget::ClaudeCode,
@@ -101,11 +104,13 @@ mod tests {
     #[test]
     fn convert_options_project_target() {
         let runner_options = RunnerOptions::new();
+        let effective_targets = vec![calvin::Target::Cursor];
         let options = convert_options(
             std::path::Path::new("/project/.promptpack"),
             &DeployTarget::Project(PathBuf::from("/project")),
             &runner_options,
             false,
+            &effective_targets,
         );
 
         assert_eq!(options.scope, Scope::Project);
@@ -115,11 +120,13 @@ mod tests {
     #[test]
     fn convert_options_home_target() {
         let runner_options = RunnerOptions::new();
+        let effective_targets = vec![calvin::Target::Cursor];
         let options = convert_options(
             std::path::Path::new("/project/.promptpack"),
             &DeployTarget::Home,
             &runner_options,
             false,
+            &effective_targets,
         );
 
         assert_eq!(options.scope, Scope::User);
@@ -129,12 +136,14 @@ mod tests {
     fn convert_options_preserves_force() {
         let mut runner_options = RunnerOptions::new();
         runner_options.force = true;
+        let effective_targets = vec![calvin::Target::Cursor];
 
         let options = convert_options(
             std::path::Path::new("/project/.promptpack"),
             &DeployTarget::Project(PathBuf::from("/project")),
             &runner_options,
             false,
+            &effective_targets,
         );
 
         assert!(options.force);
@@ -144,12 +153,14 @@ mod tests {
     fn convert_options_preserves_dry_run() {
         let mut runner_options = RunnerOptions::new();
         runner_options.dry_run = true;
+        let effective_targets = vec![calvin::Target::Cursor];
 
         let options = convert_options(
             std::path::Path::new("/project/.promptpack"),
             &DeployTarget::Project(PathBuf::from("/project")),
             &runner_options,
             false,
+            &effective_targets,
         );
 
         assert!(options.dry_run);
@@ -158,14 +169,32 @@ mod tests {
     #[test]
     fn convert_options_preserves_cleanup() {
         let runner_options = RunnerOptions::new();
+        let effective_targets = vec![calvin::Target::Cursor];
 
         let options = convert_options(
             std::path::Path::new("/project/.promptpack"),
             &DeployTarget::Project(PathBuf::from("/project")),
             &runner_options,
             true,
+            &effective_targets,
         );
 
         assert!(options.clean_orphans);
+    }
+
+    #[test]
+    fn convert_options_uses_effective_targets() {
+        let runner_options = RunnerOptions::new();
+        let effective_targets = vec![calvin::Target::ClaudeCode, calvin::Target::Cursor];
+
+        let options = convert_options(
+            std::path::Path::new("/project/.promptpack"),
+            &DeployTarget::Project(PathBuf::from("/project")),
+            &runner_options,
+            false,
+            &effective_targets,
+        );
+
+        assert_eq!(options.targets.len(), 2);
     }
 }

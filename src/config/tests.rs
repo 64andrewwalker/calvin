@@ -54,7 +54,7 @@ verbosity = "normal"
 
     assert_eq!(config.format.version, "1.0");
     assert_eq!(config.security.mode, SecurityMode::Balanced);
-    assert_eq!(config.targets.enabled.len(), 2);
+    assert_eq!(config.enabled_targets().len(), 2);
     assert!(config.sync.atomic_writes);
 }
 
@@ -69,7 +69,7 @@ fn test_enabled_targets_default() {
 #[test]
 fn test_enabled_targets_filtered() {
     let mut config = Config::default();
-    config.targets.enabled = vec![Target::ClaudeCode, Target::Cursor];
+    config.targets.enabled = Some(vec![Target::ClaudeCode, Target::Cursor]);
 
     let targets = config.enabled_targets();
     assert_eq!(targets.len(), 2);
@@ -100,9 +100,10 @@ fn test_env_override_targets() {
     // SAFETY: Single-threaded test, no concurrent access to env vars
     unsafe { std::env::set_var("CALVIN_TARGETS", "claude-code,cursor") };
     let config = Config::default().with_env_overrides();
-    assert_eq!(config.targets.enabled.len(), 2);
-    assert!(config.targets.enabled.contains(&Target::ClaudeCode));
-    assert!(config.targets.enabled.contains(&Target::Cursor));
+    let targets = config.enabled_targets();
+    assert_eq!(targets.len(), 2);
+    assert!(targets.contains(&Target::ClaudeCode));
+    assert!(targets.contains(&Target::Cursor));
     unsafe { std::env::remove_var("CALVIN_TARGETS") };
 }
 
@@ -201,6 +202,143 @@ additional_allowlist = ["internal-code-server"]
     assert_eq!(
         config.security.mcp.additional_allowlist,
         vec!["internal-code-server".to_string()]
+    );
+}
+
+// === TDD: Fix targets-config-bug-2025-12-24 ===
+
+/// Test that empty list `enabled = []` means "no targets"
+/// This is different from field missing (which means "all targets")
+#[test]
+fn test_enabled_targets_empty_list_means_none() {
+    let toml = r#"
+[targets]
+enabled = []
+"#;
+
+    let config: Config = toml::from_str(toml).unwrap();
+    let targets = config.enabled_targets();
+    // Empty list should mean "no targets", not "all targets"
+    assert!(
+        targets.is_empty(),
+        "enabled = [] should return empty vec, not all targets"
+    );
+}
+
+/// Test that missing `enabled` field means "all targets" (default behavior)
+#[test]
+fn test_enabled_targets_field_missing_means_all() {
+    let toml = r#"
+[targets]
+# enabled field is missing
+"#;
+
+    let config: Config = toml::from_str(toml).unwrap();
+    let targets = config.enabled_targets();
+    // Missing field should mean "all targets"
+    assert_eq!(
+        targets.len(),
+        5,
+        "missing enabled field should return all 5 targets"
+    );
+}
+
+/// Test that missing [targets] section means "all targets"
+#[test]
+fn test_enabled_targets_section_missing_means_all() {
+    let toml = r#"
+[format]
+version = "1.0"
+"#;
+
+    let config: Config = toml::from_str(toml).unwrap();
+    let targets = config.enabled_targets();
+    assert_eq!(
+        targets.len(),
+        5,
+        "missing [targets] section should return all 5 targets"
+    );
+}
+
+/// Test that explicit list `enabled = ["claude-code"]` returns only specified targets
+#[test]
+fn test_enabled_targets_explicit_list() {
+    let toml = r#"
+[targets]
+enabled = ["claude-code", "cursor"]
+"#;
+
+    let config: Config = toml::from_str(toml).unwrap();
+    let targets = config.enabled_targets();
+    assert_eq!(targets.len(), 2);
+    assert!(targets.contains(&Target::ClaudeCode));
+    assert!(targets.contains(&Target::Cursor));
+}
+
+/// Test that invalid target name returns a helpful error
+#[test]
+fn test_invalid_target_name_error() {
+    let toml = r#"
+[targets]
+enabled = ["invalid-target"]
+"#;
+
+    let result: Result<Config, _> = toml::from_str(toml);
+    assert!(
+        result.is_err(),
+        "invalid target 'invalid-target' should fail"
+    );
+    let err = result.unwrap_err().to_string();
+    // Should contain the invalid value for debugging
+    assert!(
+        err.contains("invalid-target") || err.contains("unknown variant"),
+        "error should mention the invalid value: {}",
+        err
+    );
+}
+
+/// Test that 'claude' is a valid alias for 'claude-code'
+#[test]
+fn test_claude_alias_valid() {
+    let toml = r#"
+[targets]
+enabled = ["claude"]
+"#;
+
+    let config: Config = toml::from_str(toml).unwrap();
+    let targets = config.enabled_targets();
+    assert_eq!(targets.len(), 1);
+    assert!(
+        targets.contains(&Target::ClaudeCode),
+        "claude should map to ClaudeCode"
+    );
+}
+
+/// Test that load_or_default returns Result with warnings for invalid config
+#[test]
+fn test_load_or_default_with_invalid_config_returns_warning() {
+    let dir = tempdir().unwrap();
+    let promptpack_dir = dir.path().join(".promptpack");
+    fs::create_dir_all(&promptpack_dir).unwrap();
+
+    // Write invalid config with invalid target
+    let config_path = promptpack_dir.join("config.toml");
+    fs::write(
+        &config_path,
+        r#"
+[targets]
+enabled = ["invalid-target"]
+"#,
+    )
+    .unwrap();
+
+    // load_or_default_with_warnings should return the error
+    let result = crate::config::loader::load_or_default_with_warnings(Some(dir.path()));
+
+    // Should return an error or warning about invalid config
+    assert!(
+        result.is_err() || !result.as_ref().unwrap().1.is_empty(),
+        "should report error or warning for invalid config"
     );
 }
 

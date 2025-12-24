@@ -180,6 +180,14 @@ pub fn cmd_deploy_with_explicit_target(
         );
     }
 
+    // Determine effective targets: CLI > config > default
+    // This is resolved once and used for both adapters and options
+    let effective_targets = if options_for_bridge.targets.is_empty() {
+        config.enabled_targets()
+    } else {
+        options_for_bridge.targets.clone()
+    };
+
     // Run deploy
     let is_remote_target = matches!(&target_for_bridge, DeployTarget::Remote(_));
 
@@ -191,12 +199,8 @@ pub fn cmd_deploy_with_explicit_target(
                 &target_for_bridge,
                 &options_for_bridge,
                 cleanup,
+                &effective_targets,
             );
-            let effective_targets = if options_for_bridge.targets.is_empty() {
-                config.enabled_targets()
-            } else {
-                options_for_bridge.targets.clone()
-            };
             super::bridge::run_remote_deployment(
                 remote_spec,
                 source,
@@ -216,12 +220,8 @@ pub fn cmd_deploy_with_explicit_target(
             &target_for_bridge,
             &options_for_bridge,
             cleanup,
+            &effective_targets,
         );
-        let effective_targets = if options_for_bridge.targets.is_empty() {
-            config.enabled_targets()
-        } else {
-            options_for_bridge.targets.clone()
-        };
         let use_case = super::bridge::create_use_case_for_targets(&effective_targets);
         let json_sink = Arc::new(JsonEventSink::stdout());
         use_case.execute_with_events(&use_case_options, json_sink)
@@ -232,13 +232,8 @@ pub fn cmd_deploy_with_explicit_target(
             &target_for_bridge,
             &options_for_bridge,
             cleanup,
+            &effective_targets,
         );
-        // Determine effective targets: CLI > config > all
-        let effective_targets = if options_for_bridge.targets.is_empty() {
-            config.enabled_targets()
-        } else {
-            options_for_bridge.targets.clone()
-        };
         let use_case = super::bridge::create_use_case_for_targets(&effective_targets);
         use_case.execute(&use_case_options)
     };

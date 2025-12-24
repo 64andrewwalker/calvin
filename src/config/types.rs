@@ -104,10 +104,34 @@ impl<'de> Deserialize<'de> for DenyConfig {
 }
 
 /// Target configuration
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+///
+/// The `enabled` field has three distinct states:
+/// - `None` (field missing): Use default behavior (all targets)
+/// - `Some([])` (empty list): Explicitly disable all targets (deploy nothing)
+/// - `Some([...])` (list with items): Deploy only to specified targets
+#[derive(Debug, Clone, Serialize, Default)]
 pub struct TargetsConfig {
+    /// Enabled targets. None = all targets, Some([]) = no targets, Some([...]) = specified targets
     #[serde(default)]
-    pub enabled: Vec<Target>,
+    pub enabled: Option<Vec<Target>>,
+}
+
+// Custom deserialize to distinguish between missing field and empty list
+impl<'de> Deserialize<'de> for TargetsConfig {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct TargetsConfigHelper {
+            enabled: Option<Vec<Target>>,
+        }
+
+        let helper = TargetsConfigHelper::deserialize(deserializer)?;
+        Ok(TargetsConfig {
+            enabled: helper.enabled,
+        })
+    }
 }
 
 /// Sync configuration
@@ -262,18 +286,16 @@ impl Config {
         loader::with_env_overrides(self)
     }
 
-    /// Get enabled targets (all if empty)
+    /// Get enabled targets based on configuration.
+    ///
+    /// Semantics:
+    /// - `None` (field missing): All targets (default behavior)
+    /// - `Some([])` (empty list): No targets (explicitly disabled)
+    /// - `Some([...])` (list with items): Only specified targets
     pub fn enabled_targets(&self) -> Vec<Target> {
-        if self.targets.enabled.is_empty() {
-            vec![
-                Target::ClaudeCode,
-                Target::Cursor,
-                Target::VSCode,
-                Target::Antigravity,
-                Target::Codex,
-            ]
-        } else {
-            self.targets.enabled.clone()
+        match &self.targets.enabled {
+            None => Target::ALL_CONCRETE.to_vec(),
+            Some(targets) => targets.clone(),
         }
     }
 
