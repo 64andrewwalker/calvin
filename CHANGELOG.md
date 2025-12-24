@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1](https://github.com/64andrewwalker/calvin/compare/v0.5.0...v0.5.1) (2025-12-24)
+
+
+### Bug Fixes
+
+* Cursor-only deploy now generates commands ([9a085e2](https://github.com/64andrewwalker/calvin/commit/9a085e2b274516e2f7c21cc8828ce33dfc322b4d))
+* Cursor-only deploy now generates commands ([a57c720](https://github.com/64andrewwalker/calvin/commit/a57c7207cf3ada8353754bd5ea9da860d669c920))
+* respect targets config in config.toml ([9c6420b](https://github.com/64andrewwalker/calvin/commit/9c6420b675427bc985fd2bd4bd97ef5ffef30049))
+
 ## [0.5.0](https://github.com/64andrewwalker/calvin/compare/v0.4.0...v0.5.0) (2025-12-23)
 
 
