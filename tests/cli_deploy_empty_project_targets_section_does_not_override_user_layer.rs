@@ -5,52 +5,28 @@
 //! examples, which produces an empty TOML table and previously caused Calvin to fall back
 //! to "all targets" (mis-deploying).
 
-use std::fs;
-use std::process::Command;
+mod common;
 
-use tempfile::tempdir;
-
-fn bin() -> &'static str {
-    env!("CARGO_BIN_EXE_calvin")
-}
+use common::*;
 
 #[test]
 fn deploy_does_not_let_empty_project_targets_section_override_user_layer_targets() {
-    let dir = tempdir().unwrap();
-    let project_dir = dir.path();
-
-    // Avoid interactive "not a git repository" prompt.
-    fs::create_dir_all(project_dir.join(".git")).unwrap();
-
-    // Fake HOME with a user layer at ~/.calvin/.promptpack/config.toml
-    let home = project_dir.join("home");
-    fs::create_dir_all(&home).unwrap();
-    fs::create_dir_all(home.join(".config")).unwrap();
-    fs::create_dir_all(home.join(".calvin/.promptpack")).unwrap();
-    fs::write(
-        home.join(".calvin/.promptpack/config.toml"),
-        r#"
+    let env = TestEnv::builder()
+        .with_user_promptpack_config(
+            r#"
 [targets]
 enabled = ["antigravity"]
 "#,
-    )
-    .unwrap();
-
-    // Project layer: include an *empty* [targets] section (comment-only examples).
-    fs::create_dir_all(project_dir.join(".promptpack")).unwrap();
-    fs::write(
-        project_dir.join(".promptpack/config.toml"),
-        r#"
+        )
+        .with_project_config(
+            r#"
 [targets]
 # enabled = ["cursor"]
 "#,
-    )
-    .unwrap();
-
-    // Project layer asset targets both cursor + antigravity; target selection should decide.
-    fs::write(
-        project_dir.join(".promptpack/test.md"),
-        r#"---
+        )
+        .with_project_asset(
+            "test.md",
+            r#"---
 kind: policy
 description: Test
 scope: project
@@ -58,26 +34,19 @@ targets: [antigravity, cursor]
 ---
 TEST
 "#,
-    )
-    .unwrap();
+        )
+        .build();
 
     // Deploy without `--targets` (should use merged layer config).
-    let output = Command::new(bin())
-        .current_dir(project_dir)
-        .env("HOME", &home)
-        .env("XDG_CONFIG_HOME", home.join(".config"))
-        .args(["deploy", "--yes"])
-        .output()
-        .unwrap();
-
+    let result = env.run(&["deploy", "--yes"]);
     assert!(
-        output.status.success(),
-        "deploy failed: {}",
-        String::from_utf8_lossy(&output.stderr)
+        result.success,
+        "deploy failed:\n{}",
+        result.combined_output()
     );
 
     // Antigravity outputs should exist...
-    assert!(project_dir.join(".agent/rules/test.md").exists());
+    assert_deployed!(&env, ".agent/rules/test.md");
     // ...but Cursor outputs should not (targets limited to antigravity).
-    assert!(!project_dir.join(".cursor/rules/test/RULE.md").exists());
+    assert_not_deployed!(&env, ".cursor/rules/test/RULE.md");
 }
