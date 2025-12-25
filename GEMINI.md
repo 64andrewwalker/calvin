@@ -79,6 +79,9 @@ src/
 | `docs/api/frontmatter.md` | Working with source file format |
 | `docs/target-platforms.md` | Adding new platform adapters |
 | `docs/proposals/multi-layer/` | Multi-layer feature design |
+| `docs/testing/TESTING_PHILOSOPHY.md` | **Testing principles** (read before writing tests) |
+| `docs/testing/CONTRACT_REGISTRY.md` | All promises Calvin makes to users |
+| `docs/testing/IMPLEMENTATION_PLAN.md` | Test framework implementation roadmap |
 | `spec.md` | Original product specification |
 
 ## Development Principles
