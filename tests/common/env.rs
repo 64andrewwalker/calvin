@@ -68,16 +68,35 @@ impl TestEnv {
         self.run_from(self.project_root.path(), args)
     }
 
+    /// Run calvin CLI in this environment from project root with extra env vars.
+    pub fn run_with_env(&self, args: &[&str], env_vars: &[(&str, &str)]) -> TestResult {
+        self.run_from_with_env(self.project_root.path(), args, env_vars)
+    }
+
     /// Run calvin CLI from a specific directory
     pub fn run_from(&self, cwd: &Path, args: &[&str]) -> TestResult {
-        let output = Command::new(&self.calvin_bin)
-            .current_dir(cwd)
+        self.run_from_with_env(cwd, args, &[])
+    }
+
+    /// Run calvin CLI from a specific directory with extra env vars.
+    pub fn run_from_with_env(
+        &self,
+        cwd: &Path,
+        args: &[&str],
+        env_vars: &[(&str, &str)],
+    ) -> TestResult {
+        let mut cmd = Command::new(&self.calvin_bin);
+        cmd.current_dir(cwd)
             .args(args)
             .env("HOME", self.home_dir.path())
             .env("XDG_CONFIG_HOME", self.home_dir.path().join(".config"))
-            .env("CALVIN_NO_COLOR", "1")
-            .output()
-            .expect("Failed to execute calvin");
+            .env("CALVIN_NO_COLOR", "1");
+
+        for (key, value) in env_vars {
+            cmd.env(key, value);
+        }
+
+        let output = cmd.output().expect("Failed to execute calvin");
 
         self.output_to_result(output)
     }

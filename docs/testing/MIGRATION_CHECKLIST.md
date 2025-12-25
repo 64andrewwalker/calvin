@@ -28,7 +28,7 @@
 
 ## P0: Deploy (highest ROI)
 
-- [ ] `tests/cli_deploy_targets.rs` → split + migrate to `tests/contracts/*` (target selection) + `tests/regression/*` (cursor commands) + shared `TestEnv`
+- [~] `tests/cli_deploy_targets.rs` → migrated to shared `TestEnv` (still needs split into contracts/regression later)
 - [x] `tests/cli_deploy_orphans.rs` → migrated to shared `TestEnv` (still legacy crate; move/split later)
 - [x] `tests/cli_deploy_cleanup.rs` → migrated to shared `TestEnv` (still legacy crate; merge/split later)
 - [x] `tests/cli_deploy_source_flag.rs` → migrated to shared `TestEnv` (still legacy crate; move to PATH contracts later)
@@ -43,7 +43,7 @@
 
 ## P0: Clean (highest ROI)
 
-- [ ] `tests/cli_clean.rs` → split + migrate to `tests/contracts/output.rs` / `tests/contracts/clean.rs` + shared `TestEnv`
+- [~] `tests/cli_clean.rs` → split into `tests/cli_clean/*` modules + migrated to shared `TestEnv` (still needs move/split into contracts later)
 - [x] `tests/cli_clean_all.rs` → migrated to shared `TestEnv` (dedupe with scenario later)
 - [x] `tests/cli_home_deploy_global_lockfile.rs` → migrated to shared `TestEnv` (still legacy crate; move to PATH contracts later)
 

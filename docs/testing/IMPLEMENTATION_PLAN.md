@@ -63,7 +63,7 @@
 
 - [x] Audit all 60+ existing test files
 - [x] Create migration checklist for each file (`docs/testing/MIGRATION_CHECKLIST.md`)
-- [ ] Migrate high-value tests first (cli_deploy_*, cli_clean_*)
+- [x] Migrate high-value tests first (cli_deploy_*, cli_clean_*) to shared `TestEnv` (remaining splits tracked in `docs/testing/MIGRATION_CHECKLIST.md`)
 - [ ] Remove duplicate helper code
 - [ ] Achieve 50% migration coverage
 
@@ -90,9 +90,9 @@
 | Phase 2: Scenarios | ✅ Complete | 4/5 |
 | Phase 3: Properties | ✅ Complete | 5/5 |
 | Phase 4: CI | ✅ Complete | 3/3 |
-| Phase 5: Migration | 🟡 In Progress | 2/5 |
+| Phase 5: Migration | 🟡 In Progress | 3/5 |
 
-**Last Updated**: 2025-12-26
+**Last Updated**: 2025-12-25
 
 ---
 
