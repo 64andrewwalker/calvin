@@ -17,7 +17,7 @@
 - [x] Create `assert_output_contains!` macro
 - [x] Create `assert_no_raw_home_path!` macro
 - [x] Add fixture constants (`SIMPLE_POLICY`, `USER_POLICY`, etc.)
-- [ ] Migrate 5+ existing tests to use `TestEnv`
+- [x] Migrate 5+ existing tests to use `TestEnv`
 
 ### Phase 1: Contract Tests
 
@@ -61,8 +61,8 @@
 
 ### Phase 5: Migration
 
-- [ ] Audit all 60+ existing test files
-- [ ] Create migration checklist for each file
+- [x] Audit all 60+ existing test files
+- [x] Create migration checklist for each file (`docs/testing/MIGRATION_CHECKLIST.md`)
 - [ ] Migrate high-value tests first (cli_deploy_*, cli_clean_*)
 - [ ] Remove duplicate helper code
 - [ ] Achieve 50% migration coverage
@@ -85,12 +85,12 @@
 
 | Phase | Status | Completion |
 |-------|--------|------------|
-| Phase 0: Foundation | 🟡 In Progress | 7/8 |
+| Phase 0: Foundation | ✅ Complete | 8/8 |
 | Phase 1: Contracts | ✅ Complete | 11/11 |
 | Phase 2: Scenarios | ✅ Complete | 4/5 |
 | Phase 3: Properties | ✅ Complete | 5/5 |
 | Phase 4: CI | ✅ Complete | 3/3 |
-| Phase 5: Migration | ⬜ Not Started | 0/5 |
+| Phase 5: Migration | 🟡 In Progress | 2/5 |
 
 **Last Updated**: 2025-12-25
 

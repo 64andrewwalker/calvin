@@ -122,6 +122,15 @@ impl TestEnv {
         std::fs::write(&full_path, content).expect("Failed to write file");
     }
 
+    /// Write a file to the home directory
+    pub fn write_home_file(&self, relative_path: &str, content: &str) {
+        let full_path = self.home_path(relative_path);
+        if let Some(parent) = full_path.parent() {
+            std::fs::create_dir_all(parent).expect("Failed to create directories");
+        }
+        std::fs::write(&full_path, content).expect("Failed to write file");
+    }
+
     /// Remove a project asset
     pub fn remove_project_asset(&self, name: &str) {
         let asset_path = self.project_path(&format!(".promptpack/{}", name));
@@ -157,7 +166,9 @@ pub struct TestEnvBuilder {
     user_layer_assets: Vec<(String, String)>,
     additional_layer_assets: Vec<(String, Vec<(String, String)>)>,
     project_config: Option<String>,
+    write_project_config: bool,
     home_config: Option<String>,
+    user_promptpack_config: Option<String>,
     subdirectories: Vec<String>,
     create_project_promptpack: bool,
     create_user_layer: bool,
@@ -172,7 +183,9 @@ impl TestEnvBuilder {
             user_layer_assets: Vec::new(),
             additional_layer_assets: Vec::new(),
             project_config: None,
+            write_project_config: true,
             home_config: None,
+            user_promptpack_config: None,
             subdirectories: Vec::new(),
             create_project_promptpack: true,
             create_user_layer: false,
@@ -206,9 +219,22 @@ impl TestEnvBuilder {
         self
     }
 
+    /// Do not write `.promptpack/config.toml` for this project.
+    pub fn without_project_config_file(mut self) -> Self {
+        self.write_project_config = false;
+        self
+    }
+
     /// Set user config.toml content (~/.calvin/config.toml)
     pub fn with_home_config(mut self, toml: &str) -> Self {
         self.home_config = Some(toml.to_string());
+        self
+    }
+
+    /// Set user-layer promptpack config.toml content (~/.calvin/.promptpack/config.toml)
+    pub fn with_user_promptpack_config(mut self, toml: &str) -> Self {
+        self.create_user_layer = true;
+        self.user_promptpack_config = Some(toml.to_string());
         self
     }
 
@@ -264,13 +290,15 @@ impl TestEnvBuilder {
             let promptpack_dir = project_root.path().join(".promptpack");
             std::fs::create_dir_all(&promptpack_dir).expect("Failed to create .promptpack");
 
-            // Write default config if not specified
-            let config_content = self
-                .project_config
-                .as_deref()
-                .unwrap_or("[targets]\nenabled = [\"cursor\"]\n");
-            std::fs::write(promptpack_dir.join("config.toml"), config_content)
-                .expect("Failed to write config.toml");
+            if self.write_project_config {
+                // Write default config if not specified
+                let config_content = self
+                    .project_config
+                    .as_deref()
+                    .unwrap_or("[targets]\nenabled = [\"cursor\"]\n");
+                std::fs::write(promptpack_dir.join("config.toml"), config_content)
+                    .expect("Failed to write config.toml");
+            }
         }
 
         // Write project assets
@@ -288,11 +316,12 @@ impl TestEnvBuilder {
             std::fs::create_dir_all(&user_promptpack).expect("Failed to create user layer");
 
             // Write user layer config
-            std::fs::write(
-                user_promptpack.join("config.toml"),
-                "[targets]\nenabled = [\"cursor\"]\n",
-            )
-            .expect("Failed to write user config.toml");
+            let user_config_content = self
+                .user_promptpack_config
+                .as_deref()
+                .unwrap_or("[targets]\nenabled = [\"cursor\"]\n");
+            std::fs::write(user_promptpack.join("config.toml"), user_config_content)
+                .expect("Failed to write user config.toml");
         }
 
         // Write user layer assets

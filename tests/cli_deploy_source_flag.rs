@@ -1,24 +1,19 @@
 //! Integration tests for Phase 3 `deploy --source`
 
-use std::fs;
-use std::process::Command;
+mod common;
 
-use tempfile::tempdir;
-
-fn bin() -> &'static str {
-    env!("CARGO_BIN_EXE_calvin")
-}
+use common::*;
 
 #[test]
 fn deploy_source_flag_overrides_project_layer_directory() {
-    let dir = tempdir().unwrap();
-    let project_dir = dir.path();
-    fs::create_dir_all(project_dir.join(".git")).unwrap();
+    let env = TestEnv::builder()
+        .with_project_asset("should-not-deploy.md", SIMPLE_POLICY)
+        .with_project_config(CONFIG_DEPLOY_PROJECT)
+        .build();
 
-    let source = project_dir.join("custom-pack");
-    fs::create_dir_all(&source).unwrap();
-
-    fs::write(
+    let source = env.project_path("custom-pack");
+    std::fs::create_dir_all(&source).unwrap();
+    std::fs::write(
         source.join("policy.md"),
         r#"---
 kind: policy
@@ -31,24 +26,22 @@ POLICY
     )
     .unwrap();
 
-    let output = Command::new(bin())
-        .current_dir(project_dir)
-        .args([
-            "deploy",
-            "--source",
-            source.to_string_lossy().as_ref(),
-            "--yes",
-            "--targets",
-            "cursor",
-        ])
-        .output()
-        .unwrap();
+    let source_arg = source.to_string_lossy().to_string();
+    let result = env.run(&[
+        "deploy",
+        "--source",
+        &source_arg,
+        "--yes",
+        "--targets",
+        "cursor",
+    ]);
 
     assert!(
-        output.status.success(),
-        "deploy --source failed: {}",
-        String::from_utf8_lossy(&output.stderr)
+        result.success,
+        "deploy --source failed:\n{}",
+        result.combined_output()
     );
 
-    assert!(project_dir.join(".cursor/rules/policy/RULE.md").exists());
+    assert_deployed!(&env, ".cursor/rules/policy/RULE.md");
+    assert_not_deployed!(&env, ".cursor/rules/should-not-deploy/RULE.md");
 }
