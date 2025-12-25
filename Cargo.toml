@@ -58,3 +58,4 @@ opt-level = "z"
 
 [dev-dependencies]
 insta = "1.45.0"
+proptest = "1"

@@ -47,17 +47,17 @@
 
 ### Phase 3: Property Tests
 
-- [ ] Add `proptest` to dev-dependencies
-- [ ] Create `tests/properties/` directory
-- [ ] Implement `property_normalize_never_panics`
-- [ ] Implement `property_tilde_round_trip`
-- [ ] Implement `property_layer_resolution_never_panics`
+- [x] Add `proptest` to dev-dependencies
+- [x] Create `tests/properties/` directory
+- [x] Implement `property_normalize_never_panics`
+- [x] Implement `property_tilde_round_trip`
+- [x] Implement `property_layer_resolution_never_panics`
 
 ### Phase 4: CI Integration
 
-- [ ] Create `.github/workflows/test-matrix.yml`
-- [ ] Add contract tests to pre-commit hook
-- [ ] Configure cross-platform test matrix (Linux, macOS, Windows)
+- [x] Create `.github/workflows/test-matrix.yml`
+- [x] Add contract tests to pre-commit hook
+- [x] Configure cross-platform test matrix (Linux, macOS, Windows)
 
 ### Phase 5: Migration
 
@@ -88,8 +88,8 @@
 | Phase 0: Foundation | 🟡 In Progress | 7/8 |
 | Phase 1: Contracts | ✅ Complete | 11/11 |
 | Phase 2: Scenarios | ✅ Complete | 4/5 |
-| Phase 3: Properties | ⬜ Not Started | 0/5 |
-| Phase 4: CI | ⬜ Not Started | 0/3 |
+| Phase 3: Properties | ✅ Complete | 5/5 |
+| Phase 4: CI | ✅ Complete | 3/3 |
 | Phase 5: Migration | ⬜ Not Started | 0/5 |
 
 **Last Updated**: 2025-12-25
