@@ -16,7 +16,7 @@ pub enum ProjectState {
     /// No .promptpack/ in project AND no user layer
     NoPromptPack,
     /// No .promptpack/ in project, but at least one global layer exists (user and/or custom)
-    UserLayerOnly(AssetCount),
+    GlobalLayersOnly(AssetCount),
     /// .promptpack/ exists but is empty
     EmptyPromptPack,
     /// .promptpack/ exists with assets
@@ -73,7 +73,7 @@ pub fn detect_state(cwd: &Path, config: &calvin::config::Config) -> Result<Proje
         .map(|layer| count_prompt_markdown_files(layer.path.resolved()))
         .sum();
 
-    Ok(ProjectState::UserLayerOnly(AssetCount { total }))
+    Ok(ProjectState::GlobalLayersOnly(AssetCount { total }))
 }
 
 fn count_prompt_markdown_files(root: &Path) -> usize {

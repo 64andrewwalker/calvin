@@ -28,7 +28,7 @@
 - `src/commands/interactive/state.rs` 的状态检测逻辑把 “user layer” 判定为 `total_assets > 0` 才算存在，导致空目录被当成不存在。
 
 **修复**：
-- 空但存在的 user layer 也会返回 `ProjectState::UserLayerOnly(total=0)`。
+- 空但存在的 user layer 也会返回 `ProjectState::GlobalLayersOnly(total=0)`。
 - 新增覆盖测试：`tests/cli_interactive_user_layer_empty.rs`
 
 ### 1.2 User-layer-only 场景下没有 Clean
@@ -40,7 +40,7 @@
 - PRD §11.4 / §11.5：`calvin clean` 基于 lockfile 工作，应在用户层跨项目生效场景可用。
 
 **修复**：
-- `src/commands/interactive/menu.rs` 的 `interactive_user_layer_only` 菜单新增 “Clean deployed files” 入口，并调用 `calvin clean` 的交互式选择。
+- `src/commands/interactive/menu.rs` 的 `interactive_global_layers_only` 菜单新增 “Clean deployed files” 入口，并调用 `calvin clean` 的交互式选择。
 
 ### 1.3 User-layer-only 场景下没有 lockfile（或 lockfile 在错误位置）
 
@@ -253,10 +253,24 @@
   - `tests/cli_watch_includes_user_layer_assets.rs`（初次 sync 必须包含 user layer outputs）
   - `tests/cli_watch_includes_user_layer_assets.rs`（`--watch-all-layers` 时 user layer 变更触发重新部署）
 
+### 1.15 Interactive JSON state 命名语义修正（`global_layers_only`）
+
+**现象**：
+- `calvin --json` 的 `state="user_layer_only"` 语义实际上是“无项目 `.promptpack/`，但存在至少一个全局层（user/custom）”，并不严格等同“只有 user layer”。
+
+**修复**：
+- 输出的 canonical state 改为 `state="global_layers_only"`。
+- 为兼容旧消费者，额外输出 `state_aliases=["user_layer_only"]`。
+- 覆盖测试：
+  - `tests/cli_interactive_user_layer_empty.rs`
+  - `tests/cli_interactive_additional_layers_only.rs`
+  - `tests/cli_interactive_user_layer_path_config.rs`
+  - `tests/cli_interactive_legacy_user_config_path.rs`
+
 ## 2. 变更摘要（关键文件）
 
 - `src/commands/interactive/state.rs`：interactive state 基于 `LayerResolver`（尊重 user_layer_path/additional_layers）
-- `src/commands/interactive/menu.rs`：user-layer-only 菜单加入 Clean；并且 deploy 使用 `cwd/.promptpack` 作为项目层输入（而非把 user layer 当 project layer）
+- `src/commands/interactive/menu.rs`：global-layers-only 菜单加入 Clean；并且 deploy 使用 `cwd/.promptpack` 作为项目层输入（而非把 user layer 当 project layer）
 - `src/application/deploy/options.rs`：`DeployOptions.project_root`
 - `src/application/deploy/use_case.rs`：文件系统访问统一走 “解析后的绝对路径”，避免 CWD 依赖
 - `src/commands/deploy/cmd.rs`：project root 固定为当前目录

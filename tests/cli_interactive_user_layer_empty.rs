@@ -52,6 +52,9 @@ enabled = ["cursor"]
 
     let v: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(v["event"], "interactive");
-    assert_eq!(v["state"], "user_layer_only");
+    assert_eq!(v["state"], "global_layers_only");
+    assert!(v["state_aliases"]
+        .as_array()
+        .is_some_and(|a| a.iter().any(|v| v.as_str() == Some("user_layer_only"))));
     assert_eq!(v["assets"]["total"], 0);
 }

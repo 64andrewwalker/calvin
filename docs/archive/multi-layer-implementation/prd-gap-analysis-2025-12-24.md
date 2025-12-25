@@ -76,20 +76,22 @@
 - 覆盖：
   - deploy 可以通过 user config 禁用 project layer：`tests/cli_deploy_disable_project_layer.rs`
 
+### K. Interactive JSON state 命名语义（`global_layers_only` + alias）
+
+- 现状（修复后）：
+  - `calvin --json` 的 `state="global_layers_only"` 用于“无项目 `.promptpack/`，但存在至少一个全局层（user/custom）”。
+  - 为兼容旧消费者：输出 `state_aliases=["user_layer_only"]`。
+- 覆盖：
+  - empty user layer：`tests/cli_interactive_user_layer_empty.rs`
+  - additional layers only：`tests/cli_interactive_additional_layers_only.rs`
+  - user_layer_path：`tests/cli_interactive_user_layer_path_config.rs`
+  - legacy user config：`tests/cli_interactive_legacy_user_config_path.rs`
+
 ## 2. 仍需确认/仍有风险（建议发布前处理）
-
-### R1. Interactive JSON state 命名语义（user_layer_only vs additional layers）
-
-- 现状：
-  - `calvin --json` 的 `state="user_layer_only"` 目前被用于“无项目 `.promptpack/`，但存在至少一个全局层（user/custom）”。
-- 风险：
-  - state 名称在语义上并不严格等同“只有 user layer”。
-- 建议：
-  - 若需要对外稳定语义，可新增更准确的 state（例如 `global_layers_only`），并保留 `user_layer_only` 作为兼容别名。
 
 ## 3. 建议的发布前最小验收用例（手工 + 自动）
 
-1. `~/.calvin/.promptpack/` 仅有 `config.toml`，无 `.md`：`calvin` 必须显示可 deploy 菜单，`calvin --json` 为 `user_layer_only` 且 `assets.total=0`
+1. `~/.calvin/.promptpack/` 仅有 `config.toml`，无 `.md`：`calvin` 必须显示可 deploy 菜单，`calvin --json` 为 `global_layers_only`，且 `state_aliases` 包含 `user_layer_only`；并且 `assets.total=0`
 2. 在无 `.promptpack/` 的项目执行 `calvin deploy`：
    - 必须生成 `./calvin.lock`
    - `calvin clean` 必须能基于 lockfile 清理

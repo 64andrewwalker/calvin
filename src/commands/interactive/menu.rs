@@ -53,8 +53,8 @@ pub fn interactive_first_run(
     }
 }
 
-/// Menu shown when only user layer (~/.calvin/.promptpack) exists, no project layer
-pub fn interactive_user_layer_only(
+/// Menu shown when no project layer exists, but global layers (user/custom) exist.
+pub fn interactive_global_layers_only(
     cwd: &Path,
     asset_count: usize,
     ui: &crate::ui::context::UiContext,

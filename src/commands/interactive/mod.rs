@@ -33,9 +33,12 @@ pub fn cmd_interactive(
                 "event": "interactive",
                 "state": "no_promptpack",
             }),
-            ProjectState::UserLayerOnly(count) => serde_json::json!({
+            ProjectState::GlobalLayersOnly(count) => serde_json::json!({
                 "event": "interactive",
-                "state": "user_layer_only",
+                // Canonical state name (more accurate than the legacy name below).
+                "state": "global_layers_only",
+                // Backward-compatibility alias for older consumers.
+                "state_aliases": ["user_layer_only"],
                 "assets": { "total": count.total }
             }),
             ProjectState::EmptyPromptPack => serde_json::json!({
@@ -62,9 +65,14 @@ pub fn cmd_interactive(
 
     match state {
         ProjectState::NoPromptPack => menu::interactive_first_run(cwd, &ui, verbose),
-        ProjectState::UserLayerOnly(count) => {
-            menu::interactive_user_layer_only(cwd, count.total, &ui, verbose, color, no_animation)
-        }
+        ProjectState::GlobalLayersOnly(count) => menu::interactive_global_layers_only(
+            cwd,
+            count.total,
+            &ui,
+            verbose,
+            color,
+            no_animation,
+        ),
         ProjectState::EmptyPromptPack => {
             menu::interactive_existing_project(cwd, None, &ui, verbose, color, no_animation)
         }

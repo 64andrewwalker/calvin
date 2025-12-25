@@ -13,7 +13,8 @@ calvin [OPTIONS] [COMMAND]
 - TTY: opens an interactive menu
 - `--json`: prints detected project state as JSON
   - `state = "no_promptpack"`: no project `.promptpack/` and no other layers
-  - `state = "user_layer_only"`: no project `.promptpack/`, but at least one global layer exists (user and/or additional; can be 0 assets)
+  - `state = "global_layers_only"`: no project `.promptpack/`, but at least one global layer exists (user and/or additional; can be 0 assets)
+    - Backward-compat: `state_aliases` includes `"user_layer_only"`
   - `state = "empty_promptpack"`: `.promptpack/` exists but contains no assets
   - `state = "configured"`: `.promptpack/` exists and contains assets
 

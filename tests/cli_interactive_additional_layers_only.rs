@@ -65,7 +65,10 @@ additional_layers = ["{}"]
     let json: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
     assert_eq!(
         json.get("state").and_then(|v| v.as_str()),
-        Some("user_layer_only")
+        Some("global_layers_only")
     );
+    assert!(json["state_aliases"]
+        .as_array()
+        .is_some_and(|a| a.iter().any(|v| v.as_str() == Some("user_layer_only"))));
     assert_eq!(json["assets"]["total"], 1);
 }
