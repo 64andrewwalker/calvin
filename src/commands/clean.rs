@@ -70,16 +70,119 @@ pub fn cmd_clean(
     let lockfile_repo = TomlLockfileRepository::new();
     let fs = LocalFs::new();
 
-    // Get lockfile path:
+    // Precompute lockfile paths.
     // - Project deployments: `{cwd}/calvin.lock` (with legacy migration from `.promptpack/.calvin.lock`)
     // - Home deployments: `{HOME}/.calvin/calvin.lock` (global)
+    let global_lockfile_path = global_lockfile_path();
+    let (project_lockfile_path, project_migration_note) =
+        resolve_lockfile_path(&project_root, source, &lockfile_repo);
+
+    // Interactive tree menu mode: allow choosing between project/home when both exist.
+    //
+    // This is important for multi-layer scenarios where a directory may have no `.promptpack/`,
+    // but still has project deployments (via `calvin.lock`) and/or global home deployments.
+    let use_tree_menu =
+        !scope_specified && !json && std::io::stdin().is_terminal() && !yes && !dry_run;
+
+    if use_tree_menu {
+        let project_exists = fs.exists(&project_lockfile_path);
+        let home_exists = global_lockfile_path
+            .as_ref()
+            .is_some_and(|path| fs.exists(path));
+
+        let selection = match (project_exists, home_exists) {
+            (false, false) => {
+                eprintln!(
+                    "No deployments found.\n  - Project lockfile: {}\n  - Home lockfile: {}",
+                    project_lockfile_path.display(),
+                    global_lockfile_path
+                        .as_ref()
+                        .map(|p| p.display().to_string())
+                        .unwrap_or_else(|| "<unavailable>".to_string())
+                );
+                return Ok(());
+            }
+            (true, false) => 0, // project
+            (false, true) => 1, // home
+            (true, true) => {
+                use dialoguer::Select;
+                let items = vec!["Project (./) deployments", "Home (~) deployments", "Cancel"];
+
+                Select::new()
+                    .with_prompt("What would you like to clean?")
+                    .items(&items)
+                    .default(0)
+                    .interact()?
+            }
+        };
+
+        match selection {
+            0 => {
+                if !json {
+                    if let Some(note) = project_migration_note {
+                        eprintln!("ℹ {}", note);
+                    }
+                    print!(
+                        "{}",
+                        render_clean_header(
+                            source,
+                            Some(Scope::Project),
+                            false,
+                            ui.caps.supports_color,
+                            ui.caps.supports_unicode
+                        )
+                    );
+                }
+
+                let lockfile = lockfile_repo.load(&project_lockfile_path)?;
+                if lockfile.is_empty() {
+                    println!("No files to clean. Lockfile is empty.");
+                    return Ok(());
+                }
+
+                return run_interactive_clean(&lockfile, &project_lockfile_path, force, &fs, &ui);
+            }
+            1 => {
+                let Some(home_lockfile_path) = global_lockfile_path else {
+                    anyhow::bail!("Failed to resolve home directory for global lockfile");
+                };
+
+                if !json {
+                    print!(
+                        "{}",
+                        render_clean_header(
+                            source,
+                            Some(Scope::User),
+                            false,
+                            ui.caps.supports_color,
+                            ui.caps.supports_unicode
+                        )
+                    );
+                }
+
+                let lockfile = lockfile_repo.load(&home_lockfile_path)?;
+                if lockfile.is_empty() {
+                    println!("No files to clean. Lockfile is empty.");
+                    return Ok(());
+                }
+
+                return run_interactive_clean(&lockfile, &home_lockfile_path, force, &fs, &ui);
+            }
+            _ => {
+                println!("Aborted.");
+                return Ok(());
+            }
+        }
+    }
+
+    // Non-tree-menu mode: pick lockfile path based on explicit scope.
     let (lockfile_path, migration_note) = if scope == Some(Scope::User) {
-        let Some(path) = global_lockfile_path() else {
+        let Some(path) = global_lockfile_path.as_ref() else {
             anyhow::bail!("Failed to resolve home directory for global lockfile");
         };
-        (path, None)
+        (path.clone(), None)
     } else {
-        resolve_lockfile_path(&project_root, source, &lockfile_repo)
+        (project_lockfile_path, project_migration_note)
     };
     if !json {
         if let Some(note) = migration_note {
@@ -94,11 +197,38 @@ pub fn cmd_clean(
                 r#"{{"type":"clean_complete","deleted":0,"skipped":0,"message":"No lockfile found"}}"#
             );
         } else {
-            eprintln!(
-                "No deployments found. Lockfile does not exist: {}",
-                lockfile_path.display()
-            );
-            eprintln!("Run `calvin deploy` first to create a lockfile.");
+            match scope {
+                Some(Scope::User) => {
+                    eprintln!(
+                        "No home deployments found. Lockfile does not exist: {}",
+                        lockfile_path.display()
+                    );
+                    eprintln!("Run `calvin deploy --home` first to create a lockfile.");
+                }
+                Some(Scope::Project) => {
+                    eprintln!(
+                        "No project deployments found. Lockfile does not exist: {}",
+                        lockfile_path.display()
+                    );
+                    eprintln!("Run `calvin deploy` first to create a lockfile.");
+                }
+                None => {
+                    let home_exists = global_lockfile_path
+                        .as_ref()
+                        .is_some_and(|path| fs.exists(path));
+                    eprintln!(
+                        "No project deployments found. Lockfile does not exist: {}",
+                        lockfile_path.display()
+                    );
+                    if home_exists {
+                        eprintln!(
+                            "Home deployments exist. Run `calvin clean --home` to clean them."
+                        );
+                    } else {
+                        eprintln!("Run `calvin deploy` first to create a lockfile.");
+                    }
+                }
+            }
         }
         return Ok(());
     }

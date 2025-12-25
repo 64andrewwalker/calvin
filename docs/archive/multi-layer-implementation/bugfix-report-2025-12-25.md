@@ -61,8 +61,10 @@
 
 **交互式菜单**
 
-- “Clean deployed files” 在 global-layers-only 场景下直接走 `--home`（全局）。
-- 有项目 `.promptpack/` 的场景下，clean 菜单增加 “Clean home (global) deployments” 入口。
+- “Clean deployed files” 不再强制清理某个 scope：
+  - 若同时存在 `./calvin.lock` 与 `~/.calvin/calvin.lock`，会先提示用户选择清理 **Project** 或 **Home**
+  - 若只存在其中一个 lockfile，则直接进入该 scope 的 tree menu
+  - 选择后进入原 `TreeMenu` 的多级选择（scope → target → files）
 
 ### 1.5 覆盖测试（端到端）
 
@@ -83,9 +85,9 @@
 
 - `src/application/lockfile_migration.rs`: 新增 `global_lockfile_path()`（`~/.calvin/calvin.lock`）
 - `src/application/deploy/use_case.rs`: User scope 使用全局 lockfile；仅 Project scope 注册 registry
-- `src/commands/clean.rs`: `clean --home` 使用全局 lockfile（不依赖当前项目）
+- `src/commands/clean.rs`: `clean --home` 使用全局 lockfile；`clean`（无 scope）在交互式 tree menu 前先做 project/home 选择
 - `src/application/diff.rs`: User scope diff 使用全局 lockfile
-- `src/commands/interactive/menu.rs`: 增加/调整 clean 入口，使 home clean 可达
+- `src/commands/interactive/menu.rs`: clean 入口回归统一走 `calvin clean`（由 clean 命令自身处理 project/home 选择）
 - `docs/command-reference.md`: 补齐 home deploy 的 lockfile 位置说明
 
 ## 3. 验证
@@ -95,4 +97,3 @@ cargo fmt
 cargo clippy --all-targets -- -D warnings
 cargo test
 ```
-
