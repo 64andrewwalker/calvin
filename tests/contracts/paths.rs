@@ -40,11 +40,9 @@ mod lockfile_location {
         );
     }
 
-    // FIXME(path-handling): When --source is specified, lockfile should be written
+    // Regression (PATH-BUG-001): When --source is specified, lockfile should be written
     // to the source directory, not the current working directory.
-    // This violates PATH-001 contract.
     #[test]
-    #[ignore = "BUG FOUND: --source flag doesn't affect lockfile location, it still writes to cwd"]
     fn contract_lockfile_at_source_root_from_subdirectory() {
         let env = TestEnv::builder()
             .with_project_asset("test.md", SIMPLE_POLICY)
@@ -53,7 +51,10 @@ mod lockfile_location {
 
         // Run from subdirectory with explicit --source pointing to project root
         let subdir = env.project_path("src/lib");
-        let source_path = env.project_root.path().to_string_lossy().to_string();
+        let source_path = env
+            .project_path(".promptpack")
+            .to_string_lossy()
+            .to_string();
         let result = env.run_from(&subdir, &["deploy", "--source", &source_path, "--yes"]);
 
         assert!(
@@ -104,11 +105,9 @@ mod deployed_files_location {
         );
     }
 
-    // FIXME(path-handling): When --source is specified, deploy target should be
+    // Regression (PATH-BUG-002): When --source is specified, deploy target should be
     // relative to the source directory, not the current working directory.
-    // This violates PATH-002 contract.
     #[test]
-    #[ignore = "BUG FOUND: --source flag doesn't affect deploy target location"]
     fn contract_deployed_files_not_at_cwd_when_in_subdirectory() {
         let env = TestEnv::builder()
             .with_project_asset("test.md", SIMPLE_POLICY)
@@ -117,7 +116,10 @@ mod deployed_files_location {
 
         // Run from subdirectory with explicit --source
         let subdir = env.project_path("src");
-        let source_path = env.project_root.path().to_string_lossy().to_string();
+        let source_path = env
+            .project_path(".promptpack")
+            .to_string_lossy()
+            .to_string();
         let result = env.run_from(&subdir, &["deploy", "--source", &source_path, "--yes"]);
 
         assert!(

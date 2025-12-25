@@ -8,6 +8,7 @@ use calvin::Target;
 
 use super::options::DeployOptions;
 use super::targets::DeployTarget;
+use crate::commands::project_root::discover_project_root;
 use crate::ui::context::UiContext;
 use crate::ui::primitives::icon::Icon;
 use crate::ui::primitives::text::display_with_tilde;
@@ -89,7 +90,8 @@ pub fn cmd_deploy_with_explicit_target(
         anyhow::bail!("--home and --remote cannot be used together");
     }
 
-    let project_root = std::env::current_dir()?;
+    let invocation_dir = std::env::current_dir()?;
+    let project_root = discover_project_root(&invocation_dir);
 
     // Load configuration early to determine effective target
     let config = calvin::config::Config::load_or_default(Some(&project_root));
@@ -165,7 +167,7 @@ pub fn cmd_deploy_with_explicit_target(
     let use_additional_layers = !is_remote_target && !no_additional_layers;
 
     let project_layer_path = if source.is_relative() {
-        project_root.join(source)
+        invocation_dir.join(source)
     } else {
         source.to_path_buf()
     };
@@ -417,7 +419,7 @@ pub fn cmd_deploy_with_explicit_target(
         if let DeployTarget::Remote(remote_spec) = &target_for_bridge {
             let use_case_options = super::bridge::convert_options(
                 &project_root,
-                source,
+                &project_layer_path,
                 &target_for_bridge,
                 &options_for_bridge,
                 cleanup,
@@ -432,7 +434,7 @@ pub fn cmd_deploy_with_explicit_target(
             );
             super::bridge::run_remote_deployment(
                 remote_spec,
-                source,
+                &project_layer_path,
                 &use_case_options,
                 &effective_targets,
             )
@@ -446,7 +448,7 @@ pub fn cmd_deploy_with_explicit_target(
 
         let use_case_options = super::bridge::convert_options(
             &project_root,
-            source,
+            &project_layer_path,
             &target_for_bridge,
             &options_for_bridge,
             cleanup,
@@ -466,7 +468,7 @@ pub fn cmd_deploy_with_explicit_target(
         // Non-JSON local mode: use new DeployUseCase architecture
         let use_case_options = super::bridge::convert_options(
             &project_root,
-            source,
+            &project_layer_path,
             &target_for_bridge,
             &options_for_bridge,
             cleanup,
@@ -523,7 +525,7 @@ pub fn cmd_deploy_with_explicit_target(
         && !explicit_project
         && config.deploy.target == DeployTargetValue::Unset
     {
-        let config_path = source.join("config.toml");
+        let config_path = project_layer_path.join("config.toml");
         let target_config = if use_home {
             DeployTargetValue::Home
         } else {
@@ -531,6 +533,15 @@ pub fn cmd_deploy_with_explicit_target(
         };
         // Silently save - don't fail deploy if config save fails
         let _ = calvin::config::Config::save_deploy_target(&config_path, target_config);
+    }
+
+    if !result.is_success() {
+        let mut message = format!("Deploy failed with {} error(s):", result.errors.len());
+        for err in &result.errors {
+            message.push_str("\n- ");
+            message.push_str(err);
+        }
+        anyhow::bail!(message);
     }
 
     Ok(())

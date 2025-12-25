@@ -23,8 +23,8 @@
 
 - [x] Create `tests/contracts/` directory structure
 - [x] Implement PATH contracts:
-  - [x] `contract_lockfile_at_source_root` (partial - found bug, see FIXME)
-  - [x] `contract_deployed_files_at_target` (partial - found bug, see FIXME)
+  - [x] `contract_lockfile_at_source_root`
+  - [x] `contract_deployed_files_at_target`
   - [x] `contract_display_paths_use_tilde`
   - [x] `contract_json_paths_absolute`
 - [x] Implement LAYER contracts:
@@ -75,9 +75,9 @@
 
 | Bug ID         | Contract   | Description                                           | Status    |
 | -------------- | ---------- | ----------------------------------------------------- | --------- |
-| PATH-BUG-001   | PATH-001   | `--source` flag doesn't affect lockfile location      | 🔴 Open   |
-| PATH-BUG-002   | PATH-002   | `--source` flag doesn't affect deploy target location | 🔴 Open   |
-| OUTPUT-BUG-001 | OUTPUT-004 | Exit code 0 returned even when errors occur          | 🔴 Open   |
+| PATH-BUG-001   | PATH-001   | `--source` flag doesn't affect lockfile location      | ✅ Fixed  |
+| PATH-BUG-002   | PATH-002   | `--source` flag doesn't affect deploy target location | ✅ Fixed  |
+| OUTPUT-BUG-001 | OUTPUT-004 | Exit code 0 returned even when errors occur          | ✅ Fixed  |
 
 ---
 

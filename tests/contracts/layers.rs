@@ -231,9 +231,7 @@ mod layer_migration_orphans {
 /// CONTRACT LAYER-009: No layers found shows guidance
 ///
 /// When no promptpack layers are found, Calvin shows clear error with guidance.
-///
-/// NOTE: Currently Calvin returns exit code 0 even with errors.
-/// This may be a bug that should be fixed (OUTPUT-004 contract).
+/// Exit codes must be non-zero when errors occur (OUTPUT-004).
 mod no_layers_guidance {
     use super::*;
 
@@ -259,7 +257,6 @@ mod no_layers_guidance {
     }
 
     #[test]
-    #[ignore = "KNOWN ISSUE: Calvin returns exit code 0 even when errors occur"]
     fn contract_no_layers_found_returns_nonzero_exit() {
         let env = TestEnv::builder().fresh_environment().build();
 
