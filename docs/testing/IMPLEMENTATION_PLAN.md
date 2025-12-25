@@ -10,29 +10,29 @@
 
 ### Phase 0: Foundation
 
-- [ ] Create `tests/common/mod.rs` with public exports
-- [ ] Implement `TestEnv` struct with temp dir management
-- [ ] Implement `TestEnvBuilder` with fluent API
-- [ ] Create `assert_deployed!` macro
-- [ ] Create `assert_output_contains!` macro
-- [ ] Create `assert_no_raw_home_path!` macro
-- [ ] Add fixture constants (`SIMPLE_POLICY`, `USER_POLICY`, etc.)
+- [x] Create `tests/common/mod.rs` with public exports
+- [x] Implement `TestEnv` struct with temp dir management
+- [x] Implement `TestEnvBuilder` with fluent API
+- [x] Create `assert_deployed!` macro
+- [x] Create `assert_output_contains!` macro
+- [x] Create `assert_no_raw_home_path!` macro
+- [x] Add fixture constants (`SIMPLE_POLICY`, `USER_POLICY`, etc.)
 - [ ] Migrate 5+ existing tests to use `TestEnv`
 
 ### Phase 1: Contract Tests
 
-- [ ] Create `tests/contracts/` directory structure
-- [ ] Implement PATH contracts:
-  - [ ] `contract_lockfile_at_source_root`
-  - [ ] `contract_deployed_files_at_target`
-  - [ ] `contract_display_paths_use_tilde`
-  - [ ] `contract_json_paths_absolute`
-- [ ] Implement LAYER contracts:
-  - [ ] `contract_layer_merge_priority`
-  - [ ] `contract_layer_merge_aggregates_unique_assets`
+- [x] Create `tests/contracts/` directory structure
+- [x] Implement PATH contracts:
+  - [x] `contract_lockfile_at_source_root` (partial - found bug, see FIXME)
+  - [x] `contract_deployed_files_at_target` (partial - found bug, see FIXME)
+  - [x] `contract_display_paths_use_tilde`
+  - [x] `contract_json_paths_absolute`
+- [x] Implement LAYER contracts:
+  - [x] `contract_layer_merge_priority`
+  - [x] `contract_layer_merge_aggregates_unique_assets`
   - [ ] `contract_lockfile_tracks_provenance`
-  - [ ] `contract_no_user_layer_flag_excludes_user`
-  - [ ] `contract_layer_migration_no_false_orphan`
+  - [x] `contract_no_user_layer_flag_excludes_user`
+  - [x] `contract_layer_migration_no_false_orphan`
 - [ ] Implement CONFIG contracts:
   - [ ] `contract_config_priority_order`
   - [ ] `contract_empty_array_means_disable`
@@ -69,12 +69,24 @@
 
 ---
 
+### Bugs Discovered by Contract Tests
+
+> These bugs were found during contract test implementation and should be fixed.
+
+| Bug ID | Contract | Description | Status |
+|--------|----------|-------------|--------|
+| PATH-BUG-001 | PATH-001 | `--source` flag doesn't affect lockfile location | 🔴 Open |
+| PATH-BUG-002 | PATH-002 | `--source` flag doesn't affect deploy target location | 🔴 Open |
+| OUTPUT-BUG-001 | OUTPUT-004 | Exit code 0 returned even when errors occur | 🔴 Open |
+
+---
+
 ### Progress Summary
 
 | Phase | Status | Completion |
 |-------|--------|------------|
-| Phase 0: Foundation | ⬜ Not Started | 0/8 |
-| Phase 1: Contracts | ⬜ Not Started | 0/11 |
+| Phase 0: Foundation | 🟡 In Progress | 7/8 |
+| Phase 1: Contracts | 🟡 In Progress | 8/11 |
 | Phase 2: Scenarios | ⬜ Not Started | 0/5 |
 | Phase 3: Properties | ⬜ Not Started | 0/5 |
 | Phase 4: CI | ⬜ Not Started | 0/3 |
