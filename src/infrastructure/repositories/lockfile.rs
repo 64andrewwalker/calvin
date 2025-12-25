@@ -133,6 +133,15 @@ impl LockfileRepository for TomlLockfileRepository {
 
         Ok(())
     }
+
+    fn delete(&self, path: &Path) -> Result<(), LockfileError> {
+        if self.fs.exists(path) {
+            self.fs
+                .remove(path)
+                .map_err(|e| LockfileError::IoError(e.to_string()))?;
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]

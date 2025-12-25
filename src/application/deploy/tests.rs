@@ -56,6 +56,11 @@ impl LockfileRepository for MockLockfileRepository {
         *self.lockfile.borrow_mut() = lockfile.clone();
         Ok(())
     }
+
+    fn delete(&self, _path: &Path) -> Result<(), crate::domain::ports::LockfileError> {
+        *self.lockfile.borrow_mut() = Lockfile::new();
+        Ok(())
+    }
 }
 
 struct MockFileSystem {

@@ -51,6 +51,12 @@ pub trait LockfileRepository {
 
     /// Save lockfile to path
     fn save(&self, lockfile: &Lockfile, path: &Path) -> Result<(), LockfileError>;
+
+    /// Delete lockfile at path
+    ///
+    /// Used when all tracked files have been cleaned, leaving the lockfile empty.
+    /// An empty lockfile contains no meaningful information and should be removed.
+    fn delete(&self, path: &Path) -> Result<(), LockfileError>;
 }
 
 #[cfg(test)]
