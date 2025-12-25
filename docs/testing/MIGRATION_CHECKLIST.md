@@ -32,8 +32,8 @@
 - [x] `tests/cli_deploy_orphans.rs` → migrated to shared `TestEnv` (still legacy crate; move/split later)
 - [x] `tests/cli_deploy_cleanup.rs` → migrated to shared `TestEnv` (still legacy crate; merge/split later)
 - [x] `tests/cli_deploy_source_flag.rs` → migrated to shared `TestEnv` (still legacy crate; move to PATH contracts later)
-- [ ] `tests/cli_deploy_source_external.rs` → migrate to PATH contracts + shared `TestEnv`
-- [ ] `tests/cli_deploy_layers_flags.rs` → migrate to LAYER contracts + shared `TestEnv`
+- [x] `tests/cli_deploy_source_external.rs` → migrated to shared `TestEnv` (still legacy crate; move to PATH contracts later)
+- [x] `tests/cli_deploy_layers_flags.rs` → migrated to shared `TestEnv` (still legacy crate; move to LAYER contracts later)
 - [x] `tests/cli_deploy_disable_project_layer.rs` → migrated to shared `TestEnv` (still legacy crate; move later)
 - [x] `tests/cli_deploy_user_layer_targets_config.rs` → migrated to shared `TestEnv` (still legacy crate; move later)
 - [x] `tests/cli_deploy_project_flag_overrides_home_config.rs` → migrated to shared `TestEnv` (still legacy crate; move later)
@@ -44,8 +44,8 @@
 ## P0: Clean (highest ROI)
 
 - [ ] `tests/cli_clean.rs` → split + migrate to `tests/contracts/output.rs` / `tests/contracts/clean.rs` + shared `TestEnv`
-- [ ] `tests/cli_clean_all.rs` → migrate to scenario `clean_all_projects` (already exists; dedupe) + shared `TestEnv`
-- [ ] `tests/cli_home_deploy_global_lockfile.rs` → migrate to PATH contracts + shared `TestEnv`
+- [x] `tests/cli_clean_all.rs` → migrated to shared `TestEnv` (dedupe with scenario later)
+- [x] `tests/cli_home_deploy_global_lockfile.rs` → migrated to shared `TestEnv` (still legacy crate; move to PATH contracts later)
 
 ---
 
