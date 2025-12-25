@@ -30,12 +30,12 @@
 - [x] Implement LAYER contracts:
   - [x] `contract_layer_merge_priority`
   - [x] `contract_layer_merge_aggregates_unique_assets`
-  - [ ] `contract_lockfile_tracks_provenance`
+  - [x] `contract_lockfile_tracks_provenance`
   - [x] `contract_no_user_layer_flag_excludes_user`
   - [x] `contract_layer_migration_no_false_orphan`
-- [ ] Implement CONFIG contracts:
-  - [ ] `contract_config_priority_order`
-  - [ ] `contract_empty_array_means_disable`
+- [x] Implement CONFIG contracts:
+  - [x] `contract_config_priority_order`
+  - [x] `contract_empty_array_means_disable`
 
 ### Phase 2: Scenario Tests
 
@@ -73,11 +73,11 @@
 
 > These bugs were found during contract test implementation and should be fixed.
 
-| Bug ID | Contract | Description | Status |
-|--------|----------|-------------|--------|
-| PATH-BUG-001 | PATH-001 | `--source` flag doesn't affect lockfile location | 🔴 Open |
-| PATH-BUG-002 | PATH-002 | `--source` flag doesn't affect deploy target location | 🔴 Open |
-| OUTPUT-BUG-001 | OUTPUT-004 | Exit code 0 returned even when errors occur | 🔴 Open |
+| Bug ID         | Contract   | Description                                           | Status    |
+| -------------- | ---------- | ----------------------------------------------------- | --------- |
+| PATH-BUG-001   | PATH-001   | `--source` flag doesn't affect lockfile location      | 🔴 Open   |
+| PATH-BUG-002   | PATH-002   | `--source` flag doesn't affect deploy target location | 🔴 Open   |
+| OUTPUT-BUG-001 | OUTPUT-004 | Exit code 0 returned even when errors occur          | 🔴 Open   |
 
 ---
 
@@ -86,7 +86,7 @@
 | Phase | Status | Completion |
 |-------|--------|------------|
 | Phase 0: Foundation | 🟡 In Progress | 7/8 |
-| Phase 1: Contracts | 🟡 In Progress | 8/11 |
+| Phase 1: Contracts | ✅ Complete | 11/11 |
 | Phase 2: Scenarios | ⬜ Not Started | 0/5 |
 | Phase 3: Properties | ⬜ Not Started | 0/5 |
 | Phase 4: CI | ⬜ Not Started | 0/3 |

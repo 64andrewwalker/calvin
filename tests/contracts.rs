@@ -14,3 +14,6 @@ mod paths;
 
 #[path = "contracts/layers.rs"]
 mod layers;
+
+#[path = "contracts/config.rs"]
+mod config;

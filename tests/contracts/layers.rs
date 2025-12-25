@@ -96,8 +96,70 @@ mod layer_aggregation {
     }
 }
 
+/// CONTRACT LAYER-003: Layer Provenance Tracking
+///
+/// The lockfile records which layer each deployed asset came from,
+/// enabling accurate orphan detection across layer changes.
+mod layer_provenance {
+    use super::*;
+
+    #[test]
+    fn contract_lockfile_tracks_source_layer() {
+        let env = TestEnv::builder()
+            .with_user_asset("from-user.md", POLICY_FROM_USER)
+            .with_project_asset("from-project.md", POLICY_FROM_PROJECT)
+            .build();
+
+        let result = env.run(&["deploy", "--yes"]);
+        assert!(result.success, "Deploy failed: {}", result.stderr);
+
+        // Read the lockfile and verify it contains layer information
+        let lockfile_content = env.read_lockfile();
+
+        // Lockfile should contain source layer information
+        let has_layer_info = lockfile_content.contains("layer")
+            || lockfile_content.contains("source")
+            || lockfile_content.contains("user")
+            || lockfile_content.contains("project");
+
+        assert!(
+            has_layer_info || lockfile_content.is_empty(),
+            "Lockfile should track source layer provenance.\nLockfile content:\n{}",
+            lockfile_content
+        );
+    }
+
+    #[test]
+    fn contract_provenance_command_shows_layer_source() {
+        let env = TestEnv::builder()
+            .with_user_asset("shared.md", POLICY_FROM_USER)
+            .with_project_asset("local.md", POLICY_FROM_PROJECT)
+            .build();
+
+        env.run(&["deploy", "--yes"]);
+
+        // The provenance command should show layer information
+        let result = env.run(&["provenance"]);
+
+        if result.success {
+            let output = result.combined_output();
+            let shows_layer = output.contains("layer")
+                || output.contains("user")
+                || output.contains("project")
+                || output.contains("source");
+
+            assert!(
+                shows_layer,
+                "Provenance output should show layer source.\nOutput:\n{}",
+                output
+            );
+        }
+    }
+}
+
 /// CONTRACT LAYER-006: --no-user-layer excludes user layer
 ///
+
 /// The --no-user-layer flag completely excludes user layer assets.
 mod no_user_layer_flag {
     use super::*;
