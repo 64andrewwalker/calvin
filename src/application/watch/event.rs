@@ -84,7 +84,11 @@ impl WatchOptions {
 #[serde(tag = "event", rename_all = "snake_case")]
 pub enum WatchEvent {
     /// Watch started
-    WatchStarted { source: String },
+    WatchStarted {
+        source: String,
+        watch_all_layers: bool,
+        watching: Vec<String>,
+    },
     /// File changed
     FileChanged { path: String },
     /// Sync started

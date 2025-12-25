@@ -18,10 +18,13 @@ use crate::domain::value_objects::Scope;
 fn test_watch_event_to_json_started() {
     let event = WatchEvent::WatchStarted {
         source: ".promptpack".to_string(),
+        watch_all_layers: false,
+        watching: vec![".promptpack".to_string()],
     };
     let json = event.to_json();
     assert!(json.contains("\"event\":\"watch_started\""));
     assert!(json.contains("\"source\":\".promptpack\""));
+    assert!(json.contains("\"watch_all_layers\":false"));
 }
 
 #[test]

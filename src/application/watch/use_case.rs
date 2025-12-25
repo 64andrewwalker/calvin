@@ -1,12 +1,13 @@
 //! Watch Use Case implementation
 
-use std::collections::HashMap;
-use std::path::PathBuf;
+use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::channel;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
+use notify::event::{AccessKind, AccessMode, ModifyKind};
 use notify::{Config, Event, RecommendedWatcher, RecursiveMode, Watcher};
 
 use crate::application::{DeployOptions, DeployResult, DeployUseCase, RegistryUseCase};
@@ -60,38 +61,42 @@ impl WatchUseCase {
     where
         F: Fn(WatchEvent),
     {
-        // Emit start event
-        on_event(WatchEvent::WatchStarted {
-            source: self.options.source.display().to_string(),
-        });
-
-        // Do initial sync using the resolved multi-layer stack (PRD §11.4).
-        self.do_sync(&on_event)?;
-
-        // Set up file watcher
-        let (tx, rx) = channel();
-
-        let mut watcher = RecommendedWatcher::new(
-            move |res: Result<Event, notify::Error>| {
-                if let Ok(event) = res {
-                    for path in event.paths {
-                        let _ = tx.send(path);
-                    }
-                }
-            },
-            Config::default(),
-        )
-        .map_err(|e| CalvinError::Io(std::io::Error::other(e.to_string())))?;
-
         let paths_to_watch = if self.options.watch_all_layers {
             self.resolve_watch_paths()?
         } else {
             vec![self.options.source.clone()]
         };
+
+        on_event(WatchEvent::WatchStarted {
+            source: self.options.source.display().to_string(),
+            watch_all_layers: self.options.watch_all_layers,
+            watching: paths_to_watch
+                .iter()
+                .map(|p| p.display().to_string())
+                .collect(),
+        });
+
+        // Set up file watcher
+        let (tx, rx) = channel::<Event>();
+
+        let mut _watchers: Vec<RecommendedWatcher> = Vec::new();
         for path in &paths_to_watch {
+            let tx = tx.clone();
+            let mut watcher = RecommendedWatcher::new(
+                move |res: Result<Event, notify::Error>| {
+                    if let Ok(event) = res {
+                        let _ = tx.send(event);
+                    }
+                },
+                Config::default(),
+            )
+            .map_err(|e| CalvinError::Io(std::io::Error::other(e.to_string())))?;
+
             watcher
                 .watch(path, RecursiveMode::Recursive)
                 .map_err(|e| CalvinError::Io(std::io::Error::other(e.to_string())))?;
+
+            _watchers.push(watcher);
         }
 
         // Watch loop with debouncing
@@ -101,55 +106,87 @@ impl WatchUseCase {
 
         self.seed_content_hashes(&paths_to_watch, &mut content_hashes);
 
+        self.do_sync(&on_event)?;
+
+        let mut last_poll = Instant::now();
+
         while running.load(Ordering::SeqCst) {
             // Check for file changes (non-blocking with timeout)
-            if let Ok(path) = rx.recv_timeout(Duration::from_millis(50)) {
-                // Skip legacy lockfile (older versions wrote it into `.promptpack/`).
-                if path
-                    .file_name()
-                    .map(|n| n == ".calvin.lock")
-                    .unwrap_or(false)
-                {
-                    continue;
-                }
+            match rx.recv_timeout(Duration::from_millis(50)) {
+                Ok(event) => {
+                    let should_process = match &event.kind {
+                        notify::EventKind::Access(AccessKind::Close(AccessMode::Write)) => true,
+                        notify::EventKind::Access(_) => false,
+                        notify::EventKind::Modify(ModifyKind::Metadata(_)) => false,
+                        _ => true,
+                    };
 
-                // Only watch .md assets + config.toml changes.
-                let is_md = path.extension().map(|e| e == "md").unwrap_or(false);
-                let is_config = path
-                    .file_name()
-                    .map(|n| n == "config.toml")
-                    .unwrap_or(false);
-                if !(is_md || is_config) {
-                    continue;
-                }
-
-                // Canonicalize when possible to keep a stable key in the hash map.
-                let canonical_path = path.canonicalize().unwrap_or(path);
-
-                if canonical_path.exists() {
-                    // If we can read the file, only queue a sync when contents changed.
-                    match std::fs::read_to_string(&canonical_path) {
-                        Ok(content) => {
-                            let new_hash = compute_content_hash(&content);
-                            if content_hashes
-                                .get(&canonical_path)
-                                .is_some_and(|old| old == &new_hash)
+                    if should_process {
+                        for path in event.paths {
+                            // Skip legacy lockfile (older versions wrote it into `.promptpack/`).
+                            if path
+                                .file_name()
+                                .map(|n| n == ".calvin.lock")
+                                .unwrap_or(false)
                             {
                                 continue;
                             }
-                            content_hashes.insert(canonical_path.clone(), new_hash);
-                            state.add_change(canonical_path);
-                        }
-                        Err(_) => {
-                            // If the file is mid-write (editor swap), treat as changed.
-                            state.add_change(canonical_path);
+
+                            // Canonicalize when possible to keep a stable key in the hash map.
+                            let canonical_path = path.canonicalize().unwrap_or(path);
+
+                            if canonical_path.is_dir() {
+                                state.add_change(canonical_path);
+                                continue;
+                            }
+
+                            // Only watch .md assets + config.toml changes.
+                            let is_md = canonical_path
+                                .extension()
+                                .map(|e| e == "md")
+                                .unwrap_or(false);
+                            let is_config = canonical_path
+                                .file_name()
+                                .map(|n| n == "config.toml")
+                                .unwrap_or(false);
+                            if !(is_md || is_config) {
+                                continue;
+                            }
+
+                            if canonical_path.exists() {
+                                // If we can read the file, only queue a sync when contents changed.
+                                match std::fs::read_to_string(&canonical_path) {
+                                    Ok(content) => {
+                                        let new_hash = compute_content_hash(&content);
+                                        if content_hashes
+                                            .get(&canonical_path)
+                                            .is_some_and(|old| old == &new_hash)
+                                        {
+                                            continue;
+                                        }
+                                        content_hashes.insert(canonical_path.clone(), new_hash);
+                                        state.add_change(canonical_path);
+                                    }
+                                    Err(_) => {
+                                        // If the file is mid-write (editor swap), treat as changed.
+                                        state.add_change(canonical_path);
+                                    }
+                                }
+                            } else {
+                                // Deletions should still trigger a sync so we can remove orphans.
+                                content_hashes.remove(&canonical_path);
+                                state.add_change(canonical_path);
+                            }
                         }
                     }
-                } else {
-                    // Deletions should still trigger a sync so we can remove orphans.
-                    content_hashes.remove(&canonical_path);
-                    state.add_change(canonical_path);
                 }
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
+            }
+
+            if last_poll.elapsed() >= Duration::from_millis(250) {
+                self.poll_for_changes(&paths_to_watch, &mut content_hashes, &mut state);
+                last_poll = Instant::now();
             }
 
             // Check if we should sync (debounced)
@@ -166,8 +203,89 @@ impl WatchUseCase {
             }
         }
 
+        let _ = _watchers.len();
         on_event(WatchEvent::Shutdown);
         Ok(())
+    }
+
+    fn poll_for_changes(
+        &self,
+        paths: &[PathBuf],
+        content_hashes: &mut HashMap<PathBuf, String>,
+        state: &mut WatcherState,
+    ) {
+        let mut seen: HashSet<PathBuf> = HashSet::new();
+        for path in paths {
+            self.poll_for_changes_in_path(path, content_hashes, state, &mut seen);
+        }
+
+        let mut deleted: Vec<PathBuf> = Vec::new();
+        for path in content_hashes.keys() {
+            if !seen.contains(path) && !path.exists() {
+                deleted.push(path.clone());
+            }
+        }
+
+        for path in deleted {
+            content_hashes.remove(&path);
+            state.add_change(path);
+        }
+    }
+
+    fn poll_for_changes_in_path(
+        &self,
+        path: &Path,
+        content_hashes: &mut HashMap<PathBuf, String>,
+        state: &mut WatcherState,
+        seen: &mut HashSet<PathBuf>,
+    ) {
+        if path.is_dir() {
+            let Ok(entries) = std::fs::read_dir(path) else {
+                return;
+            };
+            for entry in entries.flatten() {
+                let Ok(file_type) = entry.file_type() else {
+                    continue;
+                };
+                if file_type.is_symlink() {
+                    continue;
+                }
+                let child_path = entry.path();
+                self.poll_for_changes_in_path(&child_path, content_hashes, state, seen);
+            }
+            return;
+        }
+
+        if !path.is_file() {
+            return;
+        }
+
+        let is_md = path.extension().map(|e| e == "md").unwrap_or(false);
+        let is_config = path
+            .file_name()
+            .map(|n| n == "config.toml")
+            .unwrap_or(false);
+        if !(is_md || is_config) {
+            return;
+        }
+
+        let canonical_path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+        seen.insert(canonical_path.clone());
+
+        let Ok(content) = std::fs::read_to_string(&canonical_path) else {
+            return;
+        };
+
+        let new_hash = compute_content_hash(&content);
+        if content_hashes
+            .get(&canonical_path)
+            .is_some_and(|old| old == &new_hash)
+        {
+            return;
+        }
+
+        content_hashes.insert(canonical_path.clone(), new_hash);
+        state.add_change(canonical_path);
     }
 
     fn do_sync(&self, callback: &impl Fn(WatchEvent)) -> CalvinResult<()> {
