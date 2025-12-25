@@ -1,4 +1,5 @@
 use crate::ui::theme::CalvinTheme;
+use calvin::application::layers::{LayerQueryResult, LayerSummary};
 use calvin::Target;
 use is_terminal::IsTerminal;
 use std::path::Path;
@@ -104,6 +105,119 @@ pub fn select_targets_interactive_with_save(
     Some(selected)
 }
 
+/// Layer selection result
+#[derive(Debug, Clone)]
+pub struct LayerSelection {
+    /// Names of selected layers
+    pub selected_layers: Vec<String>,
+    /// Whether to use user layer
+    pub use_user_layer: bool,
+    /// Whether to use project layer
+    pub use_project_layer: bool,
+}
+
+/// Interactive layer selection
+///
+/// Returns None if user aborts (selects nothing)
+pub fn select_layers_interactive(
+    layers_result: &LayerQueryResult,
+    json: bool,
+) -> Option<LayerSelection> {
+    use dialoguer::MultiSelect;
+
+    if json || !std::io::stdin().is_terminal() {
+        // Non-interactive mode: use all layers
+        return Some(LayerSelection {
+            selected_layers: layers_result
+                .layers
+                .iter()
+                .map(|l| l.name.clone())
+                .collect(),
+            use_user_layer: layers_result.layers.iter().any(|l| l.layer_type == "user"),
+            use_project_layer: layers_result
+                .layers
+                .iter()
+                .any(|l| l.layer_type == "project"),
+        });
+    }
+
+    if layers_result.layers.len() <= 1 {
+        // Only one layer, no need to prompt
+        return Some(LayerSelection {
+            selected_layers: layers_result
+                .layers
+                .iter()
+                .map(|l| l.name.clone())
+                .collect(),
+            use_user_layer: layers_result.layers.iter().any(|l| l.layer_type == "user"),
+            use_project_layer: layers_result
+                .layers
+                .iter()
+                .any(|l| l.layer_type == "project"),
+        });
+    }
+
+    let items: Vec<String> = layers_result
+        .layers
+        .iter()
+        .map(layer_display_name)
+        .collect();
+
+    // By default, select all layers
+    let defaults: Vec<bool> = vec![true; layers_result.layers.len()];
+
+    let theme = CalvinTheme::new(crate::ui::terminal::detect_capabilities().supports_unicode);
+
+    println!("\nSelect layers to deploy (use space to toggle, enter to confirm):");
+    let selection = MultiSelect::with_theme(&theme)
+        .items(&items)
+        .defaults(&defaults)
+        .interact()
+        .unwrap_or_default();
+
+    if selection.is_empty() {
+        println!("No layers selected. Aborted.");
+        return None;
+    }
+
+    let selected_layers: Vec<String> = selection
+        .iter()
+        .map(|&i| layers_result.layers[i].name.clone())
+        .collect();
+
+    let use_user_layer = selection
+        .iter()
+        .any(|&i| layers_result.layers[i].layer_type == "user");
+    let use_project_layer = selection
+        .iter()
+        .any(|&i| layers_result.layers[i].layer_type == "project");
+
+    println!("Selected layers: {}", selected_layers.join(", "));
+    Some(LayerSelection {
+        selected_layers,
+        use_user_layer,
+        use_project_layer,
+    })
+}
+
+/// Get display name for a layer
+fn layer_display_name(layer: &LayerSummary) -> String {
+    let path_display = truncate_middle(&layer.original_path.display().to_string(), 40);
+    format!(
+        "{:<8} {} ({} assets)",
+        layer.layer_type, path_display, layer.asset_count
+    )
+}
+
+/// Truncate path in the middle if too long
+fn truncate_middle(s: &str, max_len: usize) -> String {
+    if s.len() <= max_len {
+        return s.to_string();
+    }
+    let half = (max_len - 3) / 2;
+    format!("{}...{}", &s[..half], &s[s.len() - half..])
+}
+
 /// Save selected targets to config.toml
 fn save_targets_to_config(config_path: &Path, targets: &[Target]) -> std::io::Result<()> {
     // Read existing config
@@ -156,4 +270,75 @@ fn save_targets_to_config(config_path: &Path, targets: &[Target]) -> std::io::Re
     };
 
     std::fs::write(config_path, new_content)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    fn make_layer_summary(name: &str, layer_type: &str, asset_count: usize) -> LayerSummary {
+        LayerSummary {
+            name: name.to_string(),
+            layer_type: layer_type.to_string(),
+            original_path: PathBuf::from(format!("/path/to/{}", name)),
+            resolved_path: PathBuf::from(format!("/path/to/{}", name)),
+            asset_count,
+        }
+    }
+
+    #[test]
+    fn test_layer_selection_single_layer_returns_all() {
+        let result = LayerQueryResult {
+            layers: vec![make_layer_summary("project", "project", 10)],
+            merged_asset_count: 10,
+            overridden_asset_count: 0,
+        };
+
+        // In non-interactive (json) mode, should return all layers
+        let selection = select_layers_interactive(&result, true).unwrap();
+        assert_eq!(selection.selected_layers, vec!["project"]);
+        assert!(selection.use_project_layer);
+        assert!(!selection.use_user_layer);
+    }
+
+    #[test]
+    fn test_layer_selection_json_mode_returns_all_layers() {
+        let result = LayerQueryResult {
+            layers: vec![
+                make_layer_summary("user", "user", 5),
+                make_layer_summary("project", "project", 10),
+            ],
+            merged_asset_count: 15,
+            overridden_asset_count: 0,
+        };
+
+        // In JSON mode, should return all layers without prompting
+        let selection = select_layers_interactive(&result, true).unwrap();
+        assert_eq!(selection.selected_layers, vec!["user", "project"]);
+        assert!(selection.use_project_layer);
+        assert!(selection.use_user_layer);
+    }
+
+    #[test]
+    fn test_layer_display_name_formatting() {
+        let layer = make_layer_summary("project", "project", 27);
+        let display = layer_display_name(&layer);
+        assert!(display.contains("project"));
+        assert!(display.contains("27 assets"));
+    }
+
+    #[test]
+    fn test_truncate_middle_short_string() {
+        let s = "short";
+        assert_eq!(truncate_middle(s, 10), "short");
+    }
+
+    #[test]
+    fn test_truncate_middle_long_string() {
+        let s = "this_is_a_very_long_path_that_needs_truncation";
+        let truncated = truncate_middle(s, 20);
+        assert!(truncated.len() <= 20);
+        assert!(truncated.contains("..."));
+    }
 }

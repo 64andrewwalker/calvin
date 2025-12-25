@@ -145,14 +145,10 @@ pub fn cmd_deploy_with_explicit_target(
 
     let use_project_layer = is_remote_target || !config.sources.disable_project_layer;
 
-    let mut user_layer_path = config.sources.user_layer_path.clone();
     let use_user_layer = !is_remote_target
         && !no_user_layer
         && config.sources.use_user_layer
         && !config.sources.ignore_user_layer;
-    if !use_user_layer {
-        user_layer_path = None;
-    }
 
     let mut additional_layers: Vec<std::path::PathBuf> = if config.sources.ignore_additional_layers
     {
@@ -171,6 +167,125 @@ pub fn cmd_deploy_with_explicit_target(
         project_root.join(source)
     } else {
         source.to_path_buf()
+    };
+
+    // Interactive layer selection when multiple layers exist
+    let (use_user_layer, use_project_layer, additional_layers, use_additional_layers) =
+        if interactive && !is_remote_target {
+            // Query available layers for interactive selection using LayerResolver
+            // This respects the user-specified source path via -s flag
+            use calvin::domain::services::LayerResolver;
+
+            let mut resolver = LayerResolver::new(project_root.clone())
+                .with_project_layer_path(project_layer_path.clone())
+                .with_disable_project_layer(!use_project_layer)
+                .with_additional_layers(if use_additional_layers {
+                    additional_layers.clone()
+                } else {
+                    Vec::new()
+                })
+                .with_remote_mode(is_remote_target);
+
+            if use_user_layer {
+                let effective_user_path = config
+                    .sources
+                    .user_layer_path
+                    .clone()
+                    .unwrap_or_else(calvin::config::default_user_layer_path);
+                resolver = resolver.with_user_layer_path(effective_user_path);
+            }
+
+            match resolver.resolve() {
+                Ok(mut resolution) if resolution.layers.len() > 1 => {
+                    // Load asset counts for each layer
+                    use calvin::domain::ports::LayerLoader;
+                    let loader = calvin::infrastructure::layer::FsLayerLoader::default();
+                    for layer in &mut resolution.layers {
+                        let _ = loader.load_layer_assets(layer);
+                    }
+
+                    // Convert to LayerQueryResult for the interactive menu
+                    let layers_result = calvin::application::layers::LayerQueryResult {
+                        layers: resolution
+                            .layers
+                            .iter()
+                            .map(|l| calvin::application::layers::LayerSummary {
+                                name: l.name.clone(),
+                                layer_type: match l.layer_type {
+                                    calvin::domain::entities::LayerType::User => "user".to_string(),
+                                    calvin::domain::entities::LayerType::Custom => {
+                                        "custom".to_string()
+                                    }
+                                    calvin::domain::entities::LayerType::Project => {
+                                        "project".to_string()
+                                    }
+                                },
+                                original_path: l.path.original().clone(),
+                                resolved_path: l.path.resolved().clone(),
+                                asset_count: l.assets.len(),
+                            })
+                            .collect(),
+                        merged_asset_count: 0,
+                        overridden_asset_count: 0,
+                    };
+
+                    // Multiple layers exist, prompt user to select
+                    match crate::ui::menu::select_layers_interactive(&layers_result, json) {
+                        Some(selection) => {
+                            // Filter additional layers based on selection
+                            // If user selected any custom layers, keep all additional layers
+                            let has_custom_selected = selection
+                                .selected_layers
+                                .iter()
+                                .any(|name| name.starts_with("custom"));
+                            let filtered_additional: Vec<std::path::PathBuf> =
+                                if has_custom_selected {
+                                    additional_layers.clone()
+                                } else {
+                                    Vec::new()
+                                };
+                            let use_additional = has_custom_selected;
+                            (
+                                selection.use_user_layer && use_user_layer,
+                                selection.use_project_layer && use_project_layer,
+                                filtered_additional,
+                                use_additional,
+                            )
+                        }
+                        None => {
+                            // User aborted
+                            anyhow::bail!("Layer selection aborted");
+                        }
+                    }
+                }
+                _ => {
+                    // Single layer or error - use defaults
+                    (
+                        use_user_layer,
+                        use_project_layer,
+                        additional_layers,
+                        use_additional_layers,
+                    )
+                }
+            }
+        } else {
+            (
+                use_user_layer,
+                use_project_layer,
+                additional_layers,
+                use_additional_layers,
+            )
+        };
+
+    // Update user_layer_path based on layer selection
+    let user_layer_path = if use_user_layer {
+        config
+            .sources
+            .user_layer_path
+            .clone()
+            .or_else(|| Some(calvin::config::default_user_layer_path()))
+    } else {
+        None
     };
 
     // Verbose: show resolved layer stack (Phase 1 multi-layer visibility)
@@ -376,8 +491,19 @@ pub fn cmd_deploy_with_explicit_target(
     // Note: Orphan detection is now handled by DeployUseCase internally
     // (when options.clean_orphans is set)
 
-    // Save deploy target to config for watch command (only on success, not dry-run, local only)
-    if !dry_run && result.is_success() && target_for_bridge.is_local() {
+    // Save deploy target to config for watch command.
+    //
+    // Semantics:
+    // - Only persist when the user did NOT explicitly override the destination via CLI flags.
+    // - Only persist when the effective deploy target is currently Unset (avoid rewriting user intent).
+    // - Never persist for dry-run or non-local targets.
+    if !dry_run
+        && result.is_success()
+        && target_for_bridge.is_local()
+        && !home
+        && !explicit_project
+        && config.deploy.target == DeployTargetValue::Unset
+    {
         let config_path = source.join("config.toml");
         let target_config = if use_home {
             DeployTargetValue::Home
