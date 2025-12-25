@@ -54,7 +54,16 @@ check_toolchain() {
 # Get hash of Cargo.lock for change detection
 get_lock_hash() {
     if [[ -f "$REPO_ROOT/Cargo.lock" ]]; then
-        sha256sum "$REPO_ROOT/Cargo.lock" 2>/dev/null | cut -d' ' -f1
+        if command -v sha256sum >/dev/null 2>&1; then
+            # Linux / GNU
+            sha256sum "$REPO_ROOT/Cargo.lock" | cut -d' ' -f1
+        elif command -v shasum >/dev/null 2>&1; then
+            # macOS / BSD
+            shasum -a 256 "$REPO_ROOT/Cargo.lock" | cut -d' ' -f1
+        else
+            # Fallback (openssl is usually everywhere)
+            openssl dgst -sha256 "$REPO_ROOT/Cargo.lock" | sed 's/^.*= //'
+        fi
     else
         echo "no-lockfile"
     fi
