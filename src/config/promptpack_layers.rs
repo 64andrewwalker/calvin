@@ -76,25 +76,29 @@ pub fn merge_promptpack_layer_configs(
             }
         };
 
-        if table.contains_key("format") {
+        // PRD §11.2: section-level override. However, in real projects (and our own templates),
+        // it's common to include a section header with only commented examples. TOML parses that
+        // as an *empty table*, which should behave like "section not defined" rather than
+        // overriding lower layers back to defaults.
+        if has_non_empty_table(table, "format") {
             merged.format = parsed.format;
         }
-        if table.contains_key("security") {
+        if has_non_empty_table(table, "security") {
             merged.security = parsed.security;
         }
-        if table.contains_key("targets") {
+        if has_non_empty_table(table, "targets") {
             merged.targets = parsed.targets;
         }
-        if table.contains_key("sync") {
+        if has_non_empty_table(table, "sync") {
             merged.sync = parsed.sync;
         }
-        if table.contains_key("output") {
+        if has_non_empty_table(table, "output") {
             merged.output = parsed.output;
         }
-        if table.contains_key("mcp") {
+        if has_non_empty_table(table, "mcp") {
             merged.mcp = parsed.mcp;
         }
-        if table.contains_key("deploy") {
+        if has_non_empty_table(table, "deploy") {
             merged.deploy = parsed.deploy;
         }
     }
@@ -104,6 +108,14 @@ pub fn merge_promptpack_layer_configs(
     }
 
     Ok((merged, warnings))
+}
+
+fn has_non_empty_table(root: &toml::map::Map<String, toml::Value>, key: &str) -> bool {
+    match root.get(key) {
+        Some(toml::Value::Table(t)) => !t.is_empty(),
+        Some(_) => true,
+        None => false,
+    }
 }
 
 fn read_toml_value(path: &std::path::Path) -> Result<toml::Value> {

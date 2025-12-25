@@ -200,6 +200,9 @@ calvin watch [OPTIONS]
 
 Preview what would be generated, without writing.
 
+Compilation uses the resolved multi-layer stack (user/custom/project), the same as `deploy`,
+and respects merged `[targets] enabled = [...]` configuration.
+
 ```bash
 calvin diff [OPTIONS]
 ```

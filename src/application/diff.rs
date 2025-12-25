@@ -17,7 +17,7 @@ use std::path::{Path, PathBuf};
 
 use crate::domain::entities::{Lockfile, OutputFile};
 use crate::domain::ports::{AssetRepository, FileSystem, LockfileRepository, TargetAdapter};
-use crate::domain::services::{FileAction, Planner, TargetFileState};
+use crate::domain::services::{merge_layers, FileAction, Planner, TargetFileState};
 use crate::domain::value_objects::{Scope, Target};
 
 /// Options for the diff operation
@@ -31,6 +31,16 @@ pub struct DiffOptions {
     pub targets: Vec<Target>,
     /// Deploy scope (User = home, Project = local)
     pub scope: Scope,
+    /// Whether to include the project layer
+    pub use_project_layer: bool,
+    /// Whether to include the user layer
+    pub use_user_layer: bool,
+    /// Optional user layer path override
+    pub user_layer_path: Option<PathBuf>,
+    /// Whether to include additional layers
+    pub use_additional_layers: bool,
+    /// Additional layer paths
+    pub additional_layers: Vec<PathBuf>,
 }
 
 impl DiffOptions {
@@ -40,6 +50,11 @@ impl DiffOptions {
             project_root: PathBuf::from("."),
             targets: vec![Target::All],
             scope: Scope::Project,
+            use_project_layer: true,
+            use_user_layer: false,
+            user_layer_path: None,
+            use_additional_layers: false,
+            additional_layers: Vec::new(),
         }
     }
 
@@ -50,6 +65,36 @@ impl DiffOptions {
 
     pub fn with_project_root(mut self, root: impl Into<PathBuf>) -> Self {
         self.project_root = root.into();
+        self
+    }
+
+    pub fn with_targets(mut self, targets: Vec<Target>) -> Self {
+        self.targets = targets;
+        self
+    }
+
+    pub fn with_project_layer_enabled(mut self, enabled: bool) -> Self {
+        self.use_project_layer = enabled;
+        self
+    }
+
+    pub fn with_user_layer_enabled(mut self, enabled: bool) -> Self {
+        self.use_user_layer = enabled;
+        self
+    }
+
+    pub fn with_user_layer_path(mut self, path: PathBuf) -> Self {
+        self.user_layer_path = Some(path);
+        self
+    }
+
+    pub fn with_additional_layers_enabled(mut self, enabled: bool) -> Self {
+        self.use_additional_layers = enabled;
+        self
+    }
+
+    pub fn with_additional_layers(mut self, layers: Vec<PathBuf>) -> Self {
+        self.additional_layers = layers;
         self
     }
 }
@@ -160,7 +205,7 @@ where
         let project_root = options.project_root.clone();
 
         // Step 1: Load assets
-        let assets = match self.asset_repo.load_all(&options.source) {
+        let assets = match self.load_assets_from_layers(options) {
             Ok(a) => a,
             Err(_) => return result,
         };
@@ -284,6 +329,57 @@ where
             .collect();
 
         result
+    }
+
+    /// Resolve layers (user/custom/project), load assets from each, then merge with override semantics.
+    ///
+    /// This keeps `calvin diff` aligned with multi-layer deploy/watch behavior.
+    fn load_assets_from_layers(
+        &self,
+        options: &DiffOptions,
+    ) -> Result<Vec<crate::domain::entities::Asset>, String> {
+        use crate::config::default_user_layer_path;
+        use crate::domain::services::{LayerResolveError, LayerResolver};
+
+        let project_root = options.project_root.clone();
+        let project_layer_path = if options.source.is_relative() {
+            project_root.join(&options.source)
+        } else {
+            options.source.clone()
+        };
+
+        let mut resolver = LayerResolver::new(project_root)
+            .with_project_layer_path(project_layer_path)
+            .with_disable_project_layer(!options.use_project_layer)
+            .with_additional_layers(if options.use_additional_layers {
+                options.additional_layers.clone()
+            } else {
+                Vec::new()
+            })
+            .with_remote_mode(false);
+
+        if options.use_user_layer {
+            let user_layer_path = options
+                .user_layer_path
+                .clone()
+                .unwrap_or_else(default_user_layer_path);
+            resolver = resolver.with_user_layer_path(user_layer_path);
+        }
+
+        let mut resolution = resolver.resolve().map_err(|e| match e {
+            LayerResolveError::NoLayersFound => crate::CalvinError::NoLayersFound.to_string(),
+            _ => e.to_string(),
+        })?;
+
+        for layer in &mut resolution.layers {
+            layer.assets = self
+                .asset_repo
+                .load_all(layer.path.resolved())
+                .map_err(|e| format!("Failed to load layer '{}': {}", layer.name, e))?;
+        }
+
+        let merge = merge_layers(&resolution.layers);
+        Ok(merge.assets.values().map(|m| m.asset.clone()).collect())
     }
 
     /// Compile assets using adapters
@@ -604,7 +700,9 @@ mod tests {
     #[test]
     fn diff_use_case_detects_new_files() {
         let use_case = create_diff_use_case();
-        let options = DiffOptions::new(".promptpack");
+        let project_root = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(project_root.path().join(".promptpack")).unwrap();
+        let options = DiffOptions::new(".promptpack").with_project_root(project_root.path());
 
         let result = use_case.execute(&options);
 
@@ -631,9 +729,15 @@ mod tests {
             lockfile: RefCell::new(Lockfile::new()),
         };
 
-        // Pre-populate file system with same content
+        let project_root = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(project_root.path().join(".promptpack")).unwrap();
+
+        // Pre-populate file system with same content (under project_root)
         let mut files = HashMap::new();
-        files.insert(PathBuf::from(".test/test.md"), "# Test Content".to_string());
+        files.insert(
+            project_root.path().join(".test/test.md"),
+            "# Test Content".to_string(),
+        );
         let file_system = MockFileSystem {
             files: RefCell::new(files),
         };
@@ -643,7 +747,7 @@ mod tests {
         })];
 
         let use_case = DiffUseCase::new(asset_repo, lockfile_repo, file_system, adapters);
-        let options = DiffOptions::new(".promptpack");
+        let options = DiffOptions::new(".promptpack").with_project_root(project_root.path());
 
         let result = use_case.execute(&options);
 
@@ -673,9 +777,15 @@ mod tests {
             lockfile: RefCell::new(lockfile),
         };
 
-        // File exists with old content (matching lockfile)
+        let project_root = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(project_root.path().join(".promptpack")).unwrap();
+
+        // File exists with old content (matching lockfile) under project_root
         let mut files = HashMap::new();
-        files.insert(PathBuf::from(".test/test.md"), old_content.to_string());
+        files.insert(
+            project_root.path().join(".test/test.md"),
+            old_content.to_string(),
+        );
         let file_system = MockFileSystem {
             files: RefCell::new(files),
         };
@@ -685,7 +795,7 @@ mod tests {
         })];
 
         let use_case = DiffUseCase::new(asset_repo, lockfile_repo, file_system, adapters);
-        let options = DiffOptions::new(".promptpack");
+        let options = DiffOptions::new(".promptpack").with_project_root(project_root.path());
 
         let result = use_case.execute(&options);
 
@@ -710,10 +820,13 @@ mod tests {
             lockfile: RefCell::new(lockfile),
         };
 
-        // File exists with modified content (different from lockfile)
+        let project_root = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(project_root.path().join(".promptpack")).unwrap();
+
+        // File exists with modified content (different from lockfile) under project_root
         let mut files = HashMap::new();
         files.insert(
-            PathBuf::from(".test/test.md"),
+            project_root.path().join(".test/test.md"),
             "# Modified by user".to_string(),
         );
         let file_system = MockFileSystem {
@@ -725,7 +838,7 @@ mod tests {
         })];
 
         let use_case = DiffUseCase::new(asset_repo, lockfile_repo, file_system, adapters);
-        let options = DiffOptions::new(".promptpack");
+        let options = DiffOptions::new(".promptpack").with_project_root(project_root.path());
 
         let result = use_case.execute(&options);
 
