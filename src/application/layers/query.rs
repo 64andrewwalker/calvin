@@ -26,31 +26,64 @@ pub struct LayerQueryUseCase {
     loader: FsLayerLoader,
 }
 
+/// Layer query options for customizing which layers are resolved
+#[derive(Debug, Clone, Default)]
+pub struct LayerQueryOptions {
+    /// Custom project layer path (overrides default .promptpack)
+    pub project_layer_path: Option<PathBuf>,
+    /// Whether to use user layer
+    pub use_user_layer: bool,
+    /// Whether to use additional layers
+    pub use_additional_layers: bool,
+    /// Additional layer paths
+    pub additional_layers: Vec<PathBuf>,
+    /// Whether project layer is disabled
+    pub disable_project_layer: bool,
+}
+
 impl LayerQueryUseCase {
     pub fn new(loader: FsLayerLoader) -> Self {
         Self { loader }
     }
 
+    /// Query layers using default project .promptpack path
     pub fn query(&self, project_root: &Path, config: &Config) -> anyhow::Result<LayerQueryResult> {
+        let options = LayerQueryOptions {
+            project_layer_path: None,
+            use_user_layer: config.sources.use_user_layer && !config.sources.ignore_user_layer,
+            use_additional_layers: !config.sources.ignore_additional_layers,
+            additional_layers: config.sources.additional_layers.clone(),
+            disable_project_layer: config.sources.disable_project_layer,
+        };
+        self.query_with_options(project_root, config, &options)
+    }
+
+    /// Query layers with custom options (supports -s flag for custom source path)
+    pub fn query_with_options(
+        &self,
+        project_root: &Path,
+        config: &Config,
+        options: &LayerQueryOptions,
+    ) -> anyhow::Result<LayerQueryResult> {
         use crate::domain::services::LayerResolveError;
         use crate::domain::services::LayerResolver;
 
-        let project_layer_path = project_root.join(".promptpack");
-
-        let use_user_layer = config.sources.use_user_layer && !config.sources.ignore_user_layer;
-        let use_additional_layers = !config.sources.ignore_additional_layers;
+        let project_layer_path = options
+            .project_layer_path
+            .clone()
+            .unwrap_or_else(|| project_root.join(".promptpack"));
 
         let mut resolver = LayerResolver::new(project_root.to_path_buf())
             .with_project_layer_path(project_layer_path)
-            .with_disable_project_layer(config.sources.disable_project_layer)
+            .with_disable_project_layer(options.disable_project_layer)
             .with_remote_mode(false)
-            .with_additional_layers(if use_additional_layers {
-                config.sources.additional_layers.clone()
+            .with_additional_layers(if options.use_additional_layers {
+                options.additional_layers.clone()
             } else {
                 Vec::new()
             });
 
-        if use_user_layer {
+        if options.use_user_layer {
             let user_layer_path = config
                 .sources
                 .user_layer_path

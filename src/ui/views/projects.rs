@@ -4,7 +4,7 @@ use calvin::domain::entities::ProjectEntry;
 
 use crate::ui::blocks::header::CommandHeader;
 use crate::ui::primitives::icon::Icon;
-use crate::ui::primitives::text::ColoredText;
+use crate::ui::primitives::text::{truncate_middle, ColoredText};
 use crate::ui::widgets::r#box::{Box, BoxStyle};
 
 pub struct ProjectsView<'a> {
@@ -119,30 +119,4 @@ fn humanize_ago(at: chrono::DateTime<chrono::Utc>) -> String {
     }
     let days = hours / 24;
     format!("{}d ago", days)
-}
-
-fn truncate_middle(s: &str, max_len: usize) -> String {
-    if s.chars().count() <= max_len {
-        return s.to_string();
-    }
-
-    if max_len <= 3 {
-        return "…".repeat(max_len);
-    }
-
-    let keep = max_len.saturating_sub(1);
-    let left = keep / 2;
-    let right = keep.saturating_sub(left);
-
-    let left_part: String = s.chars().take(left).collect();
-    let right_part: String = s
-        .chars()
-        .rev()
-        .take(right)
-        .collect::<String>()
-        .chars()
-        .rev()
-        .collect();
-
-    format!("{}…{}", left_part, right_part)
 }

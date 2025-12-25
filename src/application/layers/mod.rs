@@ -2,4 +2,4 @@
 
 mod query;
 
-pub use query::{LayerQueryResult, LayerQueryUseCase, LayerSummary};
+pub use query::{LayerQueryOptions, LayerQueryResult, LayerQueryUseCase, LayerSummary};
