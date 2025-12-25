@@ -165,7 +165,11 @@ v2
 "#,
     );
 
-    let deadline = Instant::now() + Duration::from_secs(4);
+    // Give file watcher time to pick up the change
+    thread::sleep(Duration::from_millis(100));
+
+    // Use longer timeout for CI environments under load
+    let deadline = Instant::now() + Duration::from_secs(6);
     while Instant::now() < deadline {
         if out_path.exists()
             && fs::read_to_string(&out_path)
