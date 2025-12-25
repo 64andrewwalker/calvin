@@ -10,6 +10,7 @@ use super::options::DeployOptions;
 use super::targets::DeployTarget;
 use crate::ui::context::UiContext;
 use crate::ui::primitives::icon::Icon;
+use crate::ui::primitives::text::display_with_tilde;
 use crate::ui::views::deploy::{render_deploy_header, render_deploy_summary};
 use calvin::presentation::ColorWhen;
 
@@ -235,9 +236,11 @@ pub fn cmd_deploy_with_explicit_target(
         None
     };
 
-    // Verbose: show resolved layer stack (Phase 1 multi-layer visibility)
+    // Verbose: show resolved layer stack with asset provenance (PRD §10.4, §12.2)
     if !json && verbose > 0 {
-        use calvin::domain::services::LayerResolver;
+        use calvin::domain::services::{merge_layers, LayerResolver};
+        use calvin::infrastructure::FsLayerLoader;
+
         let mut resolver = LayerResolver::new(project_root.clone())
             .with_project_layer_path(project_layer_path.clone())
             .with_disable_project_layer(!use_project_layer)
@@ -259,10 +262,79 @@ pub fn cmd_deploy_with_explicit_target(
 
         match resolver.resolve() {
             Ok(resolution) => {
-                println!("Layers:");
-                for layer in resolution.layers {
-                    println!("  - [{}] {}", layer.name, layer.path.original().display());
+                // Load assets for each layer to get counts and provenance
+                use calvin::domain::ports::LayerLoader;
+                let loader = FsLayerLoader::default();
+                let mut layers_with_assets = Vec::new();
+                for layer in &resolution.layers {
+                    let mut layer_with_assets = layer.clone();
+                    // Try to load assets; if it fails, use empty assets
+                    let _ = loader.load_layer_assets(&mut layer_with_assets);
+                    layers_with_assets.push(layer_with_assets);
                 }
+
+                // Print layer stack with asset counts (same format as `calvin layers`)
+                let total_layers = layers_with_assets.len();
+                println!("Layer Stack (highest priority first):");
+                for (idx, layer) in layers_with_assets.iter().rev().enumerate() {
+                    let layer_num = total_layers - idx;
+                    println!(
+                        "  {}. [{}] {} ({} assets)",
+                        layer_num,
+                        layer.name,
+                        display_with_tilde(layer.path.original()),
+                        layer.assets.len()
+                    );
+                }
+
+                // Merge layers to get provenance and overrides
+                let merge_result = merge_layers(&layers_with_assets);
+
+                // Print asset provenance (PRD §10.4)
+                // At -v level, show summary. At -vv level, show full list.
+                if !merge_result.assets.is_empty() {
+                    let override_count = merge_result.overrides.len();
+                    let total_assets = merge_result.assets.len();
+
+                    if verbose >= 2 {
+                        // Full provenance list at -vv
+                        println!("\nAsset Provenance ({} assets):", total_assets);
+                        let mut sorted_assets: Vec<_> = merge_result.assets.iter().collect();
+                        sorted_assets.sort_by(|a, b| a.0.cmp(b.0));
+                        for (id, merged) in sorted_assets {
+                            let override_note = if merged.overrides.is_some() {
+                                " (override)"
+                            } else {
+                                ""
+                            };
+                            println!(
+                                "  • {:<20} ← {}:{}{}",
+                                id,
+                                merged.source_layer,
+                                display_with_tilde(&merged.source_file),
+                                override_note
+                            );
+                        }
+                    } else {
+                        // Summary at -v
+                        println!(
+                            "\nAssets: {} merged ({} overridden)",
+                            total_assets, override_count
+                        );
+                    }
+                }
+
+                // Print override information (PRD §12.2) - always show if present
+                if !merge_result.overrides.is_empty() {
+                    println!("\nOverrides:");
+                    for ov in &merge_result.overrides {
+                        println!(
+                            "  • {:<20} {} overrides {}",
+                            ov.asset_id, ov.by_layer, ov.from_layer
+                        );
+                    }
+                }
+
                 for warning in resolution.warnings {
                     eprintln!("Warning: {}", warning);
                 }

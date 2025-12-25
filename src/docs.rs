@@ -29,6 +29,7 @@ pub const EXPECTED_DOC_PAGES: &[&str] = &[
     "/guides/scope-guide",
     "/guides/configuration",
     "/guides/clean-command",
+    "/guides/multi-layer",
 ];
 
 /// Get the full URL for the frontmatter documentation
@@ -49,6 +50,11 @@ pub fn scope_guide_url() -> String {
 /// Get the full URL for the configuration guide
 pub fn configuration_url() -> String {
     format!("{}/guides/configuration", DOCS_BASE_URL)
+}
+
+/// Get the full URL for the multi-layer guide
+pub fn multi_layer_url() -> String {
+    format!("{}/guides/multi-layer", DOCS_BASE_URL)
 }
 
 #[cfg(test)]

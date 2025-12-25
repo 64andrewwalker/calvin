@@ -4,7 +4,7 @@ use calvin::domain::entities::ProjectEntry;
 
 use crate::ui::blocks::header::CommandHeader;
 use crate::ui::primitives::icon::Icon;
-use crate::ui::primitives::text::{truncate_middle, ColoredText};
+use crate::ui::primitives::text::{display_with_tilde, truncate_middle, ColoredText};
 use crate::ui::widgets::r#box::{Box, BoxStyle};
 
 pub struct ProjectsView<'a> {
@@ -81,7 +81,7 @@ impl<'a> ProjectsView<'a> {
             }
             .colored(supports_color, supports_unicode);
 
-            let project_path = truncate_middle(&project.path.display().to_string(), 42);
+            let project_path = truncate_middle(&display_with_tilde(&project.path), 42);
             let ago = humanize_ago(project.last_deployed);
 
             b.add_line(format!(

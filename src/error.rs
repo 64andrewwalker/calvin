@@ -79,7 +79,7 @@ pub enum CalvinError {
 
     /// No promptpack layers found (multi-layer)
     #[error(
-        "no promptpack layers found\n  → Fix: Create a .promptpack/ directory or configure user layer\n  → Run: calvin init --user"
+        "no promptpack layers found\n  → Fix: Create a .promptpack/ directory or configure user layer\n  → Run: calvin init --user\n  → Docs: https://64andrewwalker.github.io/calvin/docs/guides/multi-layer"
     )]
     NoLayersFound,
 

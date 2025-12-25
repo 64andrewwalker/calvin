@@ -3,7 +3,7 @@ use calvin::application::layers::LayerQueryResult;
 use crate::ui::blocks::header::CommandHeader;
 use crate::ui::blocks::summary::ResultSummary;
 use crate::ui::primitives::icon::Icon;
-use crate::ui::primitives::text::{truncate_middle, ColoredText};
+use crate::ui::primitives::text::{display_with_tilde, truncate_middle, ColoredText};
 use crate::ui::widgets::r#box::{Box, BoxStyle};
 
 pub struct LayersView<'a> {
@@ -37,19 +37,16 @@ impl<'a> LayersView<'a> {
             return out;
         }
 
-        let mut b = Box::with_title("Layer Stack (high → low)").style(BoxStyle::Info);
-        for layer in self.result.layers.iter().rev() {
-            let icon = match layer.layer_type.as_str() {
-                "project" => Icon::Success,
-                "user" => Icon::Pending,
-                _ => Icon::Warning,
-            }
-            .colored(supports_color, supports_unicode);
+        let mut b = Box::with_title("Layer Stack (highest priority first)").style(BoxStyle::Info);
+        let total_layers = self.result.layers.len();
+        for (idx, layer) in self.result.layers.iter().rev().enumerate() {
+            // Number from highest to lowest (e.g., 2, 1 for 2 layers)
+            let layer_num = total_layers - idx;
 
-            let path = truncate_middle(&layer.original_path.display().to_string(), 44);
+            let path = truncate_middle(&display_with_tilde(&layer.original_path), 40);
             b.add_line(format!(
-                "{} {:<8} {:<46} {:>3} assets",
-                icon, layer.layer_type, path, layer.asset_count
+                "{}. [{}] {:<42} {:>3} assets",
+                layer_num, layer.layer_type, path, layer.asset_count
             ));
         }
         out.push_str(&b.render(supports_color, supports_unicode));

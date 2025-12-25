@@ -137,6 +137,29 @@ pub fn truncate_middle(s: &str, max_len: usize) -> String {
     format!("{}…{}", left_part, right_part)
 }
 
+/// Convert an absolute path to use tilde (~) notation for the home directory.
+///
+/// This makes paths more readable and portable in CLI output.
+///
+/// # Example
+/// ```ignore
+/// // On macOS with HOME=/Users/alice
+/// let path = PathBuf::from("/Users/alice/.calvin/.promptpack");
+/// assert_eq!(display_with_tilde(&path), "~/.calvin/.promptpack");
+///
+/// // Non-home paths are unchanged
+/// let path = PathBuf::from("/tmp/foo");
+/// assert_eq!(display_with_tilde(&path), "/tmp/foo");
+/// ```
+pub fn display_with_tilde(path: &std::path::Path) -> String {
+    if let Some(home) = dirs::home_dir() {
+        if let Ok(stripped) = path.strip_prefix(&home) {
+            return format!("~/{}", stripped.display());
+        }
+    }
+    path.display().to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

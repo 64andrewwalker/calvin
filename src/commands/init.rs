@@ -154,16 +154,23 @@ fn cmd_init_user(force: bool, json: bool, color: Option<ColorWhen>) -> Result<()
             "template": "user",
         }));
     } else {
+        // PRD §12.5: Show tree structure of created directories
+        // Using simple indented list format to comply with no_legacy_borders test
         println!(
-            "{} Created user layer at {}",
-            Icon::Success.colored(supports_color, supports_unicode),
-            user_layer.display()
+            "{} User Layer Initialized",
+            Icon::Success.colored(supports_color, supports_unicode)
         );
-        println!(
-            "{} Next: Add global prompts under {}",
-            Icon::Arrow.colored(supports_color, supports_unicode),
-            user_layer.display()
-        );
+        println!();
+        println!("Created: {}/", user_layer.display());
+        println!("  - config.toml");
+        println!("  - policies/");
+        println!("  - actions/");
+        println!("  - agents/");
+        println!();
+        println!("Next steps:");
+        println!("  1. Add your global prompts to {}/", user_layer.display());
+        println!("  2. Any project can now use these prompts");
+        println!("  3. Project-level .promptpack/ will override if needed");
     }
 
     Ok(())
