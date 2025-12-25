@@ -38,8 +38,8 @@
 - [x] `tests/cli_deploy_user_layer_targets_config.rs` → migrated to shared `TestEnv` (still legacy crate; move later)
 - [x] `tests/cli_deploy_project_flag_overrides_home_config.rs` → migrated to shared `TestEnv` (still legacy crate; move later)
 - [x] `tests/cli_deploy_empty_project_targets_section_does_not_override_user_layer.rs` → migrated to shared `TestEnv` (still legacy crate; move to CONFIG contracts later)
-- [ ] `tests/cli_deploy_verbose_provenance.rs` → migrate to provenance contracts (or keep as scenario) + shared `TestEnv`
-- [ ] `tests/cli_deploy_verbose_variants.rs` → migrate to scenario/contract as appropriate + shared `TestEnv`
+- [x] `tests/cli_deploy_verbose_provenance.rs` → migrated to shared `TestEnv` (still legacy crate; move to provenance contracts later)
+- [x] `tests/cli_deploy_verbose_variants.rs` → migrated to shared `TestEnv` (still legacy crate; move to provenance/layers output contracts later)
 
 ## P0: Clean (highest ROI)
 
