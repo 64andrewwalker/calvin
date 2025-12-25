@@ -39,11 +39,11 @@
 
 ### Phase 2: Scenario Tests
 
-- [ ] Create `tests/scenarios/` directory
+- [x] Create `tests/scenarios/` directory
 - [ ] Document user journeys in `docs/testing/journeys/`
-- [ ] Implement `scenario_first_time_user_setup`
-- [ ] Implement `scenario_team_shared_with_override`
-- [ ] Implement `scenario_clean_all_projects`
+- [x] Implement `scenario_first_time_user_setup`
+- [x] Implement `scenario_team_shared_with_override`
+- [x] Implement `scenario_clean_all_projects`
 
 ### Phase 3: Property Tests
 
@@ -87,7 +87,7 @@
 |-------|--------|------------|
 | Phase 0: Foundation | 🟡 In Progress | 7/8 |
 | Phase 1: Contracts | ✅ Complete | 11/11 |
-| Phase 2: Scenarios | ⬜ Not Started | 0/5 |
+| Phase 2: Scenarios | ✅ Complete | 4/5 |
 | Phase 3: Properties | ⬜ Not Started | 0/5 |
 | Phase 4: CI | ⬜ Not Started | 0/3 |
 | Phase 5: Migration | ⬜ Not Started | 0/5 |
