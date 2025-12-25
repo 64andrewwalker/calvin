@@ -122,7 +122,7 @@ pub fn interactive_global_layers_only(
         ),
         2 => commands::clean::cmd_clean(
             &source,
-            false, // home
+            true,  // home (global lockfile)
             false, // project
             false, // all
             false, // dry_run
@@ -247,19 +247,51 @@ pub fn interactive_existing_project(
             color,
             no_animation,
         ),
-        7 => commands::clean::cmd_clean(
-            &source,
-            false, // home
-            false, // project
-            false, // all
-            false, // dry_run
-            false, // yes - let interactive mode handle
-            false, // force
-            false, // json
-            verbose,
-            color,
-            no_animation,
-        ),
+        7 => {
+            let items = vec![
+                "[1] Clean this project's deployments",
+                "[2] Clean home (global) deployments",
+                "[3] Back",
+            ];
+
+            let selection = Select::new()
+                .with_prompt("What would you like to clean?")
+                .items(&items)
+                .default(0)
+                .interact()?;
+
+            match selection {
+                // Use the interactive tree menu scoped to the current project's lockfile.
+                0 => commands::clean::cmd_clean(
+                    &source,
+                    false, // home
+                    false, // project
+                    false, // all
+                    false, // dry_run
+                    false, // yes - let interactive mode handle
+                    false, // force
+                    false, // json
+                    verbose,
+                    color,
+                    no_animation,
+                ),
+                // Home deployments are global, so use the global lockfile (`~/.calvin/calvin.lock`).
+                1 => commands::clean::cmd_clean(
+                    &source,
+                    true,  // home
+                    false, // project
+                    false, // all
+                    false, // dry_run
+                    false, // yes
+                    false, // force
+                    false, // json
+                    verbose,
+                    color,
+                    no_animation,
+                ),
+                _ => Ok(()),
+            }
+        }
         8 => commands::explain::cmd_explain(false, false, verbose),
         _ => Ok(()),
     }

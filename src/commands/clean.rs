@@ -13,6 +13,7 @@ use anyhow::Result;
 use is_terminal::IsTerminal;
 
 use calvin::application::clean::{CleanOptions, CleanResult, CleanUseCase};
+use calvin::application::global_lockfile_path;
 use calvin::application::resolve_lockfile_path;
 use calvin::domain::entities::Lockfile;
 use calvin::domain::ports::{FileSystem, LockfileRepository};
@@ -69,9 +70,17 @@ pub fn cmd_clean(
     let lockfile_repo = TomlLockfileRepository::new();
     let fs = LocalFs::new();
 
-    // Get lockfile path (project-root lockfile, with legacy migration)
-    let (lockfile_path, migration_note) =
-        resolve_lockfile_path(&project_root, source, &lockfile_repo);
+    // Get lockfile path:
+    // - Project deployments: `{cwd}/calvin.lock` (with legacy migration from `.promptpack/.calvin.lock`)
+    // - Home deployments: `{HOME}/.calvin/calvin.lock` (global)
+    let (lockfile_path, migration_note) = if scope == Some(Scope::User) {
+        let Some(path) = global_lockfile_path() else {
+            anyhow::bail!("Failed to resolve home directory for global lockfile");
+        };
+        (path, None)
+    } else {
+        resolve_lockfile_path(&project_root, source, &lockfile_repo)
+    };
     if !json {
         if let Some(note) = migration_note {
             eprintln!("ℹ {}", note);

@@ -87,6 +87,18 @@
   - user_layer_path：`tests/cli_interactive_user_layer_path_config.rs`
   - legacy user config：`tests/cli_interactive_legacy_user_config_path.rs`
 
+### L. `deploy --home` / `clean --home` 全局 lockfile 语义（发布前 P0 修复）
+
+- 背景：multi-layer PRD 没有明确规定 `deploy --home` 的 lockfile 位置，但在实际用户流程中这是一个 P0 体验缺陷：
+  - home deploy 会污染当前目录的 `./calvin.lock`
+  - home deploy 还会误写入 `~/.calvin/registry.toml`，导致 `calvin projects` 显示“伪项目”
+  - 用户无法在任意目录 clean 掉 home 下已部署的 prompts
+- 修复后语义：
+  - `deploy --home` / `diff --home` / `clean --home` 使用 `~/.calvin/calvin.lock`
+  - registry 仅记录 project scope deploy
+- 覆盖：
+  - `tests/cli_home_deploy_global_lockfile.rs`
+
 ## 2. 仍需确认/仍有风险（建议发布前处理）
 
 ## 3. 建议的发布前最小验收用例（手工 + 自动）

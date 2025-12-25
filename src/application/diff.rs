@@ -177,16 +177,29 @@ where
         result.output_count = outputs.len();
 
         // Step 3: Load lockfile
-        let new_lockfile_path = project_root.join("calvin.lock");
-        let old_lockfile_path = options.source.join(".calvin.lock");
-        let lockfile_path = if new_lockfile_path.exists() {
-            &new_lockfile_path
-        } else if old_lockfile_path.exists() {
-            &old_lockfile_path
-        } else {
-            &new_lockfile_path
+        //
+        // - Project scope diffs use the project lockfile (`{project_root}/calvin.lock`, with legacy fallback).
+        // - Home scope diffs use the global lockfile (`{HOME}/.calvin/calvin.lock`).
+        let lockfile = match options.scope {
+            Scope::Project => {
+                let new_lockfile_path = project_root.join("calvin.lock");
+                let old_lockfile_path = options.source.join(".calvin.lock");
+                let lockfile_path = if new_lockfile_path.exists() {
+                    &new_lockfile_path
+                } else if old_lockfile_path.exists() {
+                    &old_lockfile_path
+                } else {
+                    &new_lockfile_path
+                };
+                self.lockfile_repo.load(lockfile_path).unwrap_or_default()
+            }
+            Scope::User => {
+                let Some(lockfile_path) = crate::application::global_lockfile_path() else {
+                    return result;
+                };
+                self.lockfile_repo.load(&lockfile_path).unwrap_or_default()
+            }
         };
-        let lockfile = self.lockfile_repo.load(lockfile_path).unwrap_or_default();
 
         // Step 4: Compare each output with target state
         for output in &outputs {

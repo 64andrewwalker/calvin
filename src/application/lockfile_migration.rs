@@ -9,6 +9,16 @@ use std::path::{Path, PathBuf};
 
 use crate::domain::ports::LockfileRepository;
 
+/// Resolve the global lockfile path for user/home deployments.
+///
+/// This is stored under the Calvin user state directory:
+/// - `{HOME}/.calvin/calvin.lock`
+///
+/// Returns `None` if the home directory cannot be resolved.
+pub fn global_lockfile_path() -> Option<PathBuf> {
+    dirs::home_dir().map(|h| h.join(".calvin/calvin.lock"))
+}
+
 /// Resolve the lockfile path for a project and migrate legacy lockfile if present.
 ///
 /// - New location: `{project_root}/calvin.lock`

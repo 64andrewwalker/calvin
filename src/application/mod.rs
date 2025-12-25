@@ -36,6 +36,7 @@ pub use clean::{CleanOptions, CleanResult, CleanUseCase, SkipReason, SkippedFile
 pub use compiler::compile_assets;
 pub use deploy::{DeployOptions, DeployOutputOptions, DeployResult, DeployUseCase};
 pub use diff::{ChangeType, DiffEntry, DiffOptions, DiffResult, DiffUseCase};
+pub use lockfile_migration::global_lockfile_path;
 pub use lockfile_migration::resolve_lockfile_path;
 pub use pipeline::{AssetPipeline, ScopePolicyExt};
 pub use registry::RegistryUseCase;

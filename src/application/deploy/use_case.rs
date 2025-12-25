@@ -329,12 +329,26 @@ where
             output_count: outputs.len(),
         });
 
-        // Step 3: Load lockfile (project-root lockfile, with auto-migration)
-        let (lockfile_path, lockfile_warning) = crate::application::resolve_lockfile_path(
-            &options.project_root,
-            &options.source,
-            &self.lockfile_repo,
-        );
+        // Step 3: Load lockfile
+        //
+        // Project deployments are tracked in `{project_root}/calvin.lock` (with legacy migration).
+        // Home/user deployments are global and tracked in `{HOME}/.calvin/calvin.lock`.
+        let (lockfile_path, lockfile_warning) = match options.scope {
+            Scope::Project => crate::application::resolve_lockfile_path(
+                &options.project_root,
+                &options.source,
+                &self.lockfile_repo,
+            ),
+            Scope::User => match crate::application::global_lockfile_path() {
+                Some(path) => (path, None),
+                None => {
+                    result
+                        .errors
+                        .push("Failed to resolve home directory for global lockfile".to_string());
+                    return result;
+                }
+            },
+        };
         if let Some(warning) = lockfile_warning {
             result.add_warning(warning);
         }
@@ -405,7 +419,7 @@ where
                 result.add_warning(warning);
             }
 
-            if result.errors.is_empty() {
+            if result.errors.is_empty() && matches!(options.scope, Scope::Project) {
                 self.register_project(
                     &options.project_root,
                     &lockfile_path,

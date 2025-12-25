@@ -74,6 +74,7 @@ When assets with the same ID exist in multiple layers, higher-priority layers ov
 **Lockfile location:**
 
 - Project deployments track state in `./calvin.lock` (project root)
+- Home deployments track state in `~/.calvin/calvin.lock` (global)
 - `--source` changes the project layer input, but does not change where `calvin.lock` is written
 
 **Orphan Cleanup:**
