@@ -78,6 +78,21 @@ enabled = ["claude-code", "cursor", "vscode", "antigravity", "codex"]
 # - enabled field missing      → Deploy to ALL targets (default behavior)
 
 #───────────────────────────────────────────────────────────────
+# DEPLOY DESTINATION
+#───────────────────────────────────────────────────────────────
+[deploy]
+# Where `calvin deploy` / `calvin watch` write outputs by default.
+# Valid values: "project" | "home"
+#
+# Notes:
+# - If omitted, `calvin deploy` defaults to "project" and will persist the choice
+#   to `.promptpack/config.toml` on a successful local deploy (non-dry-run).
+# - CLI flags override config without modifying it:
+#     - `calvin deploy --home`
+#     - `calvin deploy --project`
+target = "project"
+
+#───────────────────────────────────────────────────────────────
 # SYNC BEHAVIOR
 #───────────────────────────────────────────────────────────────
 [sync]

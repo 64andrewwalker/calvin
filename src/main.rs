@@ -76,6 +76,7 @@ fn dispatch(
         Commands::Deploy {
             source,
             home,
+            project,
             remote,
             force,
             yes,
@@ -85,9 +86,10 @@ fn dispatch(
             layers,
             no_user_layer,
             no_additional_layers,
-        } => commands::deploy::cmd_deploy(
+        } => commands::deploy::cmd_deploy_with_explicit_target(
             &source,
             home,
+            project,
             remote,
             &targets,
             &layers,

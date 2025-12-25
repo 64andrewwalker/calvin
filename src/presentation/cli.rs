@@ -54,11 +54,15 @@ pub enum Commands {
         source: PathBuf,
 
         /// Deploy to user home directory (install all assets globally)
-        #[arg(long, conflicts_with = "remote")]
+        #[arg(long, conflicts_with_all = ["project", "remote"])]
         home: bool,
 
+        /// Deploy to current project (override config)
+        #[arg(long, conflicts_with_all = ["home", "remote"])]
+        project: bool,
+
         /// Remote destination (user@host:/path)
-        #[arg(long)]
+        #[arg(long, conflicts_with_all = ["home", "project"])]
         remote: Option<String>,
 
         /// Force overwrite of modified files

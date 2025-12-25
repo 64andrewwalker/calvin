@@ -48,6 +48,7 @@ calvin deploy [OPTIONS]
 | `--source <PATH>` | `-s` | Path to `.promptpack` directory (default: `.promptpack`) |
 | `--targets <LIST>` | `-t` | Comma-separated targets (e.g. `claude-code,cursor`) |
 | `--home` | - | Deploy to user home directory |
+| `--project` | - | Deploy to current project (override config) |
 | `--remote <DEST>` | - | Deploy to remote destination (`user@host:/path`) |
 | `--force` | `-f` | Force overwrite of modified files |
 | `--yes` | `-y` | Non-interactive; auto-confirm overwrites |
@@ -93,6 +94,7 @@ previously deployed files may become orphaned. The `--cleanup` flag removes thes
 calvin deploy
 calvin deploy --targets claude-code,cursor
 calvin deploy --home --yes
+calvin deploy --project --yes
 calvin deploy --remote user@server:/home/user/project --yes
 calvin deploy --dry-run
 calvin deploy --cleanup              # Remove orphan files

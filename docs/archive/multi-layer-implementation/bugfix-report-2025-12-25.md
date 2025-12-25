@@ -97,3 +97,36 @@ cargo fmt
 cargo clippy --all-targets -- -D warnings
 cargo test
 ```
+
+---
+
+## 4. P0 缺陷：无法临时覆盖 `deploy.target = "home"` 以部署到项目
+
+### 4.1 现象（用户报告）
+
+- 某些项目的 `.promptpack/config.toml` 中存在：
+  - `[deploy] target = "home"`
+- 用户在该项目内运行 `calvin deploy`（或使用 `-s` 指定该项目的 `.promptpack`）时，会始终部署到 `~/`。
+- 用户希望“这一次”部署到项目目录，但不想修改/切换配置文件。
+
+### 4.2 期望（对齐“显式优于隐式”）
+
+- CLI 应允许用户显式表达“这次部署到项目”，并且 **不写回配置**：
+  - `calvin deploy --project`
+
+> 参考：`docs/archive/design/deploy-target-design.md`（override 不应修改 config）。
+
+### 4.3 修复
+
+- `calvin deploy` 增加 `--project` 旗标：
+  - 与 `--home` / `--remote` 互斥
+  - 优先级：`--remote` > `--home` > `--project` > `config.deploy.target` > 默认 project
+- **不修改配置**：
+  - `--project` / `--home` 作为 override，不会写回 `.promptpack/config.toml`
+  - 仅当 `config.deploy.target == Unset` 且未使用 override 时，才会在成功 deploy 后写入默认目标（用于后续 `calvin watch`）
+
+### 4.4 覆盖测试（端到端）
+
+- 新增回归测试：`tests/cli_deploy_project_flag_overrides_home_config.rs`
+  - 当项目配置 `target="home"` 时，`calvin deploy --project` 必须部署到项目目录
+  - 且不会改写 config（仍保持 `target="home"`）
