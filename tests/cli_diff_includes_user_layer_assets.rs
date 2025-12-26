@@ -69,14 +69,19 @@ TEST
     let stdout = String::from_utf8_lossy(&output.stdout);
 
     // Antigravity output must be present (status should be "new" in a fresh project dir).
+    // Note: On Windows, paths may use backslashes in JSON output.
+    let has_antigravity = (stdout.contains(".agent/rules/test.md")
+        || stdout.contains(".agent/rules\\\\test.md")
+        || stdout.contains(r#".agent/rules\test.md"#))
+        && stdout.contains("\"status\":\"new\"");
     assert!(
-        stdout.contains(".agent/rules/test.md") && stdout.contains("\"status\":\"new\""),
+        has_antigravity,
         "expected diff to include antigravity output; got:\n{stdout}"
     );
 
     // Cursor output must NOT be present because targets are limited to antigravity.
     assert!(
-        !stdout.contains(".cursor/"),
+        !stdout.contains(".cursor/") && !stdout.contains(".cursor\\"),
         "expected diff to exclude cursor outputs; got:\n{stdout}"
     );
 }
