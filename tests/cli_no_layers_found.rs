@@ -1,8 +1,11 @@
 //! End-to-end test: missing layers surfaces a helpful error.
 
+mod common;
+
 use std::fs;
 use std::process::Command;
 
+use common::WindowsCompatExt;
 use tempfile::tempdir;
 
 #[test]
@@ -19,8 +22,7 @@ fn layers_errors_when_no_layers_exist() {
     let bin = env!("CARGO_BIN_EXE_calvin");
     let output = Command::new(bin)
         .current_dir(project_dir)
-        .env("HOME", &fake_home)
-        .env("XDG_CONFIG_HOME", fake_home.join(".config"))
+        .with_test_home(&fake_home)
         .args(["layers"])
         .output()
         .unwrap();

@@ -3,9 +3,12 @@
 //! PRD: user layer path can be configured via `~/.config/calvin/config.toml` and
 //! interactive detection should respect it (not hard-code `~/.calvin/.promptpack`).
 
+mod common;
+
 use std::fs;
 use std::process::Command;
 
+use common::WindowsCompatExt;
 use tempfile::tempdir;
 
 fn bin() -> &'static str {
@@ -39,8 +42,9 @@ user_layer_path = "{}"
 
     let output = Command::new(bin())
         .current_dir(project_dir)
-        .env("HOME", &home)
-        .env("XDG_CONFIG_HOME", home.join(".config"))
+        .with_test_home(&home)
+        // Ensure env var doesn't override config file we just wrote
+        .env_remove("CALVIN_SOURCES_USER_LAYER_PATH")
         .args(["--json"])
         .output()
         .unwrap();

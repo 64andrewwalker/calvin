@@ -1,7 +1,10 @@
 use std::fs;
 use std::process::Command;
 
+use common::WindowsCompatExt;
 use tempfile::tempdir;
+
+mod common;
 
 #[test]
 fn test_deploy_yes_overwrites_conflicts() {
@@ -33,8 +36,7 @@ Hello world.
     // First deploy: creates lockfile + output.
     let status = Command::new(bin)
         .current_dir(dir.path())
-        .env("HOME", &fake_home)
-        .env("XDG_CONFIG_HOME", fake_home.join(".config"))
+        .with_test_home(&fake_home)
         .args([
             "deploy",
             "--source",
@@ -55,8 +57,7 @@ Hello world.
     // Second deploy with --yes should overwrite the conflict (no prompt).
     let status = Command::new(bin)
         .current_dir(dir.path())
-        .env("HOME", &fake_home)
-        .env("XDG_CONFIG_HOME", fake_home.join(".config"))
+        .with_test_home(&fake_home)
         .args([
             "deploy",
             "--source",

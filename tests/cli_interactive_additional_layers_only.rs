@@ -1,8 +1,11 @@
 //! Integration test for interactive state detection with additional layers configured.
 
+mod common;
+
 use std::fs;
 use std::process::Command;
 
+use common::WindowsCompatExt;
 use tempfile::tempdir;
 
 fn bin() -> &'static str {
@@ -35,6 +38,8 @@ TEAM
     .unwrap();
 
     // Configure additional layer via user config.
+    // Use forward slashes for cross-platform TOML compatibility (backslashes are escape chars)
+    let team_layer_str = team_layer.to_string_lossy().replace('\\', "/");
     fs::write(
         home.join(".config/calvin/config.toml"),
         format!(
@@ -42,15 +47,14 @@ TEAM
 [sources]
 additional_layers = ["{}"]
 "#,
-            team_layer.display()
+            team_layer_str
         ),
     )
     .unwrap();
 
     let output = Command::new(bin())
         .current_dir(project_dir)
-        .env("HOME", &home)
-        .env("XDG_CONFIG_HOME", home.join(".config"))
+        .with_test_home(&home)
         .args(["--json"])
         .output()
         .unwrap();

@@ -57,6 +57,8 @@ TEAM
 "#,
     );
     fs::create_dir_all(home.join(".config/calvin")).unwrap();
+    // Use forward slashes for cross-platform TOML compatibility (backslashes are escape chars)
+    let team_layer_str = team_layer.to_string_lossy().replace('\\', "/");
     fs::write(
         home.join(".config/calvin/config.toml"),
         format!(
@@ -64,7 +66,7 @@ TEAM
 [sources]
 additional_layers = ["{}"]
 "#,
-            team_layer.display()
+            team_layer_str
         ),
     )
     .unwrap();

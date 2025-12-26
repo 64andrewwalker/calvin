@@ -3,9 +3,12 @@
 //! PRD note: `~/.config/calvin/config.toml` is the XDG-compliant location, but
 //! `~/.calvin/config.toml` can be used as an alternative.
 
+mod common;
+
 use std::fs;
 use std::process::Command;
 
+use common::WindowsCompatExt;
 use tempfile::tempdir;
 
 fn bin() -> &'static str {
@@ -39,8 +42,10 @@ user_layer_path = "{}"
 
     let output = Command::new(bin())
         .current_dir(project_dir)
-        .env("HOME", &home)
-        .env("XDG_CONFIG_HOME", home.join(".config"))
+        .with_test_home(&home)
+        // Ensure env vars don't override the config file discovery we're testing
+        .env_remove("CALVIN_SOURCES_USER_LAYER_PATH")
+        .env_remove("CALVIN_USER_CONFIG_PATH")
         .args(["--json"])
         .output()
         .unwrap();

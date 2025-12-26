@@ -1,8 +1,11 @@
 use std::fs;
 use std::process::Command;
 
+use common::WindowsCompatExt;
 use serde_json::Value;
 use tempfile::tempdir;
+
+mod common;
 
 fn bin() -> &'static str {
     env!("CARGO_BIN_EXE_calvin")
@@ -41,8 +44,7 @@ fn check_all_layers_emits_layer_stack_check_event() {
 
     let output = Command::new(bin())
         .current_dir(project_dir)
-        .env("HOME", &home)
-        .env("XDG_CONFIG_HOME", home.join(".config"))
+        .with_test_home(&home)
         .args(["check", "--all-layers", "--json"])
         .output()
         .unwrap();

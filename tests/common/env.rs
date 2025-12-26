@@ -8,6 +8,8 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use tempfile::TempDir;
 
+use super::windows::WindowsCompatExt;
+
 /// Result of running a Calvin CLI command
 #[derive(Debug)]
 pub struct TestResult {

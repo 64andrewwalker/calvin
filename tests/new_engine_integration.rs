@@ -2,6 +2,9 @@
 //!
 //! These tests verify the new engine works correctly for various scenarios.
 
+mod common;
+
+use common::WindowsCompatExt;
 use std::fs;
 use std::path::Path;
 use std::process::Command;
@@ -9,8 +12,7 @@ use tempfile::tempdir;
 
 fn calvin_cmd(fake_home: &Path) -> Command {
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_calvin"));
-    cmd.env("HOME", fake_home);
-    cmd.env("XDG_CONFIG_HOME", fake_home.join(".config"));
+    cmd.with_test_home(fake_home);
     cmd
 }
 

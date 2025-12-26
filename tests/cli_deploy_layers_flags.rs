@@ -14,12 +14,14 @@ fn deploy_uses_additional_layers_from_user_config_and_layer_flag() {
     // Additional layer configured via user config
     env.write_project_file("team_layer/.promptpack/team-only.md", SIMPLE_POLICY);
     let team_layer = env.project_path("team_layer/.promptpack");
+    // Use forward slashes for cross-platform TOML compatibility (backslashes are escape chars)
+    let team_layer_str = team_layer.to_string_lossy().replace('\\', "/");
     let home_config = format!(
         r#"
 [sources]
 additional_layers = ["{}"]
 "#,
-        team_layer.display()
+        team_layer_str
     );
     env.write_home_file(".config/calvin/config.toml", &home_config);
 
@@ -58,12 +60,14 @@ fn deploy_can_disable_user_and_additional_layers_with_flags() {
     // Additional layer configured via user config
     env.write_project_file("team_layer/.promptpack/team-only.md", SIMPLE_POLICY);
     let team_layer = env.project_path("team_layer/.promptpack");
+    // Use forward slashes for cross-platform TOML compatibility (backslashes are escape chars)
+    let team_layer_str = team_layer.to_string_lossy().replace('\\', "/");
     let home_config = format!(
         r#"
 [sources]
 additional_layers = ["{}"]
 "#,
-        team_layer.display()
+        team_layer_str
     );
     env.write_home_file(".config/calvin/config.toml", &home_config);
 

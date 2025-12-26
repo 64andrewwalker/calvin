@@ -1,8 +1,11 @@
 use std::fs;
 use std::process::Command;
 
+use common::WindowsCompatExt;
 use serde_json::Value;
 use tempfile::tempdir;
+
+mod common;
 
 #[test]
 fn test_deploy_json_emits_ndjson_event_stream() {
@@ -32,8 +35,7 @@ Hello world.
     let bin = env!("CARGO_BIN_EXE_calvin");
     let output = Command::new(bin)
         .current_dir(dir.path())
-        .env("HOME", &fake_home)
-        .env("XDG_CONFIG_HOME", fake_home.join(".config"))
+        .with_test_home(&fake_home)
         .args([
             "deploy",
             "--json",

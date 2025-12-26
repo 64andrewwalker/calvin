@@ -3,18 +3,20 @@
 //! PRD §11.4: watch defaults to *watching* only the project layer, but it still uses
 //! the multi-layer resolution/merge semantics for compilation (user/custom/project).
 
+mod common;
+
 use std::fs;
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use common::WindowsCompatExt;
 use tempfile::tempdir;
 
 fn calvin_cmd(fake_home: &Path) -> Command {
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_calvin"));
-    cmd.env("HOME", fake_home);
-    cmd.env("XDG_CONFIG_HOME", fake_home.join(".config"));
+    cmd.with_test_home(fake_home);
     cmd
 }
 

@@ -3,9 +3,12 @@
 //! In multi-layer mode, deploy/watch compile assets from user/custom/project layers.
 //! Diff must preview the same outputs, otherwise it diverges from what deploy will do.
 
+mod common;
+
 use std::fs;
 use std::process::Command;
 
+use common::WindowsCompatExt;
 use tempfile::tempdir;
 
 fn bin() -> &'static str {
@@ -52,8 +55,7 @@ TEST
     // Diff in the project directory with NO project .promptpack/ present.
     let output = Command::new(bin())
         .current_dir(project_dir)
-        .env("HOME", &home)
-        .env("XDG_CONFIG_HOME", home.join(".config"))
+        .with_test_home(&home)
         .args(["diff", "--json"])
         .output()
         .unwrap();

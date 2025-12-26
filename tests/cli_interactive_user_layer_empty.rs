@@ -4,9 +4,12 @@
 //! `docs/archive/multi-layer-implementation/multi-layer-promptpack-prd.md`:
 //! an empty but existing user layer is still a valid layer.
 
+mod common;
+
 use std::fs;
 use std::process::Command;
 
+use common::WindowsCompatExt;
 use tempfile::tempdir;
 
 fn bin() -> &'static str {
@@ -38,8 +41,7 @@ enabled = ["cursor"]
 
     let output = Command::new(bin())
         .current_dir(&project_dir)
-        .env("HOME", &fake_home)
-        .env("XDG_CONFIG_HOME", fake_home.join(".config"))
+        .with_test_home(&fake_home)
         .args(["--json"])
         .output()
         .unwrap();

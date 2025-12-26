@@ -1,7 +1,10 @@
 //! Integration tests for lockfile migration (.promptpack/.calvin.lock -> ./calvin.lock)
 
+mod common;
+
 use std::process::Command;
 
+use common::WindowsCompatExt;
 use tempfile::tempdir;
 
 fn bin() -> &'static str {
@@ -47,8 +50,7 @@ enabled = ["cursor"]
 
     let output = Command::new(bin())
         .current_dir(dir.path())
-        .env("HOME", &fake_home)
-        .env("XDG_CONFIG_HOME", fake_home.join(".config"))
+        .with_test_home(&fake_home)
         .args(["deploy", "--yes"])
         .output()
         .unwrap();
