@@ -2,7 +2,7 @@
 
 > **Created**: 2025-12-26
 > **Branch**: `fix/json-output-consistency`
-> **Status**: Planning
+> **Status**: Phase 3 Complete (Documentation)
 
 ## Problem Statement
 
@@ -44,22 +44,24 @@ This makes it harder for CI/CD pipelines and tools to parse Calvin's output reli
 
 | ID | Task | Status | File | Current Issue | Change |
 |----|------|--------|------|---------------|--------|
-| 2.1 | Fix `clean.rs` manual JSON | ⬜ Pending | `src/commands/clean.rs:654-684` | Uses `println!(r#"..."#)` for JSON | Replace with `emit_event()` and serde structs |
-| 2.2 | Standardize `projects.rs` | ⬜ Pending | `src/commands/projects.rs:58-96` | Uses `"type": "projects"` | Add `"event": "data"`, `"command": "projects"` alongside `"type"` |
-| 2.3 | Wrap `layers.rs` output | ⬜ Pending | `src/commands/layers.rs:24` | Direct `serde_json::to_string()` | Wrap in `{"event": "data", "command": "layers", ...}` |
-| 2.4 | Wrap `provenance.rs` output | ⬜ Pending | `src/commands/provenance.rs` | Review current format | Add event envelope if missing |
-| 2.5 | Review `deploy/cmd.rs` | ⬜ Pending | `src/commands/deploy/cmd.rs` | Check JSON output | Verify uses consistent format |
-| 2.6 | Review `check/engine.rs` | ⬜ Pending | `src/commands/check/engine.rs` | Check JSON output | Verify uses consistent format |
-| 2.7 | Verify `interactive/mod.rs` | ⬜ Pending | `src/commands/interactive/mod.rs:83-115` | Uses `"event": "interactive"` | Confirm consistency, no changes needed if OK |
-| 2.8 | Verify `explain.rs` | ⬜ Pending | `src/commands/explain.rs:4-50` | Uses `"event": "start"/"complete"` | Confirm consistency, no changes needed if OK |
+| 2.1 | Fix `clean.rs` manual JSON | ✅ Done | `src/commands/clean.rs` | Was using `println!(r#"..."#)` | Replaced with `emit_event()` and serde structs |
+| 2.2 | Standardize `projects.rs` | ✅ Done | `src/commands/projects.rs` | Was using `"type": "projects"` | Added `"event": "data"`, `"command": "projects"` alongside `"type"` |
+| 2.3 | Wrap `layers.rs` output | ✅ Done | `src/commands/layers.rs` | Was direct `serde_json::to_string()` | Wrapped in `{"event": "data", "command": "layers", ...}` |
+| 2.4 | Wrap `provenance.rs` output | ✅ Done | `src/application/provenance.rs` | Was using `"type": "provenance"` | Added `"event": "data"`, `"command": "provenance"` |
+| 2.5 | Review `deploy/cmd.rs` | ✅ Done | `src/infrastructure/events/json.rs` | Already uses correct format | No changes needed (uses JsonEventSink) |
+| 2.6 | Review `check/engine.rs` | ✅ Done | `src/commands/check/engine.rs` | Already uses correct format | No changes needed |
+| 2.7 | Standardize `interactive/mod.rs` | ✅ Done | `src/commands/interactive/mod.rs` | Was using `"event": "interactive"` | Changed to `"event": "data"`, `"command": "interactive"` |
+| 2.8 | Verify `explain.rs` | ✅ Done | `src/commands/explain.rs` | Already uses correct format | No changes needed |
+| 2.9 | Standardize `init.rs` | ✅ Done | `src/commands/init.rs` | Was missing `"command"` | Added `"command": "init"` to all events |
+| 2.10 | Standardize `watch` events | ✅ Done | `src/application/watch/event.rs` | Was missing `"command"` | Added `"command": "watch"` via `to_json()` |
 
 ### Phase 3: Documentation
 
 | ID | Task | Status | File | Content |
 |----|------|--------|------|---------|
-| 3.1 | Document JSON schema | ⬜ Pending | `docs/api/json-output.md` | Event types, field descriptions, examples |
-| 3.2 | Migration guide | ⬜ Pending | `docs/api/json-migration.md` | How to update from `"type"` to `"event"` |
-| 3.3 | Update command reference | ⬜ Pending | `docs/command-reference.md` | Add `--json` examples for each command |
+| 3.1 | Document JSON schema | ✅ Done | `docs/json-output.md` | Event types, field descriptions, examples |
+| 3.2 | Migration guide | ✅ Done | `docs/json-output.md` | Included in "Backward Compatibility" section |
+| 3.3 | Update command reference | ✅ Done | `docs/command-reference.md` | Updated all JSON examples with new format |
 
 ### Phase 4: Deprecation (v0.6+)
 
@@ -70,13 +72,13 @@ This makes it harder for CI/CD pipelines and tools to parse Calvin's output reli
 
 ### Success Criteria
 
-| ID | Criterion | Status |
-|----|-----------|--------|
-| S1 | All JSON uses serde (no manual strings) | ⬜ Pending |
-| S2 | All JSON has `"event"` and `"command"` fields | ⬜ Pending |
-| S3 | jq can filter by event type reliably | ⬜ Pending |
-| S4 | Existing CI pipelines work (backward compat) | ⬜ Pending |
-| S5 | JSON schema documented | ⬜ Pending |
+| ID | Criterion | Status | Notes |
+|----|-----------|--------|-------|
+| S1 | All JSON uses serde (no manual strings) | ✅ Done | All `println!` JSON replaced with serde |
+| S2 | All JSON has `"event"` and `"command"` fields | ✅ Done | clean, projects, layers, provenance, interactive, init, watch all updated |
+| S3 | jq can filter by event type reliably | ✅ Done | `jq 'select(.event == "complete" and .command == "clean")'` works |
+| S4 | Existing CI pipelines work (backward compat) | ✅ Done | `type` field preserved for clean, projects, provenance |
+| S5 | JSON schema documented | ✅ Done | `docs/json-output.md` created |
 
 ---
 

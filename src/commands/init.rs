@@ -63,6 +63,7 @@ pub fn cmd_init(
         if json {
             let _ = crate::ui::json::emit(serde_json::json!({
                 "event": "error",
+                "command": "init",
                 "kind": "already_exists",
                 "path": promptpack_dir.display().to_string(),
                 "message": ".promptpack directory already exists"
@@ -88,7 +89,8 @@ pub fn cmd_init(
     // Output success
     if json {
         let _ = crate::ui::json::emit(serde_json::json!({
-            "event": "init_complete",
+            "event": "complete",
+            "command": "init",
             "path": promptpack_dir.display().to_string(),
             "template": format!("{:?}", template).to_lowercase(),
         }));
@@ -127,6 +129,7 @@ fn cmd_init_user(force: bool, json: bool, color: Option<ColorWhen>) -> Result<()
         if json {
             let _ = crate::ui::json::emit(serde_json::json!({
                 "event": "error",
+                "command": "init",
                 "kind": "already_exists",
                 "path": user_layer.display().to_string(),
                 "message": "user layer already exists"
@@ -149,7 +152,8 @@ fn cmd_init_user(force: bool, json: bool, color: Option<ColorWhen>) -> Result<()
 
     if json {
         let _ = crate::ui::json::emit(serde_json::json!({
-            "event": "init_complete",
+            "event": "complete",
+            "command": "init",
             "path": user_layer.display().to_string(),
             "template": "user",
         }));

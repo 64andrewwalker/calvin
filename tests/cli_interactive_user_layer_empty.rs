@@ -53,7 +53,9 @@ enabled = ["cursor"]
     );
 
     let v: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(v["event"], "interactive");
+    // New consistent format: event=data, command=interactive
+    assert_eq!(v["event"], "data");
+    assert_eq!(v["command"], "interactive");
     assert_eq!(v["state"], "global_layers_only");
     assert!(v["state_aliases"]
         .as_array()

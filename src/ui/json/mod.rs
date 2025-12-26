@@ -17,8 +17,7 @@
 //! emit(serde_json::json!({ "event": "custom", ... }))?;
 //! ```
 
-// TODO: Remove this once Phase 2 migration is complete
-#![allow(dead_code)]
+// Allow dead_code for generic event types that are available for future migrations.
 
 pub mod events;
 
@@ -63,6 +62,7 @@ pub fn emit_event<T: Serialize>(event: &T) -> io::Result<()> {
 /// Write a typed event to a custom writer.
 ///
 /// Useful for testing or redirecting output.
+#[allow(dead_code)]
 pub fn write_typed_event<T: Serialize, W: Write>(out: &mut W, event: &T) -> io::Result<()> {
     let json =
         serde_json::to_string(event).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;

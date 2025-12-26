@@ -106,9 +106,15 @@ pub enum WatchEvent {
 }
 
 impl WatchEvent {
-    /// Convert to JSON string
+    /// Convert to JSON string with "command": "watch" field included
     pub fn to_json(&self) -> String {
-        serde_json::to_string(self).unwrap_or_else(|_| "{}".to_string())
+        // Serialize to Value, add command field, then serialize to string
+        let mut value =
+            serde_json::to_value(self).unwrap_or_else(|_| serde_json::json!({"event": "error"}));
+        if let Some(obj) = value.as_object_mut() {
+            obj.insert("command".to_string(), serde_json::json!("watch"));
+        }
+        serde_json::to_string(&value).unwrap_or_else(|_| "{}".to_string())
     }
 }
 

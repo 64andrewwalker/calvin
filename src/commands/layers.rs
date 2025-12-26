@@ -21,7 +21,15 @@ pub fn cmd_layers(
     let result = use_case.query(&project_root, &config)?;
 
     if json {
-        println!("{}", serde_json::to_string(&result)?);
+        // Wrap in event envelope for consistency
+        let out = serde_json::json!({
+            "event": "data",
+            "command": "layers",
+            "layers": result.layers,
+            "merged_asset_count": result.merged_asset_count,
+            "overridden_asset_count": result.overridden_asset_count,
+        });
+        crate::ui::json::emit(out)?;
         return Ok(());
     }
 
