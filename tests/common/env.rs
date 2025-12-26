@@ -90,6 +90,7 @@ impl TestEnv {
         let registry_path = calvin_dir.join("registry.toml");
         let user_layer_path = calvin_dir.join(".promptpack");
         let user_config_path = calvin_dir.join("config.toml");
+        let xdg_config_path = self.home_dir.path().join(".config/calvin/config.toml");
 
         let mut cmd = Command::new(&self.calvin_bin);
         cmd.current_dir(cwd)
@@ -101,6 +102,7 @@ impl TestEnv {
             .env("CALVIN_REGISTRY_PATH", &registry_path)
             .env("CALVIN_SOURCES_USER_LAYER_PATH", &user_layer_path)
             .env("CALVIN_USER_CONFIG_PATH", &user_config_path)
+            .env("CALVIN_XDG_CONFIG_PATH", &xdg_config_path)
             .env("CALVIN_NO_COLOR", "1");
 
         for (key, value) in env_vars {
