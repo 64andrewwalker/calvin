@@ -28,8 +28,6 @@ fn interactive_respects_sources_user_layer_path() {
     let user_layer = home.join("dotfiles/.promptpack");
     fs::create_dir_all(&user_layer).unwrap();
 
-    // Use forward slashes in TOML to avoid Windows backslash escaping issues
-    let user_layer_toml_path = user_layer.display().to_string().replace('\\', "/");
     fs::write(
         home.join(".config/calvin/config.toml"),
         format!(
@@ -37,7 +35,7 @@ fn interactive_respects_sources_user_layer_path() {
 [sources]
 user_layer_path = "{}"
 "#,
-            user_layer_toml_path
+            common::toml_path(&user_layer)
         ),
     )
     .unwrap();

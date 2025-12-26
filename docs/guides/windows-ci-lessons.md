@@ -1,64 +1,109 @@
-# Windows CI & Testing Lessons
+# Windows CI Lessons Learned
 
-> Documenting hard-earned lessons from stabilizing Windows CI tests.
+> **Created**: 2025-12-26
+> **Status**: Active guideline
 
-## The `dirs::home_dir()` Trap
+This document captures lessons learned from Windows CI failures and provides guidelines to prevent similar issues in the future.
 
-### Problem
-On Linux/macOS, the `dirs` crate respects the `HOME` environment variable. This makes it easy to mock the home directory in tests:
+## Problem 1: `dirs::home_dir()` Ignores Environment Variables
 
-```rust
-Command::new(bin)
-    .env("HOME", temp_dir) // Works on Unix!
-    // ...
-```
+### Issue
 
-**However**, on Windows, `dirs::home_dir()` uses the Windows system API (`SHGetKnownFolderPath`) to locate the profile directory. It **completely ignores** `HOME` and `USERPROFILE` environment variables.
+On Windows, `dirs::home_dir()` uses the Windows system API (`SHGetKnownFolderPath`) instead of environment variables like `HOME` or `USERPROFILE`. This means:
 
-This leads to tests that:
-1. Fail to find mocked config files.
-2. Accidentally read/write to the *actual* user's home directory on the CI runner (or local dev machine!).
-3. Fail with permission errors or inconsistent state.
+- Setting `HOME` or `USERPROFILE` in tests has no effect on Windows
+- Tests that rely on isolated home directories fail because paths resolve to the real user home
 
-### Solution: Explicit Overrides
+### Solution
 
-We cannot rely on OS-level overrides for the home directory on Windows. Instead, we must implement application-level overrides for critical paths.
-
-**Implementation Pattern:**
-
-In your application code (e.g., `src/infrastructure/repositories/registry.rs`):
+We created a unified `calvin_home_dir()` function in `src/infrastructure/fs/home.rs`:
 
 ```rust
-fn default_registry_path() -> PathBuf {
-    // 1. Check for a specific test/override env var first
-    if let Ok(path) = std::env::var("CALVIN_REGISTRY_PATH") {
-        return PathBuf::from(path);
-    }
-    
-    // 2. Fall back to standard logic
-    dirs::home_dir()
-        .map(|h| h.join(".calvin/registry.toml"))
-        .unwrap_or_else(|| PathBuf::from("~/.calvin/registry.toml"))
+pub fn calvin_home_dir() -> Option<PathBuf> {
+    std::env::var("CALVIN_TEST_HOME")
+        .ok()
+        .map(PathBuf::from)
+        .or_else(dirs::home_dir)
 }
 ```
 
-In your test code (e.g., `tests/common/env.rs`):
+### Rules for New Code
+
+1. **NEVER** use `dirs::home_dir()` directly for functional paths (lockfile, registry, config, user layer)
+2. **ALWAYS** use `calvin_home_dir()` or `crate::infrastructure::calvin_home_dir()` instead
+3. **EXCEPTION**: Security checks and display functions that need the real home directory can use `dirs::home_dir()` directly (document why)
+
+### For Domain Layer
+
+Since `domain/` cannot depend on `infrastructure/`, use direct env var check:
 
 ```rust
-cmd.env("CALVIN_REGISTRY_PATH", temp_home.join(".calvin/registry.toml"));
+let home = std::env::var("CALVIN_TEST_HOME")
+    .ok()
+    .map(PathBuf::from)
+    .or_else(dirs::home_dir);
 ```
 
-### Checklist for Windows Compatibility
+## Problem 2: Windows Path Escaping in TOML
 
-- [ ] Do not assume `HOME` is respected.
-- [ ] Do not assume `USERPROFILE` is respected by `dirs` crate (though some other tools might).
-- [ ] Always add specific env var overrides for paths derived from the home directory.
-- [ ] Ensure `TestEnv` sets these overrides automatically for all tests.
-- [ ] Use `std::path::PathBuf` for all path manipulation (avoid string concatenation which breaks on `\` vs `/`).
+### Issue
 
-## Other Notes
+When writing TOML files in tests with paths that include the temp directory:
 
-- **Line Endings**: Windows uses `\r\n`. When comparing command output, ensure you normalize newlines or use loose matching.
-- **Path Separators**: Use `.join()` instead of hardcoding `/`.
-- **File Locking**: Windows is stricter about file locking. Ensure files are closed before trying to delete the directory containing them.
+```rust
+fs::write(
+    config_path,
+    format!(r#"user_layer_path = "{}""#, path.display()),
+)
+```
 
+On Windows, `path.display()` produces `C:\Users\...\path`, but backslashes `\` are escape characters in TOML strings. This causes parsing errors or incorrect paths.
+
+### Solution
+
+Replace backslashes with forward slashes before writing to TOML:
+
+```rust
+let toml_safe_path = path.display().to_string().replace('\\', "/");
+fs::write(
+    config_path,
+    format!(r#"user_layer_path = "{}""#, toml_safe_path),
+)
+```
+
+### Rules for New Tests
+
+1. **ALWAYS** escape paths before writing to TOML files
+2. Consider creating a helper function:
+
+```rust
+fn toml_path(path: &Path) -> String {
+    path.display().to_string().replace('\\', "/")
+}
+```
+
+## CI Verification Checklist
+
+Before adding new features that involve:
+
+- [ ] Home directory paths → Use `calvin_home_dir()`
+- [ ] User config files → Use `calvin_home_dir()` for base path
+- [ ] Writing paths to TOML → Escape backslashes
+- [ ] Test isolation → Use `TestEnv` builder or `WindowsCompatExt`
+
+## Quick Reference
+
+| Scenario | Solution |
+|----------|----------|
+| Need home dir in production code | `crate::infrastructure::calvin_home_dir()` |
+| Need home dir in domain layer | Direct `CALVIN_TEST_HOME` env var check |
+| Writing path to TOML in test | `path.display().to_string().replace('\\', "/")` |
+| Running CLI in test | Use `WindowsCompatExt::with_test_home()` |
+| Creating isolated test env | Use `TestEnv::builder()` |
+
+## Related Files
+
+- `src/infrastructure/fs/home.rs` - `calvin_home_dir()` definition
+- `tests/common/windows.rs` - `WindowsCompatExt` trait
+- `tests/common/env.rs` - `TestEnv` builder
+- `docs/archive/windows-home-dir-unification-plan.md` - Implementation details

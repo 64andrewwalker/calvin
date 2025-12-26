@@ -145,3 +145,19 @@ ignore_user_layer = true
 [targets]
 enabled = ["cursor"]
 "#;
+
+/// Convert a path to a TOML-safe string.
+///
+/// On Windows, paths contain backslashes which are escape characters in TOML.
+/// This function replaces backslashes with forward slashes for safe TOML embedding.
+///
+/// # Example
+///
+/// ```ignore
+/// let path = std::path::Path::new("C:\\Users\\test\\path");
+/// let toml_content = format!(r#"path = "{}""#, toml_path(path));
+/// // Results in: path = "C:/Users/test/path"
+/// ```
+pub fn toml_path(path: &std::path::Path) -> String {
+    path.display().to_string().replace('\\', "/")
+}
