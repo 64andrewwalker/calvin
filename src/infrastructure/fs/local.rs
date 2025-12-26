@@ -124,10 +124,13 @@ impl LocalFs {
 ///
 /// This is a standalone function for use outside of FileSystem trait.
 /// Prefer using `LocalFs::expand_home()` when working with a FileSystem instance.
+///
+/// Uses `calvin_home_dir()` which respects `CALVIN_TEST_HOME` for test isolation
+/// on Windows where `dirs::home_dir()` ignores environment variables.
 pub fn expand_home(path: &Path) -> PathBuf {
     let path_str = path.to_string_lossy();
     if path_str.starts_with("~/") || path_str == "~" {
-        if let Some(home) = dirs::home_dir() {
+        if let Some(home) = super::calvin_home_dir() {
             return home.join(path_str.strip_prefix("~/").unwrap_or(""));
         }
     }

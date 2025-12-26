@@ -46,6 +46,9 @@ Replace `dirs::home_dir()` with `calvin_home_dir()` in:
 - [x] **2.4** `src/infrastructure/repositories/registry.rs:158` - registry path fallback
 - [x] **2.5** `src/application/deploy/use_case.rs:1114` - private `default_user_layer_path()`
 - [x] **2.6** `src/commands/debug.rs:292` - compare root for user scope
+- [x] **2.7** `src/infrastructure/sync/local.rs` - `LocalHomeDestination::expand_home()`
+- [x] **2.8** `src/infrastructure/fs/local.rs` - public `expand_home()` function
+- [x] **2.9** `src/domain/services/layer_resolver.rs` - `expand_home()` (direct env var check, domain can't depend on infrastructure)
 
 ### Phase 3: Update Test Infrastructure
 

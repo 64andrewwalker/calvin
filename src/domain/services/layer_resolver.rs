@@ -183,12 +183,20 @@ impl LayerResolver {
 
 fn expand_home(path: &Path) -> PathBuf {
     let s = path.to_string_lossy();
+
+    // Use CALVIN_TEST_HOME for test isolation on Windows where dirs::home_dir()
+    // ignores environment variables and uses system APIs directly.
+    let home = std::env::var("CALVIN_TEST_HOME")
+        .ok()
+        .map(PathBuf::from)
+        .or_else(dirs::home_dir);
+
     if s == "~" {
-        return dirs::home_dir().unwrap_or_else(|| path.to_path_buf());
+        return home.unwrap_or_else(|| path.to_path_buf());
     }
     if let Some(rest) = s.strip_prefix("~/") {
-        if let Some(home) = dirs::home_dir() {
-            return home.join(rest);
+        if let Some(h) = home {
+            return h.join(rest);
         }
     }
     path.to_path_buf()
