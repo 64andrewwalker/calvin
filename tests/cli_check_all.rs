@@ -29,11 +29,20 @@ fn deploy_project(project_dir: &std::path::Path, home: &std::path::Path) {
     let promptpack = project_dir.join(".promptpack");
     write_asset(&promptpack, "policy.md");
 
+    // Create registry directory
+    let calvin_dir = home.join(".calvin");
+    fs::create_dir_all(&calvin_dir).unwrap();
+    let registry_path = calvin_dir.join("registry.toml");
+    let user_layer_path = calvin_dir.join(".promptpack");
+
     let output = Command::new(bin())
         .current_dir(project_dir)
         .env("HOME", home)
-        .env("USERPROFILE", home) // Windows compatibility
+        .env("USERPROFILE", home) // Windows: USERPROFILE fallback for some crates
         .env("XDG_CONFIG_HOME", home.join(".config"))
+        // Windows-specific: dirs::home_dir uses Windows API, not env vars
+        .env("CALVIN_REGISTRY_PATH", &registry_path)
+        .env("CALVIN_SOURCES_USER_LAYER_PATH", &user_layer_path)
         .args(["deploy", "--yes", "--targets", "cursor"])
         .output()
         .unwrap();
@@ -58,11 +67,19 @@ fn check_all_emits_project_field_in_json_events() {
     deploy_project(&project_a, &home);
     deploy_project(&project_b, &home);
 
+    // Setup registry and user layer paths for Windows compatibility
+    let calvin_dir = home.join(".calvin");
+    let registry_path = calvin_dir.join("registry.toml");
+    let user_layer_path = calvin_dir.join(".promptpack");
+
     let output = Command::new(bin())
         .current_dir(dir.path())
         .env("HOME", &home)
-        .env("USERPROFILE", &home) // Windows compatibility
+        .env("USERPROFILE", &home) // Windows: USERPROFILE fallback for some crates
         .env("XDG_CONFIG_HOME", home.join(".config"))
+        // Windows-specific: dirs::home_dir uses Windows API, not env vars
+        .env("CALVIN_REGISTRY_PATH", &registry_path)
+        .env("CALVIN_SOURCES_USER_LAYER_PATH", &user_layer_path)
         .args(["check", "--all", "--json"])
         .output()
         .unwrap();

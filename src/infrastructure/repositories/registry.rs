@@ -150,6 +150,11 @@ impl RegistryRepository for TomlRegistryRepository {
 }
 
 fn default_registry_path() -> PathBuf {
+    // Allow override for testing (especially on Windows where dirs::home_dir
+    // uses system API and cannot be overridden via environment variables)
+    if let Ok(path) = std::env::var("CALVIN_REGISTRY_PATH") {
+        return PathBuf::from(path);
+    }
     dirs::home_dir()
         .map(|h| h.join(".calvin/registry.toml"))
         .unwrap_or_else(|| PathBuf::from("~/.calvin/registry.toml"))
