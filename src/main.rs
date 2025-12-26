@@ -76,17 +76,25 @@ fn dispatch(
         Commands::Deploy {
             source,
             home,
+            project,
             remote,
             force,
             yes,
             dry_run,
             cleanup,
             targets,
-        } => commands::deploy::cmd_deploy(
+            layers,
+            no_user_layer,
+            no_additional_layers,
+        } => commands::deploy::cmd_deploy_with_explicit_target(
             &source,
             home,
+            project,
             remote,
             &targets,
+            &layers,
+            no_user_layer,
+            no_additional_layers,
             force || yes,
             is_interactive_run(json, yes),
             dry_run,
@@ -99,11 +107,24 @@ fn dispatch(
         Commands::Check {
             mode,
             strict_warnings,
-        } => commands::check::cmd_check(&mode, strict_warnings, json, verbose, color, no_animation),
+            all,
+            all_layers,
+        } => commands::check::cmd_check(
+            &mode,
+            strict_warnings,
+            all,
+            all_layers,
+            json,
+            verbose,
+            color,
+            no_animation,
+        ),
         Commands::Explain { brief } => commands::explain::cmd_explain(brief, json, verbose),
-        Commands::Watch { source, home } => {
-            commands::watch::cmd_watch(&source, home, json, color, no_animation)
-        }
+        Commands::Watch {
+            source,
+            home,
+            watch_all_layers,
+        } => commands::watch::cmd_watch(&source, home, watch_all_layers, json, color, no_animation),
         Commands::Diff { source, home } => commands::debug::cmd_diff(&source, home, json),
         Commands::Parse { source } => commands::debug::cmd_parse(&source, json),
         Commands::Migrate {
@@ -122,9 +143,19 @@ fn dispatch(
         Commands::Version => commands::debug::cmd_version(json, verbose, color, no_animation),
         Commands::Init {
             path,
+            user,
             template,
             force,
-        } => commands::init::cmd_init(&path, &template, force, json, verbose, color, no_animation),
+        } => commands::init::cmd_init(
+            &path,
+            user,
+            &template,
+            force,
+            json,
+            verbose,
+            color,
+            no_animation,
+        ),
         Commands::Clean {
             source,
             home,
@@ -141,6 +172,17 @@ fn dispatch(
             dry_run,
             yes,
             force,
+            json,
+            verbose,
+            color,
+            no_animation,
+        ),
+        Commands::Projects { prune } => {
+            commands::projects::cmd_projects(prune, json, verbose, color, no_animation)
+        }
+        Commands::Layers => commands::layers::cmd_layers(json, verbose, color, no_animation),
+        Commands::Provenance { filter } => commands::provenance::cmd_provenance(
+            filter.as_deref(),
             json,
             verbose,
             color,

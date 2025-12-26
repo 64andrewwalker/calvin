@@ -15,7 +15,7 @@ pub const DEBOUNCE_MS: u64 = 100;
 pub struct WatchOptions {
     /// Path to .promptpack directory
     pub source: PathBuf,
-    /// Project root (parent of source)
+    /// Project root (where project-scoped outputs + `calvin.lock` live)
     pub project_root: PathBuf,
     /// Enabled targets
     pub targets: Vec<Target>,
@@ -25,6 +25,8 @@ pub struct WatchOptions {
     pub json: bool,
     /// Deploy scope (User = home, Project = local)
     pub scope: Scope,
+    /// Watch all resolved layers (user/custom/project)
+    pub watch_all_layers: bool,
 }
 
 impl WatchOptions {
@@ -37,6 +39,7 @@ impl WatchOptions {
             config: Config::default(),
             json: false,
             scope: Scope::Project,
+            watch_all_layers: false,
         }
     }
 
@@ -58,6 +61,12 @@ impl WatchOptions {
         self
     }
 
+    /// Set whether to watch all layers
+    pub fn with_watch_all_layers(mut self, watch_all_layers: bool) -> Self {
+        self.watch_all_layers = watch_all_layers;
+        self
+    }
+
     /// Set target filters
     pub fn with_targets(mut self, targets: Vec<Target>) -> Self {
         self.targets = targets;
@@ -75,7 +84,11 @@ impl WatchOptions {
 #[serde(tag = "event", rename_all = "snake_case")]
 pub enum WatchEvent {
     /// Watch started
-    WatchStarted { source: String },
+    WatchStarted {
+        source: String,
+        watch_all_layers: bool,
+        watching: Vec<String>,
+    },
     /// File changed
     FileChanged { path: String },
     /// Sync started

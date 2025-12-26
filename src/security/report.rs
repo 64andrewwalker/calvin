@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use crate::config::{Config, SecurityMode};
+use crate::config::{merge_promptpack_layer_configs, Config, PromptpackLayerInputs, SecurityMode};
 
 use super::checks;
 use super::types::{CheckStatus, SecurityCheck};
@@ -113,9 +113,40 @@ impl DoctorSink for DoctorReport {
 pub fn run_doctor(project_root: &Path, mode: SecurityMode) -> DoctorReport {
     let mut report = DoctorReport::new();
 
-    // Load project config (used to reflect custom security rules in checks).
-    let config_path = project_root.join(".promptpack/config.toml");
-    let config = Config::load(&config_path).unwrap_or_default();
+    // Load effective config and apply promptpack-layer overrides (multi-layer PRD §11.2).
+    let base = Config::load_or_default(Some(project_root));
+    let use_user_layer = base.sources.use_user_layer && !base.sources.ignore_user_layer;
+    let use_additional_layers = !base.sources.ignore_additional_layers;
+    let inputs = PromptpackLayerInputs {
+        project_root: project_root.to_path_buf(),
+        project_layer_path: project_root.join(".promptpack"),
+        disable_project_layer: base.sources.disable_project_layer,
+        user_layer_path: base.sources.user_layer_path.clone(),
+        use_user_layer,
+        additional_layers: base.sources.additional_layers.clone(),
+        use_additional_layers,
+        remote_mode: false,
+    };
+
+    let (config, warnings) = match merge_promptpack_layer_configs(&base, inputs) {
+        Ok((config, warnings)) => (config, warnings),
+        Err(e) => {
+            eprintln!("Warning: failed to merge promptpack layer config: {}", e);
+            (base, Vec::new())
+        }
+    };
+    for warning in warnings {
+        eprintln!(
+            "Warning: Unknown config key '{}' in {}{}",
+            warning.key,
+            warning.file.display(),
+            warning
+                .suggestion
+                .as_ref()
+                .map(|s| format!(". Did you mean '{}'?", s))
+                .unwrap_or_default()
+        );
+    }
 
     run_doctor_into(project_root, mode, &config, &mut report);
     report
@@ -192,9 +223,40 @@ pub fn run_doctor_with_callback(
         }
     }
 
-    // Load project config (used to reflect custom security rules in checks).
-    let config_path = project_root.join(".promptpack/config.toml");
-    let config = Config::load(&config_path).unwrap_or_default();
+    // Load effective config and apply promptpack-layer overrides (multi-layer PRD §11.2).
+    let base = Config::load_or_default(Some(project_root));
+    let use_user_layer = base.sources.use_user_layer && !base.sources.ignore_user_layer;
+    let use_additional_layers = !base.sources.ignore_additional_layers;
+    let inputs = PromptpackLayerInputs {
+        project_root: project_root.to_path_buf(),
+        project_layer_path: project_root.join(".promptpack"),
+        disable_project_layer: base.sources.disable_project_layer,
+        user_layer_path: base.sources.user_layer_path.clone(),
+        use_user_layer,
+        additional_layers: base.sources.additional_layers.clone(),
+        use_additional_layers,
+        remote_mode: false,
+    };
+
+    let (config, warnings) = match merge_promptpack_layer_configs(&base, inputs) {
+        Ok((config, warnings)) => (config, warnings),
+        Err(e) => {
+            eprintln!("Warning: failed to merge promptpack layer config: {}", e);
+            (base, Vec::new())
+        }
+    };
+    for warning in warnings {
+        eprintln!(
+            "Warning: Unknown config key '{}' in {}{}",
+            warning.key,
+            warning.file.display(),
+            warning
+                .suggestion
+                .as_ref()
+                .map(|s| format!(". Did you mean '{}'?", s))
+                .unwrap_or_default()
+        );
+    }
 
     let mut sink = CallbackSink::new(|check: &SecurityCheck| on_check(check));
     run_doctor_into(project_root, mode, &config, &mut sink);

@@ -1,4 +1,6 @@
+use crate::ui::primitives::text::truncate_middle;
 use crate::ui::theme::CalvinTheme;
+use calvin::application::layers::{LayerQueryResult, LayerSummary};
 use calvin::Target;
 use is_terminal::IsTerminal;
 use std::path::Path;
@@ -104,6 +106,89 @@ pub fn select_targets_interactive_with_save(
     Some(selected)
 }
 
+/// Layer selection result
+#[derive(Debug, Clone)]
+pub struct LayerSelection {
+    /// Whether to use user layer
+    pub use_user_layer: bool,
+    /// Whether to use project layer
+    pub use_project_layer: bool,
+    /// Whether to use additional (custom) layers
+    pub use_additional_layers: bool,
+}
+
+impl LayerSelection {
+    fn from_layers(layers: &[LayerSummary], selected_indices: Option<&[usize]>) -> Self {
+        let check = |layer_type: &str| match selected_indices {
+            Some(indices) => indices.iter().any(|&i| layers[i].layer_type == layer_type),
+            None => layers.iter().any(|l| l.layer_type == layer_type),
+        };
+        Self {
+            use_user_layer: check("user"),
+            use_project_layer: check("project"),
+            use_additional_layers: check("custom"),
+        }
+    }
+}
+
+/// Interactive layer selection. Returns None if user aborts.
+pub fn select_layers_interactive(
+    layers_result: &LayerQueryResult,
+    json: bool,
+) -> Option<LayerSelection> {
+    use dialoguer::MultiSelect;
+
+    // Non-interactive or single layer: use all
+    if json || !std::io::stdin().is_terminal() || layers_result.layers.len() <= 1 {
+        return Some(LayerSelection::from_layers(&layers_result.layers, None));
+    }
+
+    let items: Vec<String> = layers_result
+        .layers
+        .iter()
+        .map(layer_display_name)
+        .collect();
+    let defaults: Vec<bool> = vec![true; layers_result.layers.len()];
+    let theme = CalvinTheme::new(crate::ui::terminal::detect_capabilities().supports_unicode);
+
+    println!("\nSelect layers to deploy (use space to toggle, enter to confirm):");
+    let selection = MultiSelect::with_theme(&theme)
+        .items(&items)
+        .defaults(&defaults)
+        .interact()
+        .unwrap_or_default();
+
+    if selection.is_empty() {
+        println!("No layers selected. Aborted.");
+        return None;
+    }
+
+    let names: Vec<_> = selection
+        .iter()
+        .map(|&i| &layers_result.layers[i].name)
+        .collect();
+    println!(
+        "Selected layers: {}",
+        names
+            .iter()
+            .map(|s| s.as_str())
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
+    Some(LayerSelection::from_layers(
+        &layers_result.layers,
+        Some(&selection),
+    ))
+}
+
+fn layer_display_name(layer: &LayerSummary) -> String {
+    let path = truncate_middle(&layer.original_path.display().to_string(), 40);
+    format!(
+        "{:<8} {} ({} assets)",
+        layer.layer_type, path, layer.asset_count
+    )
+}
+
 /// Save selected targets to config.toml
 fn save_targets_to_config(config_path: &Path, targets: &[Target]) -> std::io::Result<()> {
     // Read existing config
@@ -156,4 +241,59 @@ fn save_targets_to_config(config_path: &Path, targets: &[Target]) -> std::io::Re
     };
 
     std::fs::write(config_path, new_content)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    fn make_layer_summary(name: &str, layer_type: &str, asset_count: usize) -> LayerSummary {
+        LayerSummary {
+            name: name.to_string(),
+            layer_type: layer_type.to_string(),
+            original_path: PathBuf::from(format!("/path/to/{}", name)),
+            resolved_path: PathBuf::from(format!("/path/to/{}", name)),
+            asset_count,
+        }
+    }
+
+    #[test]
+    fn test_layer_selection_single_layer_returns_all() {
+        let result = LayerQueryResult {
+            layers: vec![make_layer_summary("project", "project", 10)],
+            merged_asset_count: 10,
+            overridden_asset_count: 0,
+        };
+
+        // In non-interactive (json) mode, should return all layers
+        let selection = select_layers_interactive(&result, true).unwrap();
+        assert!(selection.use_project_layer);
+        assert!(!selection.use_user_layer);
+    }
+
+    #[test]
+    fn test_layer_selection_json_mode_returns_all_layers() {
+        let result = LayerQueryResult {
+            layers: vec![
+                make_layer_summary("user", "user", 5),
+                make_layer_summary("project", "project", 10),
+            ],
+            merged_asset_count: 15,
+            overridden_asset_count: 0,
+        };
+
+        // In JSON mode, should return all layers without prompting
+        let selection = select_layers_interactive(&result, true).unwrap();
+        assert!(selection.use_project_layer);
+        assert!(selection.use_user_layer);
+    }
+
+    #[test]
+    fn test_layer_display_name_formatting() {
+        let layer = make_layer_summary("project", "project", 27);
+        let display = layer_display_name(&layer);
+        assert!(display.contains("project"));
+        assert!(display.contains("27 assets"));
+    }
 }

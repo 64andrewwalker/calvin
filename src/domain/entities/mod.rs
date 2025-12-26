@@ -6,9 +6,14 @@
 //! - `Lockfile` - Tracks deployed file hashes
 
 mod asset;
+mod layer;
 mod lockfile;
 mod output_file;
+mod registry;
 
 pub use asset::{Asset, AssetKind};
-pub use lockfile::{Lockfile, LockfileEntry};
+pub use layer::{Layer, LayerPath, LayerType};
+pub(crate) use lockfile::{normalize_lockfile_path, parse_lockfile_path};
+pub use lockfile::{Lockfile, LockfileEntry, OutputProvenance};
 pub use output_file::OutputFile;
+pub use registry::{ProjectEntry, Registry};

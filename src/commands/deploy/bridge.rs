@@ -14,16 +14,40 @@ use calvin::presentation::factory::{
 use super::options::DeployOptions as RunnerOptions;
 use super::targets::DeployTarget;
 
+#[derive(Debug, Clone)]
+pub struct LayerInputs {
+    pub use_project_layer: bool,
+    pub user_layer_path: Option<std::path::PathBuf>,
+    pub use_user_layer: bool,
+    pub additional_layers: Vec<std::path::PathBuf>,
+    pub use_additional_layers: bool,
+}
+
+impl Default for LayerInputs {
+    fn default() -> Self {
+        Self {
+            use_project_layer: true,
+            user_layer_path: None,
+            use_user_layer: true,
+            additional_layers: Vec::new(),
+            use_additional_layers: true,
+        }
+    }
+}
+
 /// Convert runner options to use case options
 ///
 /// The `effective_targets` parameter should be the final list of targets to deploy to,
 /// after applying CLI > config > default priority.
+#[allow(clippy::too_many_arguments)]
 pub fn convert_options(
+    project_root: &std::path::Path,
     source: &std::path::Path,
     target: &DeployTarget,
     runner_options: &RunnerOptions,
     cleanup: bool,
     effective_targets: &[calvin::Target],
+    layers: LayerInputs,
 ) -> UseCaseOptions {
     // Determine scope based on target
     let scope = match target {
@@ -46,8 +70,15 @@ pub fn convert_options(
 
     UseCaseOptions {
         source: source.to_path_buf(),
+        project_root: project_root.to_path_buf(),
+        use_project_layer: layers.use_project_layer,
+        user_layer_path: layers.user_layer_path,
+        use_user_layer: layers.use_user_layer,
+        additional_layers: layers.additional_layers,
+        use_additional_layers: layers.use_additional_layers,
         scope,
         targets,
+        remote_mode: matches!(target, DeployTarget::Remote(_)),
         force: runner_options.force,
         interactive: runner_options.interactive,
         dry_run: runner_options.dry_run,
@@ -106,11 +137,19 @@ mod tests {
         let runner_options = RunnerOptions::new();
         let effective_targets = vec![calvin::Target::Cursor];
         let options = convert_options(
+            std::path::Path::new("/project"),
             std::path::Path::new("/project/.promptpack"),
             &DeployTarget::Project(PathBuf::from("/project")),
             &runner_options,
             false,
             &effective_targets,
+            LayerInputs {
+                use_project_layer: true,
+                user_layer_path: None,
+                use_user_layer: true,
+                additional_layers: Vec::new(),
+                use_additional_layers: true,
+            },
         );
 
         assert_eq!(options.scope, Scope::Project);
@@ -122,11 +161,19 @@ mod tests {
         let runner_options = RunnerOptions::new();
         let effective_targets = vec![calvin::Target::Cursor];
         let options = convert_options(
+            std::path::Path::new("/project"),
             std::path::Path::new("/project/.promptpack"),
             &DeployTarget::Home,
             &runner_options,
             false,
             &effective_targets,
+            LayerInputs {
+                use_project_layer: true,
+                user_layer_path: None,
+                use_user_layer: true,
+                additional_layers: Vec::new(),
+                use_additional_layers: true,
+            },
         );
 
         assert_eq!(options.scope, Scope::User);
@@ -139,11 +186,19 @@ mod tests {
         let effective_targets = vec![calvin::Target::Cursor];
 
         let options = convert_options(
+            std::path::Path::new("/project"),
             std::path::Path::new("/project/.promptpack"),
             &DeployTarget::Project(PathBuf::from("/project")),
             &runner_options,
             false,
             &effective_targets,
+            LayerInputs {
+                use_project_layer: true,
+                user_layer_path: None,
+                use_user_layer: true,
+                additional_layers: Vec::new(),
+                use_additional_layers: true,
+            },
         );
 
         assert!(options.force);
@@ -156,11 +211,19 @@ mod tests {
         let effective_targets = vec![calvin::Target::Cursor];
 
         let options = convert_options(
+            std::path::Path::new("/project"),
             std::path::Path::new("/project/.promptpack"),
             &DeployTarget::Project(PathBuf::from("/project")),
             &runner_options,
             false,
             &effective_targets,
+            LayerInputs {
+                use_project_layer: true,
+                user_layer_path: None,
+                use_user_layer: true,
+                additional_layers: Vec::new(),
+                use_additional_layers: true,
+            },
         );
 
         assert!(options.dry_run);
@@ -172,11 +235,19 @@ mod tests {
         let effective_targets = vec![calvin::Target::Cursor];
 
         let options = convert_options(
+            std::path::Path::new("/project"),
             std::path::Path::new("/project/.promptpack"),
             &DeployTarget::Project(PathBuf::from("/project")),
             &runner_options,
             true,
             &effective_targets,
+            LayerInputs {
+                use_project_layer: true,
+                user_layer_path: None,
+                use_user_layer: true,
+                additional_layers: Vec::new(),
+                use_additional_layers: true,
+            },
         );
 
         assert!(options.clean_orphans);
@@ -188,11 +259,19 @@ mod tests {
         let effective_targets = vec![calvin::Target::ClaudeCode, calvin::Target::Cursor];
 
         let options = convert_options(
+            std::path::Path::new("/project"),
             std::path::Path::new("/project/.promptpack"),
             &DeployTarget::Project(PathBuf::from("/project")),
             &runner_options,
             false,
             &effective_targets,
+            LayerInputs {
+                use_project_layer: true,
+                user_layer_path: None,
+                use_user_layer: true,
+                additional_layers: Vec::new(),
+                use_additional_layers: true,
+            },
         );
 
         assert_eq!(options.targets.len(), 2);

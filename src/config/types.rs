@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 use std::path::Path;
+use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
@@ -157,6 +158,57 @@ fn default_true() -> bool {
     true
 }
 
+/// Sources configuration for multi-layer promptpacks.
+///
+/// Security note (PRD §8 / design D8):
+/// - User config may define additional layer paths and user layer path.
+/// - Project config may only disable layers via ignore flags.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SourcesConfig {
+    /// Whether to use the user layer (~/.calvin/.promptpack by default).
+    #[serde(default = "default_true")]
+    pub use_user_layer: bool,
+
+    /// Project-level switch: disable user layer regardless of user config.
+    #[serde(default)]
+    pub ignore_user_layer: bool,
+
+    /// User layer path override (may be configured by the user config or env var).
+    #[serde(default)]
+    pub user_layer_path: Option<PathBuf>,
+
+    /// Additional layer paths (lowest → highest, before project layer).
+    #[serde(default)]
+    pub additional_layers: Vec<PathBuf>,
+
+    /// Project-level switch: disable additional layers regardless of user config.
+    #[serde(default)]
+    pub ignore_additional_layers: bool,
+
+    /// User-level switch: disable the project layer entirely (debug/special cases).
+    #[serde(default)]
+    pub disable_project_layer: bool,
+}
+
+impl Default for SourcesConfig {
+    fn default() -> Self {
+        Self {
+            use_user_layer: true,
+            ignore_user_layer: false,
+            user_layer_path: None,
+            additional_layers: Vec::new(),
+            ignore_additional_layers: false,
+            disable_project_layer: false,
+        }
+    }
+}
+
+pub fn default_user_layer_path() -> PathBuf {
+    crate::infrastructure::calvin_home_dir()
+        .map(|h| h.join(".calvin/.promptpack"))
+        .unwrap_or_else(|| PathBuf::from("~/.calvin/.promptpack"))
+}
+
 /// Deploy configuration
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct DeployConfig {
@@ -279,6 +331,9 @@ pub struct Config {
 
     #[serde(default)]
     pub deploy: DeployConfig,
+
+    #[serde(default)]
+    pub sources: SourcesConfig,
 }
 
 impl Config {

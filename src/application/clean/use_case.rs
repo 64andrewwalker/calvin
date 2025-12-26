@@ -1,6 +1,11 @@
 //! Clean Use Case
 //!
 //! Orchestrates the file cleaning process.
+//!
+//! # Size Justification
+//!
+//! calvin-no-split: This module keeps CleanUseCase and its unit tests together to simplify
+//! verification while migrating lockfile behavior for multi-layer promptpacks. Split later.
 
 use std::path::{Path, PathBuf};
 
@@ -38,7 +43,16 @@ where
     ///
     /// Returns what would be deleted, allowing caller to confirm before actual deletion.
     pub fn execute(&self, lockfile_path: &Path, options: &CleanOptions) -> CleanResult {
-        let lockfile = self.lockfile_repo.load_or_new(lockfile_path);
+        let lockfile = match self.lockfile_repo.load(lockfile_path) {
+            Ok(lockfile) => lockfile,
+            Err(e) => {
+                let mut result = CleanResult::new();
+                result
+                    .errors
+                    .push(CleanError::lockfile_error(e.to_string()));
+                return result;
+            }
+        };
         self.process_lockfile(&lockfile, options, false)
     }
 
@@ -46,7 +60,16 @@ where
     ///
     /// This should be called after user confirms the preview.
     pub fn execute_confirmed(&self, lockfile_path: &Path, options: &CleanOptions) -> CleanResult {
-        let lockfile = self.lockfile_repo.load_or_new(lockfile_path);
+        let lockfile = match self.lockfile_repo.load(lockfile_path) {
+            Ok(lockfile) => lockfile,
+            Err(e) => {
+                let mut result = CleanResult::new();
+                result
+                    .errors
+                    .push(CleanError::lockfile_error(e.to_string()));
+                return result;
+            }
+        };
         let result = self.process_lockfile(&lockfile, options, !options.dry_run);
 
         // Update lockfile to remove entries
@@ -72,8 +95,14 @@ where
                 }
             }
 
-            // Save updated lockfile if anything changed
-            if updated_lockfile.len() != lockfile.len() {
+            // If lockfile is now empty, delete it entirely
+            // An empty lockfile contains no meaningful information
+            if updated_lockfile.is_empty() {
+                if let Err(e) = self.lockfile_repo.delete(lockfile_path) {
+                    eprintln!("Warning: Failed to delete empty lockfile: {}", e);
+                }
+            } else if updated_lockfile.len() != lockfile.len() {
+                // Save updated lockfile if anything changed
                 if let Err(e) = self.lockfile_repo.save(&updated_lockfile, lockfile_path) {
                     eprintln!("Warning: Failed to update lockfile: {}", e);
                 }
@@ -192,7 +221,7 @@ mod tests {
     /// In real usage, paths are stored as absolute (with ~) for home scope
     /// or relative for project scope, but relative paths need to be resolved
     /// against the current working directory.
-
+    ///
     /// Helper to normalize path for lockfile key (use forward slashes for cross-platform)
     fn normalize_path_for_key(path: &Path) -> String {
         path.to_string_lossy().replace('\\', "/")
@@ -201,7 +230,7 @@ mod tests {
     #[test]
     fn clean_deletes_files_from_lockfile() {
         let dir = tempdir().unwrap();
-        let lockfile_path = dir.path().join(".promptpack/.calvin.lock");
+        let lockfile_path = dir.path().join("calvin.lock");
         std::fs::create_dir_all(lockfile_path.parent().unwrap()).unwrap();
 
         // Create file with correct hash - use absolute path
@@ -250,7 +279,7 @@ hash = "{}"
     #[test]
     fn clean_skips_modified_files() {
         let dir = tempdir().unwrap();
-        let lockfile_path = dir.path().join(".promptpack/.calvin.lock");
+        let lockfile_path = dir.path().join("calvin.lock");
         std::fs::create_dir_all(lockfile_path.parent().unwrap()).unwrap();
 
         // Create file with signature but different hash (modified)
@@ -289,7 +318,7 @@ hash = "sha256:original_hash_that_does_not_match"
     #[test]
     fn clean_dry_run_does_not_delete() {
         let dir = tempdir().unwrap();
-        let lockfile_path = dir.path().join(".promptpack/.calvin.lock");
+        let lockfile_path = dir.path().join("calvin.lock");
         std::fs::create_dir_all(lockfile_path.parent().unwrap()).unwrap();
 
         let file_path = dir.path().join(".cursor/rules/test.mdc");
@@ -336,7 +365,7 @@ hash = "{}"
     #[test]
     fn clean_skips_files_without_signature() {
         let dir = tempdir().unwrap();
-        let lockfile_path = dir.path().join(".promptpack/.calvin.lock");
+        let lockfile_path = dir.path().join("calvin.lock");
         std::fs::create_dir_all(lockfile_path.parent().unwrap()).unwrap();
 
         // Create file WITHOUT signature
@@ -379,7 +408,7 @@ hash = "{}"
     #[test]
     fn clean_force_deletes_modified_files() {
         let dir = tempdir().unwrap();
-        let lockfile_path = dir.path().join(".promptpack/.calvin.lock");
+        let lockfile_path = dir.path().join("calvin.lock");
         std::fs::create_dir_all(lockfile_path.parent().unwrap()).unwrap();
 
         // Create file without signature (normally skipped)
@@ -419,7 +448,7 @@ hash = "sha256:original_hash"
     #[test]
     fn clean_selected_keys_only_deletes_selected() {
         let dir = tempdir().unwrap();
-        let lockfile_path = dir.path().join(".promptpack/.calvin.lock");
+        let lockfile_path = dir.path().join("calvin.lock");
         std::fs::create_dir_all(lockfile_path.parent().unwrap()).unwrap();
 
         // Create two files with correct hashes
@@ -477,5 +506,158 @@ hash = "{}"
         assert_eq!(result.deleted.len(), 1, "Should delete only 1 file");
         assert!(file1.exists(), "file1 should NOT be deleted");
         assert!(!file2.exists(), "file2 should be deleted");
+    }
+
+    #[test]
+    fn clean_reports_error_on_lockfile_version_mismatch() {
+        let dir = tempdir().unwrap();
+        let lockfile_path = dir.path().join("calvin.lock");
+        std::fs::write(
+            &lockfile_path,
+            r#"
+version = 999
+
+[files."project:test.md"]
+hash = "sha256:abc"
+"#,
+        )
+        .unwrap();
+
+        let repo = TomlLockfileRepository::new();
+        let fs = LocalFs::new();
+        let use_case = CleanUseCase::new(repo, fs);
+
+        let options = CleanOptions::new().with_scope(Some(Scope::Project));
+        let result = use_case.execute(&lockfile_path, &options);
+
+        assert!(
+            !result.errors.is_empty(),
+            "expected lockfile parse/version errors"
+        );
+        let msg = result.errors[0].to_string();
+        assert!(msg.contains("lockfile format incompatible"), "msg: {}", msg);
+    }
+
+    #[test]
+    fn clean_deletes_lockfile_when_all_entries_removed() {
+        let dir = tempdir().unwrap();
+        let lockfile_path = dir.path().join("calvin.lock");
+        std::fs::create_dir_all(lockfile_path.parent().unwrap()).unwrap();
+
+        // Create one file with correct hash
+        let file_path = dir.path().join(".cursor/rules/only_file.mdc");
+        std::fs::create_dir_all(file_path.parent().unwrap()).unwrap();
+        let content = "<!-- Generated by Calvin -->\nOnly file content";
+        std::fs::write(&file_path, content).unwrap();
+
+        // Compute hash
+        let mut hasher = Sha256::new();
+        hasher.update(content.as_bytes());
+        let hash = format!("sha256:{:x}", hasher.finalize());
+
+        // Create lockfile with single entry
+        let normalized_path = normalize_path_for_key(&file_path);
+        std::fs::write(
+            &lockfile_path,
+            format!(
+                r#"
+version = 1
+
+[files."project:{}"]
+hash = "{}"
+"#,
+                normalized_path, hash
+            ),
+        )
+        .unwrap();
+
+        // Verify lockfile exists before clean
+        assert!(lockfile_path.exists(), "Lockfile should exist before clean");
+
+        let repo = TomlLockfileRepository::new();
+        let fs = LocalFs::new();
+        let use_case = CleanUseCase::new(repo, fs);
+
+        let options = CleanOptions::new().with_scope(Some(Scope::Project));
+        let result = use_case.execute_confirmed(&lockfile_path, &options);
+
+        assert_eq!(result.deleted.len(), 1, "Should delete 1 file");
+        assert!(!file_path.exists(), "File should be deleted");
+
+        // The key assertion: lockfile should be deleted when empty
+        assert!(
+            !lockfile_path.exists(),
+            "Lockfile should be deleted when all entries are cleaned"
+        );
+    }
+
+    #[test]
+    fn clean_keeps_lockfile_when_entries_remain() {
+        let dir = tempdir().unwrap();
+        let lockfile_path = dir.path().join("calvin.lock");
+        std::fs::create_dir_all(lockfile_path.parent().unwrap()).unwrap();
+
+        // Create two files
+        let file1 = dir.path().join(".cursor/rules/delete_me.mdc");
+        let file2 = dir.path().join(".cursor/rules/keep_me.mdc");
+        std::fs::create_dir_all(file1.parent().unwrap()).unwrap();
+
+        let content1 = "<!-- Generated by Calvin -->\nDelete this";
+        let content2 = "<!-- Generated by Calvin -->\nKeep this - will be modified";
+        std::fs::write(&file1, content1).unwrap();
+        std::fs::write(&file2, content2).unwrap();
+
+        // Compute hashes
+        let mut hasher1 = Sha256::new();
+        hasher1.update(content1.as_bytes());
+        let hash1 = format!("sha256:{:x}", hasher1.finalize());
+
+        let normalized_path1 = normalize_path_for_key(&file1);
+        let normalized_path2 = normalize_path_for_key(&file2);
+
+        // Create lockfile: file1 has correct hash, file2 has wrong hash (modified)
+        std::fs::write(
+            &lockfile_path,
+            format!(
+                r#"
+version = 1
+
+[files."project:{}"]
+hash = "{}"
+
+[files."project:{}"]
+hash = "sha256:wrong_hash_modified_file"
+"#,
+                normalized_path1, hash1, normalized_path2
+            ),
+        )
+        .unwrap();
+
+        let repo = TomlLockfileRepository::new();
+        let fs = LocalFs::new();
+        let use_case = CleanUseCase::new(repo, fs);
+
+        let options = CleanOptions::new().with_scope(Some(Scope::Project));
+        let result = use_case.execute_confirmed(&lockfile_path, &options);
+
+        assert_eq!(result.deleted.len(), 1, "Should delete 1 file");
+        assert_eq!(result.skipped.len(), 1, "Should skip 1 modified file");
+
+        // Lockfile should still exist because file2's entry remains (Modified)
+        assert!(
+            lockfile_path.exists(),
+            "Lockfile should remain when entries exist"
+        );
+
+        // Verify lockfile content - only file2's entry should remain
+        let content = std::fs::read_to_string(&lockfile_path).unwrap();
+        assert!(
+            !content.contains("delete_me.mdc"),
+            "Deleted file entry should be removed"
+        );
+        assert!(
+            content.contains("keep_me.mdc"),
+            "Modified file entry should remain"
+        );
     }
 }

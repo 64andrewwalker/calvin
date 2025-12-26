@@ -2,9 +2,19 @@
 //!
 //! These tests verify the new engine works correctly for various scenarios.
 
+mod common;
+
+use common::WindowsCompatExt;
 use std::fs;
 use std::path::Path;
+use std::process::Command;
 use tempfile::tempdir;
+
+fn calvin_cmd(fake_home: &Path) -> Command {
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_calvin"));
+    cmd.with_test_home(fake_home);
+    cmd
+}
 
 /// Helper to create a minimal .promptpack structure
 fn setup_promptpack(dir: &Path) -> std::path::PathBuf {
@@ -61,12 +71,14 @@ fn file_exists_with_content(base: &Path, relative: &str, expected_substring: &st
 fn new_engine_deploys_to_project() {
     let temp = tempdir().unwrap();
     let project_dir = temp.path();
+    let fake_home = temp.path().join("fake_home");
+    fs::create_dir_all(&fake_home).unwrap();
 
     // Setup .promptpack with a test policy
     setup_promptpack(project_dir);
 
     // Run deploy using new engine (via CLI)
-    let output = std::process::Command::new(env!("CARGO_BIN_EXE_calvin"))
+    let output = calvin_cmd(&fake_home)
         .arg("deploy")
         .arg("--yes")
         .current_dir(project_dir)
@@ -124,7 +136,7 @@ fn new_engine_deploys_to_home() {
 
     // For this test, we can't easily override $HOME, so we just verify
     // that the --home flag is accepted without error
-    let output = std::process::Command::new(env!("CARGO_BIN_EXE_calvin"))
+    let output = calvin_cmd(&fake_home)
         .arg("deploy")
         .arg("--home")
         .arg("--dry-run") // Use dry-run to avoid actually writing to real home
@@ -150,11 +162,13 @@ fn new_engine_deploys_to_home() {
 fn new_engine_force_mode() {
     let temp = tempdir().unwrap();
     let project_dir = temp.path();
+    let fake_home = temp.path().join("fake_home");
+    fs::create_dir_all(&fake_home).unwrap();
 
     setup_promptpack(project_dir);
 
     // First deploy
-    let output1 = std::process::Command::new(env!("CARGO_BIN_EXE_calvin"))
+    let output1 = calvin_cmd(&fake_home)
         .arg("deploy")
         .arg("--yes")
         .current_dir(project_dir)
@@ -172,7 +186,7 @@ fn new_engine_force_mode() {
     }
 
     // Second deploy with --force should overwrite
-    let output2 = std::process::Command::new(env!("CARGO_BIN_EXE_calvin"))
+    let output2 = calvin_cmd(&fake_home)
         .arg("deploy")
         .arg("--force")
         .arg("--yes")
@@ -190,11 +204,13 @@ fn new_engine_force_mode() {
 fn new_engine_dry_run_does_not_modify_files() {
     let temp = tempdir().unwrap();
     let project_dir = temp.path();
+    let fake_home = temp.path().join("fake_home");
+    fs::create_dir_all(&fake_home).unwrap();
 
     setup_promptpack(project_dir);
 
     // Run dry-run deploy
-    let output = std::process::Command::new(env!("CARGO_BIN_EXE_calvin"))
+    let output = calvin_cmd(&fake_home)
         .arg("deploy")
         .arg("--dry-run")
         .arg("--yes")
@@ -219,11 +235,13 @@ fn new_engine_dry_run_does_not_modify_files() {
 fn new_engine_json_output() {
     let temp = tempdir().unwrap();
     let project_dir = temp.path();
+    let fake_home = temp.path().join("fake_home");
+    fs::create_dir_all(&fake_home).unwrap();
 
     setup_promptpack(project_dir);
 
     // Run deploy with JSON output
-    let output = std::process::Command::new(env!("CARGO_BIN_EXE_calvin"))
+    let output = calvin_cmd(&fake_home)
         .arg("deploy")
         .arg("--json")
         .arg("--yes")
@@ -265,6 +283,8 @@ fn new_engine_json_output() {
 fn new_engine_target_filtering() {
     let temp = tempdir().unwrap();
     let project_dir = temp.path();
+    let fake_home = temp.path().join("fake_home");
+    fs::create_dir_all(&fake_home).unwrap();
 
     let promptpack = project_dir.join(".promptpack");
     fs::create_dir_all(&promptpack).unwrap();
@@ -294,7 +314,7 @@ This should only deploy to Cursor.
     fs::write(promptpack.join("cursor-only.md"), cursor_only).unwrap();
 
     // Deploy
-    let output = std::process::Command::new(env!("CARGO_BIN_EXE_calvin"))
+    let output = calvin_cmd(&fake_home)
         .arg("deploy")
         .arg("--yes")
         .current_dir(project_dir)
@@ -327,11 +347,13 @@ This should only deploy to Cursor.
 fn new_engine_cleanup_flag() {
     let temp = tempdir().unwrap();
     let project_dir = temp.path();
+    let fake_home = temp.path().join("fake_home");
+    fs::create_dir_all(&fake_home).unwrap();
 
     setup_promptpack(project_dir);
 
     // First deploy
-    let output1 = std::process::Command::new(env!("CARGO_BIN_EXE_calvin"))
+    let output1 = calvin_cmd(&fake_home)
         .arg("deploy")
         .arg("--yes")
         .current_dir(project_dir)
@@ -345,7 +367,7 @@ fn new_engine_cleanup_flag() {
     fs::remove_file(promptpack.join("test-policy.md")).unwrap();
 
     // Second deploy with --cleanup should remove orphans
-    let output2 = std::process::Command::new(env!("CARGO_BIN_EXE_calvin"))
+    let output2 = calvin_cmd(&fake_home)
         .arg("deploy")
         .arg("--cleanup")
         .arg("--yes")
@@ -366,6 +388,8 @@ fn new_engine_cleanup_flag() {
 fn new_engine_generates_agents_md() {
     let temp = tempdir().unwrap();
     let project_dir = temp.path();
+    let fake_home = temp.path().join("fake_home");
+    fs::create_dir_all(&fake_home).unwrap();
 
     // Setup .promptpack with an action
     let promptpack = project_dir.join(".promptpack");
@@ -394,7 +418,7 @@ This action tests AGENTS.md generation.
     fs::write(promptpack.join("0-test-action.md"), action).unwrap();
 
     // Deploy
-    let output = std::process::Command::new(env!("CARGO_BIN_EXE_calvin"))
+    let output = calvin_cmd(&fake_home)
         .arg("deploy")
         .arg("--yes")
         .current_dir(project_dir)

@@ -308,7 +308,7 @@ mod tests {
         };
         assert_eq!(error_file(&invalid), Some(Path::new("d.md")));
 
-        let io = calvin::CalvinError::Io(std::io::Error::new(std::io::ErrorKind::Other, "error"));
+        let io = calvin::CalvinError::Io(std::io::Error::other("error"));
         assert_eq!(error_file(&io), None);
     }
 

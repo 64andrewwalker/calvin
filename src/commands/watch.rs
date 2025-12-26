@@ -7,6 +7,7 @@ use calvin::presentation::ColorWhen;
 pub fn cmd_watch(
     source: &Path,
     home: bool,
+    watch_all_layers: bool,
     json: bool,
     color: Option<ColorWhen>,
     no_animation: bool,
@@ -18,14 +19,60 @@ pub fn cmd_watch(
     use std::time::{SystemTime, UNIX_EPOCH};
 
     // Determine project root
-    let project_root = source
-        .parent()
-        .map(|p| p.to_path_buf())
-        .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+    let project_root = std::env::current_dir()?;
 
-    // Load configuration
-    let config_path = source.join("config.toml");
-    let config = calvin::config::Config::load(&config_path).unwrap_or_default();
+    let project_layer_path = if source.is_relative() {
+        project_root.join(source)
+    } else {
+        source.to_path_buf()
+    };
+
+    // Load base config (user config + project config, if present).
+    let base_config = calvin::config::Config::load_or_default(Some(&project_root));
+
+    // Merge config across resolved promptpack layers (user/custom/project).
+    let additional_layers: Vec<std::path::PathBuf> = if base_config.sources.ignore_additional_layers
+    {
+        Vec::new()
+    } else {
+        base_config.sources.additional_layers.clone()
+    };
+    let use_additional_layers = !base_config.sources.ignore_additional_layers;
+
+    let use_user_layer =
+        base_config.sources.use_user_layer && !base_config.sources.ignore_user_layer;
+
+    let (config, warnings) = calvin::config::merge_promptpack_layer_configs(
+        &base_config,
+        calvin::config::PromptpackLayerInputs {
+            project_root: project_root.clone(),
+            project_layer_path,
+            disable_project_layer: base_config.sources.disable_project_layer,
+            user_layer_path: base_config.sources.user_layer_path.clone(),
+            use_user_layer,
+            additional_layers,
+            use_additional_layers,
+            remote_mode: false,
+        },
+    )?;
+    for warning in warnings {
+        eprintln!(
+            "Warning: Unknown config key '{}' in {}{}",
+            warning.key,
+            warning.file.display(),
+            warning
+                .suggestion
+                .as_ref()
+                .map(|s| format!(". Did you mean '{}'?", s))
+                .unwrap_or_default()
+        );
+    }
+
+    let mut targets = config.enabled_targets();
+    if targets.contains(&calvin::Target::All) {
+        targets = calvin::Target::ALL_CONCRETE.to_vec();
+    }
+
     let ui = crate::ui::context::UiContext::new(json, 0, color, no_animation, &config);
 
     // Determine deploy target: CLI flag > config
@@ -66,7 +113,9 @@ pub fn cmd_watch(
     let options = WatchOptions::new(source.to_path_buf(), project_root)
         .with_scope(scope)
         .with_json(json)
-        .with_config(config);
+        .with_config(config)
+        .with_targets(targets)
+        .with_watch_all_layers(watch_all_layers);
 
     // Set up Ctrl+C handler
     let running = Arc::new(AtomicBool::new(true));

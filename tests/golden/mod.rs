@@ -3,6 +3,8 @@
 //! These tests verify that a reference .promptpack/ directory produces
 //! the expected output for all platform adapters.
 
+#![allow(deprecated)]
+
 use std::path::Path;
 
 use calvin::application::compile_assets;

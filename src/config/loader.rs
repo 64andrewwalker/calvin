@@ -79,26 +79,93 @@ pub fn load_or_default(project_root: Option<&Path>) -> Config {
 pub fn load_or_default_with_warnings(
     project_root: Option<&Path>,
 ) -> CalvinResult<(Config, Vec<ConfigWarning>)> {
-    // Try project config first
-    if let Some(root) = project_root {
-        let project_config = root.join(".promptpack/config.toml");
-        if project_config.exists() {
-            let (config, warnings) = load_with_warnings(&project_config)?;
-            return Ok((with_env_overrides(config), warnings));
-        }
+    // Prefer XDG config (`~/.config/calvin/config.toml`), but support legacy
+    // `~/.calvin/config.toml` as an alternative (PRD note).
+    //
+    // Allow override for testing (especially on Windows where environment
+    // variables like XDG_CONFIG_HOME may not be reliably propagated).
+    let xdg_user_config_path = std::env::var("CALVIN_XDG_CONFIG_PATH")
+        .ok()
+        .map(PathBuf::from)
+        .or_else(|| dirs_config_dir().map(|d| d.join("calvin/config.toml")));
+
+    // Allow override for testing (especially on Windows where dirs::home_dir
+    // uses system API and cannot be overridden via environment variables).
+    // Fallback to legacy path if the override is not set.
+    // NOTE: CALVIN_USER_CONFIG_PATH is kept for backwards compatibility but
+    // calvin_home_dir() already respects CALVIN_TEST_HOME for test isolation.
+    let legacy_user_config_path = std::env::var("CALVIN_USER_CONFIG_PATH")
+        .ok()
+        .map(PathBuf::from)
+        .or_else(|| {
+            crate::infrastructure::calvin_home_dir().map(|h| h.join(".calvin/config.toml"))
+        });
+
+    let user_config_path = xdg_user_config_path
+        .as_ref()
+        .filter(|p| p.exists())
+        .cloned()
+        .or_else(|| {
+            legacy_user_config_path
+                .as_ref()
+                .filter(|p| p.exists())
+                .cloned()
+        });
+    let project_config_path = project_root.map(|r| r.join(".promptpack/config.toml"));
+
+    let mut warnings: Vec<ConfigWarning> = Vec::new();
+
+    let mut merged: toml::Value = toml::Value::Table(toml::map::Map::new());
+
+    // User config (lower priority than project config)
+    if let Some(user_config) = user_config_path.as_ref().filter(|p| p.exists()) {
+        let content = fs::read_to_string(user_config)?;
+        let user_value: toml::Value = toml::from_str(&content).map_err(|e| {
+            crate::error::CalvinError::InvalidFrontmatter {
+                file: user_config.to_path_buf(),
+                message: e.to_string(),
+            }
+        })?;
+
+        let (_parsed, w) = load_with_warnings(user_config)?;
+        warnings.extend(w);
+
+        merge_toml(&mut merged, user_value);
     }
 
-    // Try user config
-    if let Some(user_config_dir) = dirs_config_dir() {
-        let user_config = user_config_dir.join("calvin/config.toml");
-        if user_config.exists() {
-            let (config, warnings) = load_with_warnings(&user_config)?;
-            return Ok((with_env_overrides(config), warnings));
-        }
+    // Project config (highest priority config file)
+    if let Some(project_config) = project_config_path.as_ref().filter(|p| p.exists()) {
+        let content = fs::read_to_string(project_config)?;
+        let project_value: toml::Value = toml::from_str(&content).map_err(|e| {
+            crate::error::CalvinError::InvalidFrontmatter {
+                file: project_config.to_path_buf(),
+                message: e.to_string(),
+            }
+        })?;
+
+        validate_project_sources_config(project_config, &project_value)?;
+
+        let (_parsed, w) = load_with_warnings(project_config)?;
+        warnings.extend(w);
+
+        merge_toml(&mut merged, project_value);
     }
 
-    // Return defaults with env overrides (no warnings for defaults)
-    Ok((with_env_overrides(Config::default()), vec![]))
+    // Deserialize merged config. If no configs present, this yields defaults.
+    let config: Config = match merged {
+        toml::Value::Table(ref t) if t.is_empty() => Config::default(),
+        _ => merged
+            .try_into()
+            .map_err(|e| crate::error::CalvinError::InvalidFrontmatter {
+                file: project_config_path
+                    .and_then(|p| p.exists().then_some(p))
+                    .or_else(|| user_config_path.and_then(|p| p.exists().then_some(p)))
+                    .unwrap_or_else(|| PathBuf::from("config.toml")),
+                message: e.to_string(),
+            })?,
+    };
+
+    Ok((with_env_overrides(config), warnings))
 }
 
 /// Apply environment variable overrides (CALVIN_* prefix)
@@ -147,6 +214,16 @@ pub fn with_env_overrides(mut config: Config) -> Config {
     // CALVIN_ATOMIC_WRITES
     if let Ok(val) = std::env::var("CALVIN_ATOMIC_WRITES") {
         config.sync.atomic_writes = val.to_lowercase() != "false" && val != "0";
+    }
+
+    // CALVIN_SOURCES_USE_USER_LAYER
+    if let Ok(val) = std::env::var("CALVIN_SOURCES_USE_USER_LAYER") {
+        config.sources.use_user_layer = val.to_lowercase() != "false" && val != "0";
+    }
+
+    // CALVIN_SOURCES_USER_LAYER_PATH
+    if let Ok(val) = std::env::var("CALVIN_SOURCES_USER_LAYER_PATH") {
+        config.sources.user_layer_path = Some(PathBuf::from(val));
     }
 
     config
@@ -236,6 +313,76 @@ fn dirs_config_dir() -> Option<PathBuf> {
         })
 }
 
+fn validate_project_sources_config(path: &Path, value: &toml::Value) -> CalvinResult<()> {
+    let Some(sources) = value.get("sources") else {
+        return Ok(());
+    };
+    let Some(table) = sources.as_table() else {
+        return Err(crate::error::CalvinError::ConfigSecurityViolation {
+            file: path.to_path_buf(),
+            message: "[sources] must be a table".to_string(),
+        });
+    };
+
+    const ALLOWED_KEYS: &[&str] = &["ignore_user_layer", "ignore_additional_layers"];
+    for key in table.keys() {
+        if !ALLOWED_KEYS.contains(&key.as_str()) {
+            return Err(crate::error::CalvinError::ConfigSecurityViolation {
+                file: path.to_path_buf(),
+                message: format!("project config cannot set sources.{key}"),
+            });
+        }
+    }
+
+    Ok(())
+}
+
+fn merge_toml_deep(base: &mut toml::Value, overlay: toml::Value) {
+    match (base, overlay) {
+        (toml::Value::Table(base_table), toml::Value::Table(overlay_table)) => {
+            for (k, v) in overlay_table {
+                match base_table.get_mut(&k) {
+                    Some(existing) => merge_toml_deep(existing, v),
+                    None => {
+                        base_table.insert(k, v);
+                    }
+                }
+            }
+        }
+        (base_slot, overlay_value) => {
+            *base_slot = overlay_value;
+        }
+    }
+}
+
+/// Merge config TOML values following PRD §11.2 (section-level overrides).
+///
+/// Semantics:
+/// - Top-level sections are treated as atomic: the overlay replaces the base section entirely.
+/// - Exception: `[sources]` is merged deeply so project ignore flags can coexist with user paths.
+fn merge_toml(base: &mut toml::Value, overlay: toml::Value) {
+    match (base, overlay) {
+        (toml::Value::Table(base_table), toml::Value::Table(overlay_table)) => {
+            for (k, v) in overlay_table {
+                if k == "sources" {
+                    match base_table.get_mut(&k) {
+                        Some(existing) => merge_toml_deep(existing, v),
+                        None => {
+                            base_table.insert(k, v);
+                        }
+                    }
+                } else {
+                    // Section-level override (no deep merge).
+                    base_table.insert(k, v);
+                }
+            }
+        }
+        (base_slot, overlay_value) => {
+            *base_slot = overlay_value;
+        }
+    }
+}
+
 fn find_line_number(content: &str, needle: &str) -> Option<usize> {
     for (i, line) in content.lines().enumerate() {
         if line.contains(needle) {
@@ -311,4 +458,73 @@ fn levenshtein(a: &str, b: &str) -> usize {
     }
 
     prev[b_bytes.len()]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn config_merge_section_override_drops_missing_keys() {
+        let user_toml = r#"
+[security]
+mode = "balanced"
+allow_naked = true
+"#;
+
+        let project_toml = r#"
+[security]
+mode = "strict"
+"#;
+
+        let mut merged: toml::Value = toml::Value::Table(toml::map::Map::new());
+        let user_value: toml::Value = toml::from_str(user_toml).unwrap();
+        let project_value: toml::Value = toml::from_str(project_toml).unwrap();
+
+        merge_toml(&mut merged, user_value);
+        merge_toml(&mut merged, project_value);
+
+        let config: Config = merged.try_into().unwrap();
+
+        assert_eq!(config.security.mode, SecurityMode::Strict);
+        assert!(
+            !config.security.allow_naked,
+            "PRD §11.2: higher-level section should fully override lower-level (no deep merge)"
+        );
+    }
+
+    #[test]
+    fn config_merge_sources_preserves_user_settings_when_project_sets_ignore_flags() {
+        let user_toml = r#"
+[sources]
+user_layer_path = "~/.calvin/.promptpack"
+additional_layers = ["~/team/.promptpack"]
+"#;
+
+        let project_toml = r#"
+[sources]
+ignore_user_layer = true
+"#;
+
+        let mut merged: toml::Value = toml::Value::Table(toml::map::Map::new());
+        let user_value: toml::Value = toml::from_str(user_toml).unwrap();
+        let project_value: toml::Value = toml::from_str(project_toml).unwrap();
+
+        merge_toml(&mut merged, user_value);
+        merge_toml(&mut merged, project_value);
+
+        let config: Config = merged.try_into().unwrap();
+
+        assert!(config.sources.ignore_user_layer);
+        assert_eq!(
+            config.sources.additional_layers.len(),
+            1,
+            "project ignore flags should not wipe user-configured additional layers"
+        );
+        assert_eq!(
+            config.sources.user_layer_path.as_deref(),
+            Some(Path::new("~/.calvin/.promptpack")),
+            "project ignore flags should not wipe user-configured user_layer_path"
+        );
+    }
 }

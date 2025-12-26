@@ -102,7 +102,8 @@ impl SyncDestination for LocalProjectDestination {
     }
 
     fn lockfile_path(&self, source: &Path) -> PathBuf {
-        source.join(".calvin.lock")
+        let _ = source;
+        self.project_root.join("calvin.lock")
     }
 }
 
@@ -119,14 +120,17 @@ impl LocalHomeDestination {
     }
 
     /// Expand ~ to actual home directory
+    ///
+    /// Uses `calvin_home_dir()` which respects `CALVIN_TEST_HOME` for test isolation
+    /// on Windows where `dirs::home_dir()` ignores environment variables.
     fn expand_home(&self, path: &Path) -> PathBuf {
         let path_str = path.display().to_string();
         if let Some(stripped) = path_str.strip_prefix("~/") {
-            if let Some(home) = dirs::home_dir() {
+            if let Some(home) = crate::infrastructure::calvin_home_dir() {
                 return home.join(stripped);
             }
         } else if path_str == "~" {
-            if let Some(home) = dirs::home_dir() {
+            if let Some(home) = crate::infrastructure::calvin_home_dir() {
                 return home;
             }
         }
@@ -209,7 +213,11 @@ impl SyncDestination for LocalHomeDestination {
     }
 
     fn lockfile_path(&self, _source: &Path) -> PathBuf {
-        self.source.join(".calvin.lock")
+        self.source
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .unwrap_or_else(|| Path::new("."))
+            .join("calvin.lock")
     }
 }
 

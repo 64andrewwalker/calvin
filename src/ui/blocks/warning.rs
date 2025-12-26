@@ -9,12 +9,14 @@ use crate::ui::widgets::r#box::{Box, BoxStyle};
 
 #[derive(Debug, Clone)]
 #[cfg(test)]
+#[allow(dead_code)]
 pub struct WarningBlock {
     title: String,
     lines: Vec<String>,
 }
 
 #[cfg(test)]
+#[allow(dead_code)]
 impl WarningBlock {
     pub fn new(title: impl Into<String>) -> Self {
         Self {

@@ -25,6 +25,8 @@ Configure Calvin behavior through environment variables:
 | `CALVIN_VERBOSITY` | Output verbosity | `quiet`, `normal`, `verbose`, `debug` | `normal` |
 | `CALVIN_TARGETS` | Target platforms (comma-separated) | See targets below | All targets |
 | `CALVIN_ATOMIC_WRITES` | Use atomic file writes | `true`, `false`, `0`, `1` | `true` |
+| `CALVIN_SOURCES_USE_USER_LAYER` | Enable user layer | `true`, `false` | `true` |
+| `CALVIN_SOURCES_USER_LAYER_PATH` | Custom user layer path | Any path | `~/.calvin/.promptpack` |
 
 ### Valid Targets
 
@@ -75,6 +77,12 @@ patterns = ["*.secret", "*.key"]
 [targets]
 enabled = ["claude-code", "cursor", "vscode"]
 
+# Multi-layer sources (optional)
+[sources]
+use_user_layer = true              # Enable ~/.calvin/.promptpack
+# user_layer_path = "~/.my-layer"  # Custom user layer path (env var only)
+# NOTE: additional_layers cannot be set in project config for security
+
 # Sync settings
 [sync]
 atomic_writes = true
@@ -104,6 +112,31 @@ enabled = ["cursor", "claude-code"]
 - **`enabled = []`** (empty list) = Deploy to NO targets
 - **`enabled = ["cursor"]`** = Deploy only to specified targets
 </Callout>
+
+### Sources Configuration (Multi-Layer)
+
+Calvin supports multiple layers of promptpacks that merge together:
+
+```toml
+[sources]
+use_user_layer = true  # Default: true
+```
+
+**Layer Priority** (highest to lowest):
+1. **Project layer** (`./.promptpack`) — project-specific
+2. **User layer** (`~/.calvin/.promptpack`) — personal defaults
+3. **Additional layers** (CLI only) — team or org-wide
+
+<Callout type="info">
+**Security Restriction:** For security, `additional_layers` and `user_layer_path` can only be set via CLI flags or environment variables, not in project config.
+</Callout>
+
+**CLI Flags:**
+```bash
+calvin deploy --layer /path/to/team-layer  # Add extra layer
+calvin deploy --no-user-layer              # Disable user layer
+calvin deploy --source /custom/.promptpack # Override project source
+```
 
 ### Overriding with CLI
 

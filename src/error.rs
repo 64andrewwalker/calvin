@@ -72,6 +72,22 @@ pub enum CalvinError {
     /// File system error (from domain::ports::file_system)
     #[error("file system error: {0}")]
     FileSystem(String),
+
+    /// Configuration security violation (project config attempted forbidden settings)
+    #[error("config security violation in {file}: {message}\n  → Security: Project config may only disable layers\n  → Fix: Move layer paths to user config (~/.config/calvin/config.toml)")]
+    ConfigSecurityViolation { file: PathBuf, message: String },
+
+    /// No promptpack layers found (multi-layer)
+    #[error(
+        "no promptpack layers found\n  → Fix: Create a .promptpack/ directory or configure user layer\n  → Run: calvin init --user\n  → Docs: https://64andrewwalker.github.io/calvin/docs/guides/multi-layer"
+    )]
+    NoLayersFound,
+
+    /// Registry file corrupted (multi-layer)
+    #[error(
+        "registry file corrupted: {path}\n  → Fix: Delete and rebuild registry\n  → Run: rm {path} && calvin deploy"
+    )]
+    RegistryCorrupted { path: PathBuf },
 }
 
 use std::path::Path;
@@ -208,5 +224,24 @@ mod tests {
         assert!(msg.contains("unclosed frontmatter"));
         assert!(msg.contains("Fix:"));
         assert!(msg.contains("---"), "Should mention closing delimiter");
+    }
+
+    #[test]
+    fn test_error_display_no_layers_found() {
+        let err = CalvinError::NoLayersFound;
+        let msg = err.to_string();
+        assert!(msg.contains("no promptpack layers found"));
+        assert!(msg.contains("calvin init --user"));
+    }
+
+    #[test]
+    fn test_error_display_registry_corrupted() {
+        let err = CalvinError::RegistryCorrupted {
+            path: PathBuf::from("~/.calvin/registry.toml"),
+        };
+        let msg = err.to_string();
+        assert!(msg.contains("registry file corrupted"));
+        assert!(msg.contains("rm"));
+        assert!(msg.contains("calvin deploy"));
     }
 }

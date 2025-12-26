@@ -34,8 +34,10 @@ impl Template {
 }
 
 /// Initialize a new .promptpack directory
+#[allow(clippy::too_many_arguments)]
 pub fn cmd_init(
     path: &Path,
+    user: bool,
     template: &str,
     force: bool,
     json: bool,
@@ -43,6 +45,10 @@ pub fn cmd_init(
     color: Option<ColorWhen>,
     _no_animation: bool,
 ) -> Result<()> {
+    if user {
+        return cmd_init_user(force, json, color);
+    }
+
     let caps = detect_capabilities();
     let supports_color = match color {
         Some(ColorWhen::Always) => true,
@@ -103,6 +109,73 @@ pub fn cmd_init(
     Ok(())
 }
 
+fn cmd_init_user(force: bool, json: bool, color: Option<ColorWhen>) -> Result<()> {
+    let caps = detect_capabilities();
+    let supports_color = match color {
+        Some(ColorWhen::Always) => true,
+        Some(ColorWhen::Never) => false,
+        Some(ColorWhen::Auto) | None => caps.supports_color,
+    };
+    let supports_unicode = caps.supports_unicode;
+
+    let user_layer = std::env::var("CALVIN_SOURCES_USER_LAYER_PATH")
+        .ok()
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(calvin::config::default_user_layer_path);
+
+    if user_layer.exists() && !force {
+        if json {
+            let _ = crate::ui::json::emit(serde_json::json!({
+                "event": "error",
+                "kind": "already_exists",
+                "path": user_layer.display().to_string(),
+                "message": "user layer already exists"
+            }));
+        }
+        bail!(
+            "User layer already exists at {}. Use --force to overwrite.",
+            user_layer.display()
+        );
+    }
+
+    fs::create_dir_all(user_layer.join("policies"))?;
+    fs::create_dir_all(user_layer.join("actions"))?;
+    fs::create_dir_all(user_layer.join("agents"))?;
+
+    if !user_layer.join("config.toml").exists() || force {
+        fs::write(user_layer.join("config.toml"), USER_CONFIG_TEMPLATE)
+            .context("Failed to create user config.toml")?;
+    }
+
+    if json {
+        let _ = crate::ui::json::emit(serde_json::json!({
+            "event": "init_complete",
+            "path": user_layer.display().to_string(),
+            "template": "user",
+        }));
+    } else {
+        // PRD §12.5: Show tree structure of created directories
+        // Using simple indented list format to comply with no_legacy_borders test
+        println!(
+            "{} User Layer Initialized",
+            Icon::Success.colored(supports_color, supports_unicode)
+        );
+        println!();
+        println!("Created: {}/", user_layer.display());
+        println!("  - config.toml");
+        println!("  - policies/");
+        println!("  - actions/");
+        println!("  - agents/");
+        println!();
+        println!("Next steps:");
+        println!("  1. Add your global prompts to {}/", user_layer.display());
+        println!("  2. Any project can now use these prompts");
+        println!("  3. Project-level .promptpack/ will override if needed");
+    }
+
+    Ok(())
+}
+
 fn create_promptpack(dir: &Path, template: Template) -> Result<()> {
     // Create base directories
     fs::create_dir_all(dir).context("Failed to create .promptpack directory")?;
@@ -150,21 +223,36 @@ fn create_promptpack(dir: &Path, template: Template) -> Result<()> {
 }
 
 // Template content strings
+const USER_CONFIG_TEMPLATE: &str = r#"# Calvin User Layer Configuration
+# This promptpack applies to all projects (unless disabled).
+
+[format]
+version = "1.0"
+"#;
+
 const CONFIG_TEMPLATE: &str = r#"# Calvin Configuration
 # See: https://github.com/calvin-cli/calvin/docs/configuration.md
 
+[format]
+version = "1.0"
+
 [targets]
-# Uncomment to enable specific targets (default: all)
-# include = ["claude", "cursor"]
-# exclude = ["codex"]
+# Specify which platforms to deploy to (default: all)
+# Valid values: claude-code (or "claude"), cursor, vscode, antigravity, codex
+# enabled = ["claude-code", "cursor"]
 
 [security]
 # Security mode: yolo, balanced, strict
 mode = "balanced"
+allow_naked = false
 
-[deploy]
-# Default scope for assets without explicit scope
-# default_scope = "project"
+[sync]
+atomic_writes = true
+respect_lockfile = true
+
+[output]
+verbosity = "normal"
+
 "#;
 
 const README_TEMPLATE: &str = r#"# PromptPack
@@ -366,7 +454,7 @@ mod tests {
     fn cmd_init_creates_promptpack() {
         let dir = tempdir().unwrap();
 
-        cmd_init(dir.path(), "standard", false, true, 0, None, false).unwrap();
+        cmd_init(dir.path(), false, "standard", false, true, 0, None, false).unwrap();
 
         assert!(dir.path().join(".promptpack/config.toml").exists());
     }
@@ -376,7 +464,7 @@ mod tests {
         let dir = tempdir().unwrap();
         fs::create_dir_all(dir.path().join(".promptpack")).unwrap();
 
-        let result = cmd_init(dir.path(), "standard", false, true, 0, None, false);
+        let result = cmd_init(dir.path(), false, "standard", false, true, 0, None, false);
         assert!(result.is_err());
     }
 
@@ -387,7 +475,7 @@ mod tests {
         fs::create_dir_all(&promptpack).unwrap();
         fs::write(promptpack.join("old-file.txt"), "old content").unwrap();
 
-        cmd_init(dir.path(), "standard", true, true, 0, None, false).unwrap();
+        cmd_init(dir.path(), false, "standard", true, true, 0, None, false).unwrap();
 
         assert!(promptpack.join("config.toml").exists());
     }

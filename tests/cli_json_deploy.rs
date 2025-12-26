@@ -1,12 +1,17 @@
 use std::fs;
 use std::process::Command;
 
+use common::WindowsCompatExt;
 use serde_json::Value;
 use tempfile::tempdir;
+
+mod common;
 
 #[test]
 fn test_deploy_json_emits_ndjson_event_stream() {
     let dir = tempdir().unwrap();
+    let fake_home = dir.path().join("fake_home");
+    fs::create_dir_all(&fake_home).unwrap();
 
     // Avoid the "not a git repository" interactive confirmation prompt.
     fs::create_dir_all(dir.path().join(".git")).unwrap();
@@ -30,6 +35,7 @@ Hello world.
     let bin = env!("CARGO_BIN_EXE_calvin");
     let output = Command::new(bin)
         .current_dir(dir.path())
+        .with_test_home(&fake_home)
         .args([
             "deploy",
             "--json",

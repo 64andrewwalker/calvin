@@ -27,13 +27,14 @@ use crate::domain::ports::{
     SafeResolver, TargetAdapter,
 };
 use crate::domain::services::{
-    has_calvin_signature, FileAction, OrphanDetectionResult, OrphanDetector, PlannedFile, Planner,
-    SyncPlan, TargetFileState,
+    has_calvin_signature, merge_layers, FileAction, LayerResolveError, LayerResolver, MergedAsset,
+    OrphanDetectionResult, OrphanDetector, PlannedFile, Planner, SyncPlan, TargetFileState,
 };
 use crate::domain::value_objects::{Scope, Target};
 
 use super::options::{DeployOptions, DeployOutputOptions};
 use super::result::DeployResult;
+use crate::application::RegistryUseCase;
 
 /// Deploy use case - orchestrates the deployment flow
 ///
@@ -49,6 +50,7 @@ where
     lockfile_repo: LR,
     file_system: FS,
     adapters: Vec<Box<dyn TargetAdapter>>,
+    registry_use_case: Option<Arc<RegistryUseCase>>,
 }
 
 impl<AR, LR, FS> DeployUseCase<AR, LR, FS>
@@ -68,7 +70,13 @@ where
             lockfile_repo,
             file_system,
             adapters,
+            registry_use_case: None,
         }
+    }
+
+    pub fn with_registry_use_case(mut self, registry_use_case: Arc<RegistryUseCase>) -> Self {
+        self.registry_use_case = Some(registry_use_case);
+        self
     }
 
     /// Execute the deploy use case
@@ -149,6 +157,12 @@ where
     ) -> DeployResult {
         let mut result = DeployResult::new();
         result.output_count = outputs.len();
+        let project_root = options
+            .lockfile_path
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .map(|p| p.to_path_buf())
+            .unwrap_or_else(|| PathBuf::from("."));
 
         // Emit started event
         event_sink.on_event(DeployEvent::Started {
@@ -163,7 +177,15 @@ where
         });
 
         // Step 1: Load lockfile
-        let lockfile = self.lockfile_repo.load_or_new(&options.lockfile_path);
+        let lockfile = match self.lockfile_repo.load(&options.lockfile_path) {
+            Ok(lockfile) => lockfile,
+            Err(e) => {
+                result
+                    .errors
+                    .push(format!("Failed to load lockfile: {}", e));
+                return result;
+            }
+        };
 
         // Step 2: Plan sync
         let plan = self.plan_sync(
@@ -171,8 +193,15 @@ where
             &lockfile,
             &DeployOptions {
                 source: options.lockfile_path.clone(),
+                project_root: project_root.clone(),
+                use_project_layer: true,
+                user_layer_path: None,
+                use_user_layer: true,
+                additional_layers: Vec::new(),
+                use_additional_layers: true,
                 scope: options.scope,
                 targets: vec![],
+                remote_mode: false,
                 force: false,
                 interactive: false,
                 dry_run: options.dry_run,
@@ -181,30 +210,50 @@ where
         );
 
         // Step 3: Resolve conflicts
-        let resolved_plan = match self.resolve_conflicts(plan, &resolver, options.scope) {
-            Ok(plan) => plan,
-            Err(_) => {
-                result.errors.push("Operation aborted by user".to_string());
-                return result;
-            }
-        };
+        let resolved_plan =
+            match self.resolve_conflicts(plan, &resolver, &project_root, /* remote */ false) {
+                Ok(plan) => plan,
+                Err(_) => {
+                    result.errors.push("Operation aborted by user".to_string());
+                    return result;
+                }
+            };
 
         // Step 4: Detect orphans
         let orphans = if options.clean_orphans {
-            self.detect_orphans(&lockfile, &outputs, options.scope)
+            self.detect_orphans(
+                &lockfile,
+                &outputs,
+                options.scope,
+                &project_root,
+                /* remote */ false,
+            )
         } else {
             OrphanDetectionResult::default()
         };
 
         // Step 5: Execute (if not dry run)
         if !options.dry_run {
-            self.execute_plan_with_events(&resolved_plan, &mut result, &event_sink);
-            self.delete_orphans_with_events(&orphans, &mut result, &event_sink);
+            self.execute_plan_with_events(
+                &resolved_plan,
+                &mut result,
+                &event_sink,
+                &project_root,
+                /* remote */ false,
+            );
+            self.delete_orphans_with_events(
+                &orphans,
+                &mut result,
+                &event_sink,
+                &project_root,
+                /* remote */ false,
+            );
             if let Some(warning) = self.update_lockfile(
                 &options.lockfile_path,
                 &resolved_plan,
                 &result,
                 options.scope,
+                None,
             ) {
                 result.add_warning(warning);
             }
@@ -238,13 +287,17 @@ where
         let mut result = DeployResult::new();
 
         // Step 1: Load assets
-        let assets = match self.load_assets(&options.source) {
+        let layered_assets = match self.load_assets_from_layers(options) {
             Ok(assets) => assets,
             Err(e) => {
                 result.errors.push(format!("Failed to load assets: {}", e));
                 return result;
             }
         };
+        for warning in layered_assets.warnings {
+            result.add_warning(warning);
+        }
+        let assets = layered_assets.assets;
 
         // Step 1.5: Apply scope policy - when deploying to User scope, force all assets to User
         let assets = self.apply_scope_policy(assets, options.scope);
@@ -258,8 +311,12 @@ where
         });
 
         // Step 2: Compile assets
-        let outputs = match self.compile_assets(&assets, &options.targets) {
-            Ok(outputs) => outputs,
+        let (outputs, provenance_by_output_path) = match self.compile_assets(
+            &assets,
+            &options.targets,
+            &layered_assets.merged_assets_by_id,
+        ) {
+            Ok(result) => result,
             Err(e) => {
                 result.errors.push(format!("Compilation failed: {}", e));
                 return result;
@@ -273,14 +330,48 @@ where
         });
 
         // Step 3: Load lockfile
-        let lockfile_path = self.get_lockfile_path(&options.source, options.scope);
-        let lockfile = self.lockfile_repo.load_or_new(&lockfile_path);
+        //
+        // Project deployments are tracked in `{project_root}/calvin.lock` (with legacy migration).
+        // Home/user deployments are global and tracked in `{HOME}/.calvin/calvin.lock`.
+        let (lockfile_path, lockfile_warning) = match options.scope {
+            Scope::Project => crate::application::resolve_lockfile_path(
+                &options.project_root,
+                &options.source,
+                &self.lockfile_repo,
+            ),
+            Scope::User => match crate::application::global_lockfile_path() {
+                Some(path) => (path, None),
+                None => {
+                    result
+                        .errors
+                        .push("Failed to resolve home directory for global lockfile".to_string());
+                    return result;
+                }
+            },
+        };
+        if let Some(warning) = lockfile_warning {
+            result.add_warning(warning);
+        }
+        let lockfile = match self.lockfile_repo.load(&lockfile_path) {
+            Ok(lockfile) => lockfile,
+            Err(e) => {
+                result
+                    .errors
+                    .push(format!("Failed to load lockfile: {}", e));
+                return result;
+            }
+        };
 
         // Step 4: Plan sync
         let plan = self.plan_sync(&outputs, &lockfile, options);
 
         // Step 4.5: Resolve conflicts
-        let resolved_plan = match self.resolve_conflicts(plan, &resolver, options.scope) {
+        let resolved_plan = match self.resolve_conflicts(
+            plan,
+            &resolver,
+            &options.project_root,
+            options.remote_mode,
+        ) {
             Ok(plan) => plan,
             Err(_) => {
                 // User aborted
@@ -291,19 +382,50 @@ where
 
         // Step 5: Detect orphans
         let orphans = if options.clean_orphans {
-            self.detect_orphans(&lockfile, &outputs, options.scope)
+            self.detect_orphans(
+                &lockfile,
+                &outputs,
+                options.scope,
+                &options.project_root,
+                options.remote_mode,
+            )
         } else {
             OrphanDetectionResult::default()
         };
 
         // Step 6: Execute (if not dry run)
         if !options.dry_run {
-            self.execute_plan_with_events(&resolved_plan, &mut result, &event_sink);
-            self.delete_orphans_with_events(&orphans, &mut result, &event_sink);
-            if let Some(warning) =
-                self.update_lockfile(&lockfile_path, &resolved_plan, &result, options.scope)
-            {
+            self.execute_plan_with_events(
+                &resolved_plan,
+                &mut result,
+                &event_sink,
+                &options.project_root,
+                options.remote_mode,
+            );
+            self.delete_orphans_with_events(
+                &orphans,
+                &mut result,
+                &event_sink,
+                &options.project_root,
+                options.remote_mode,
+            );
+            if let Some(warning) = self.update_lockfile(
+                &lockfile_path,
+                &resolved_plan,
+                &result,
+                options.scope,
+                Some(&provenance_by_output_path),
+            ) {
                 result.add_warning(warning);
+            }
+
+            if result.errors.is_empty() && matches!(options.scope, Scope::Project) {
+                self.register_project(
+                    &options.project_root,
+                    &lockfile_path,
+                    result.asset_count,
+                    &mut result,
+                );
             }
         } else {
             // Dry run - just collect what would happen
@@ -326,11 +448,96 @@ where
         result
     }
 
+    fn register_project(
+        &self,
+        project_root: &Path,
+        lockfile_path: &Path,
+        asset_count: usize,
+        result: &mut DeployResult,
+    ) {
+        let Some(registry) = &self.registry_use_case else {
+            return;
+        };
+
+        let project_root = project_root
+            .canonicalize()
+            .unwrap_or_else(|_| project_root.to_path_buf());
+        let lockfile_path = lockfile_path
+            .canonicalize()
+            .unwrap_or_else(|_| lockfile_path.to_path_buf());
+
+        if let Err(e) = registry.register_project(&project_root, &lockfile_path, asset_count) {
+            result.add_warning(format!("Failed to update registry: {}", e));
+        }
+    }
+
     /// Load assets from source directory
     fn load_assets(&self, source: &Path) -> Result<Vec<Asset>, String> {
         self.asset_repo
             .load_all(source)
             .map_err(|e| format!("{}", e))
+    }
+
+    fn load_assets_from_layers(&self, options: &DeployOptions) -> Result<LayeredAssets, String> {
+        let project_root = options.project_root.clone();
+
+        let project_layer_path = if options.source.is_relative() {
+            project_root.join(&options.source)
+        } else {
+            options.source.clone()
+        };
+
+        let mut layer_resolver = LayerResolver::new(project_root)
+            .with_project_layer_path(project_layer_path)
+            .with_disable_project_layer(!options.use_project_layer)
+            .with_additional_layers(if options.use_additional_layers {
+                options.additional_layers.clone()
+            } else {
+                Vec::new()
+            })
+            .with_remote_mode(options.remote_mode);
+        if !options.remote_mode && options.use_user_layer {
+            if let Some(user_layer_path) = options
+                .user_layer_path
+                .clone()
+                .or_else(default_user_layer_path)
+            {
+                layer_resolver = layer_resolver.with_user_layer_path(user_layer_path);
+            }
+        }
+
+        let resolution = layer_resolver.resolve().map_err(|e| match e {
+            LayerResolveError::NoLayersFound => crate::CalvinError::NoLayersFound.to_string(),
+            _ => e.to_string(),
+        })?;
+
+        let mut layers = resolution.layers;
+        for layer in &mut layers {
+            layer.assets = self
+                .load_assets(layer.path.resolved())
+                .map_err(|e| format!("Failed to load layer '{}': {}", layer.name, e))?;
+        }
+
+        let merge_result = merge_layers(&layers);
+        let assets: Vec<Asset> = merge_result
+            .assets
+            .values()
+            .map(|m| m.asset.clone())
+            .collect();
+
+        let mut warnings = resolution.warnings;
+        for override_info in &merge_result.overrides {
+            warnings.push(format!(
+                "Asset '{}' from {} overridden by {}",
+                override_info.asset_id, override_info.from_layer, override_info.by_layer
+            ));
+        }
+
+        Ok(LayeredAssets {
+            assets,
+            merged_assets_by_id: merge_result.assets,
+            warnings,
+        })
     }
 
     /// Apply scope policy to assets
@@ -358,12 +565,22 @@ where
         &self,
         assets: &[Asset],
         targets: &[Target],
-    ) -> Result<Vec<OutputFile>, String> {
+        merged_assets_by_id: &std::collections::HashMap<String, MergedAsset>,
+    ) -> Result<
+        (
+            Vec<OutputFile>,
+            std::collections::HashMap<PathBuf, crate::domain::entities::OutputProvenance>,
+        ),
+        String,
+    > {
         use crate::domain::entities::AssetKind;
+        use crate::domain::entities::OutputProvenance;
         use crate::domain::services::CompilerService;
         use std::path::PathBuf;
 
         let mut outputs = Vec::new();
+        let mut provenance_by_output_path: std::collections::HashMap<PathBuf, OutputProvenance> =
+            std::collections::HashMap::new();
 
         // Determine which adapters to use
         // Empty targets list means "no targets" (not "all targets")
@@ -397,7 +614,27 @@ where
                 }
 
                 match adapter.compile(asset) {
-                    Ok(adapter_outputs) => outputs.extend(adapter_outputs),
+                    Ok(adapter_outputs) => {
+                        let provenance = merged_assets_by_id.get(asset.id()).map(|m| {
+                            let base = OutputProvenance::new(
+                                m.source_layer.clone(),
+                                m.source_layer_path.clone(),
+                                asset.id().to_string(),
+                                m.source_file.clone(),
+                            );
+                            match &m.overrides {
+                                Some(overrides) => base.with_overrides(overrides.clone()),
+                                None => base,
+                            }
+                        });
+
+                        for output in adapter_outputs {
+                            if let Some(provenance) = provenance.clone() {
+                                provenance_by_output_path.insert(output.path().clone(), provenance);
+                            }
+                            outputs.push(output);
+                        }
+                    }
                     Err(e) => {
                         return Err(format!(
                             "Adapter {} failed on {}: {}",
@@ -439,7 +676,7 @@ where
             }
         }
 
-        Ok(outputs)
+        Ok((outputs, provenance_by_output_path))
     }
 
     /// Plan the sync operation
@@ -448,7 +685,8 @@ where
         &self,
         mut plan: SyncPlan,
         resolver: &Arc<dyn ConflictResolver>,
-        _scope: Scope,
+        project_root: &Path,
+        remote_mode: bool,
     ) -> Result<SyncPlan, ()> {
         // Check if there are any conflicts
         if !plan.has_conflicts() {
@@ -485,9 +723,10 @@ where
             }
 
             // Read existing content for context
+            let resolved_path = self.resolve_fs_path(project_root, &file.path, remote_mode);
             let existing_content = self
                 .file_system
-                .read(&file.path)
+                .read(&resolved_path)
                 .unwrap_or_else(|_| String::new());
 
             // Map planner's ConflictReason to port's ConflictReason
@@ -576,9 +815,11 @@ where
         for output in outputs {
             // Check if file exists and get current state
             let path = output.path();
-            let exists = self.file_system.exists(path);
+            let resolved_path =
+                self.resolve_fs_path(&options.project_root, path, options.remote_mode);
+            let exists = self.file_system.exists(&resolved_path);
             let current_hash = if exists {
-                self.file_system.hash(path).ok()
+                self.file_system.hash(&resolved_path).ok()
             } else {
                 None
             };
@@ -632,17 +873,19 @@ where
         lockfile: &Lockfile,
         outputs: &[OutputFile],
         scope: Scope,
+        project_root: &Path,
+        remote_mode: bool,
     ) -> OrphanDetectionResult {
         let mut result = OrphanDetector::detect(lockfile, outputs, scope);
 
         // Check status of each orphan (exists, has_signature)
         for orphan in &mut result.orphans {
-            let path = self.file_system.expand_home(&PathBuf::from(&orphan.path));
-
-            orphan.exists = self.file_system.exists(&path);
+            let original = PathBuf::from(&orphan.path);
+            let resolved = self.resolve_fs_path(project_root, &original, remote_mode);
+            orphan.exists = self.file_system.exists(&resolved);
 
             if orphan.exists {
-                if let Ok(content) = self.file_system.read(&path) {
+                if let Ok(content) = self.file_system.read(&resolved) {
                     orphan.has_signature = has_calvin_signature(&content);
                 }
             }
@@ -658,27 +901,32 @@ where
         plan: &SyncPlan,
         result: &mut DeployResult,
         event_sink: &Arc<dyn DeployEventSink>,
+        project_root: &Path,
+        remote_mode: bool,
     ) {
         for (index, file) in plan.files.iter().enumerate() {
             match &file.action {
-                FileAction::Write => match self.write_file(&file.path, &file.content) {
-                    Ok(_) => {
-                        result.written.push(file.path.clone());
-                        event_sink.on_event(DeployEvent::FileWritten {
-                            index,
-                            path: file.path.clone(),
-                        });
+                FileAction::Write => {
+                    match self.write_file(project_root, remote_mode, &file.path, &file.content) {
+                        Ok(_) => {
+                            result.written.push(file.path.clone());
+                            event_sink.on_event(DeployEvent::FileWritten {
+                                index,
+                                path: file.path.clone(),
+                            });
+                        }
+                        Err(e) => {
+                            let error_msg =
+                                format!("Failed to write {}: {}", file.path.display(), e);
+                            result.errors.push(error_msg.clone());
+                            event_sink.on_event(DeployEvent::FileError {
+                                index,
+                                path: file.path.clone(),
+                                error: error_msg,
+                            });
+                        }
                     }
-                    Err(e) => {
-                        let error_msg = format!("Failed to write {}: {}", file.path.display(), e);
-                        result.errors.push(error_msg.clone());
-                        event_sink.on_event(DeployEvent::FileError {
-                            index,
-                            path: file.path.clone(),
-                            error: error_msg,
-                        });
-                    }
-                },
+                }
                 FileAction::Skip => {
                     result.skipped.push(file.path.clone());
                     event_sink.on_event(DeployEvent::FileSkipped {
@@ -707,6 +955,8 @@ where
         orphans: &OrphanDetectionResult,
         result: &mut DeployResult,
         event_sink: &Arc<dyn DeployEventSink>,
+        project_root: &Path,
+        remote_mode: bool,
     ) {
         // Emit orphans detected event
         if !orphans.orphans.is_empty() {
@@ -722,32 +972,57 @@ where
         }
 
         for orphan in &orphans.orphans {
-            let path = PathBuf::from(&orphan.path);
+            let original = PathBuf::from(&orphan.path);
+            let resolved = self.resolve_fs_path(project_root, &original, remote_mode);
             if orphan.exists && orphan.is_safe_to_delete() {
-                if let Err(e) = self.file_system.remove(&path) {
+                if let Err(e) = self.file_system.remove(&resolved) {
                     result
                         .errors
-                        .push(format!("Failed to delete {}: {}", path.display(), e));
+                        .push(format!("Failed to delete {}: {}", original.display(), e));
                 } else {
-                    result.deleted.push(path.clone());
-                    event_sink.on_event(DeployEvent::OrphanDeleted { path });
+                    result.deleted.push(original.clone());
+                    event_sink.on_event(DeployEvent::OrphanDeleted {
+                        path: original.clone(),
+                    });
                 }
             }
         }
     }
 
     /// Write a file
-    fn write_file(&self, path: &Path, content: &str) -> FsResult<()> {
-        // Ensure parent directory exists
-        if let Some(parent) = path.parent() {
+    fn write_file(
+        &self,
+        project_root: &Path,
+        remote_mode: bool,
+        path: &Path,
+        content: &str,
+    ) -> FsResult<()> {
+        let resolved = self.resolve_fs_path(project_root, path, remote_mode);
+        if let Some(parent) = resolved.parent() {
             self.file_system.create_dir_all(parent)?;
         }
-        self.file_system.write(path, content)
+        self.file_system.write(&resolved, content)
     }
 
-    /// Get lockfile path based on scope
-    fn get_lockfile_path(&self, source: &Path, _scope: Scope) -> PathBuf {
-        source.join(".calvin.lock")
+    fn resolve_fs_path(&self, project_root: &Path, path: &Path, remote_mode: bool) -> PathBuf {
+        if remote_mode {
+            return path.to_path_buf();
+        }
+
+        let path_str = path.to_string_lossy();
+        if path_str.starts_with('~') {
+            return self.file_system.expand_home(path);
+        }
+
+        if path.is_absolute() {
+            return path.to_path_buf();
+        }
+
+        if project_root.as_os_str().is_empty() || project_root == Path::new(".") {
+            return path.to_path_buf();
+        }
+
+        project_root.join(path)
     }
 
     /// Update lockfile after sync
@@ -764,34 +1039,52 @@ where
         plan: &SyncPlan,
         result: &DeployResult,
         scope: Scope,
+        provenance_by_output_path: Option<
+            &std::collections::HashMap<PathBuf, crate::domain::entities::OutputProvenance>,
+        >,
     ) -> Option<String> {
         use sha2::{Digest, Sha256};
         use std::collections::HashSet;
 
-        let mut lockfile = self.lockfile_repo.load_or_new(path);
+        let mut lockfile = match self.lockfile_repo.load(path) {
+            Ok(lockfile) => lockfile,
+            Err(e) => {
+                return Some(format!("Failed to load lockfile for update: {}", e));
+            }
+        };
 
         // Build set of written and skipped paths
         let written_set: HashSet<_> = result.written.iter().collect();
         let skipped_set: HashSet<_> = result.skipped.iter().collect();
 
-        // Update hashes for written files and ensure skipped files are tracked
+        // Update hashes for written and skipped files (and keep provenance in sync)
         for file in &plan.files {
             let key = Lockfile::make_key(scope, &file.path.display().to_string());
 
             if written_set.contains(&file.path) {
-                // File was written - update lockfile with new hash
                 let mut hasher = Sha256::new();
                 hasher.update(file.content.as_bytes());
                 let hash = format!("sha256:{:x}", hasher.finalize());
-                lockfile.set(&key, &hash);
-            } else if skipped_set.contains(&file.path) && !lockfile.contains(&key) {
-                // File was skipped (content identical) but not in lockfile
-                // This happens when lockfile was lost but files still exist
-                // Add it to lockfile so we track it going forward
+                match provenance_by_output_path
+                    .and_then(|m| m.get(&file.path))
+                    .cloned()
+                {
+                    Some(provenance) => lockfile.set_with_provenance(&key, &hash, provenance),
+                    None => lockfile.set(&key, &hash),
+                }
+            } else if skipped_set.contains(&file.path) {
+                // File was skipped (content identical, or conflict resolved to skip).
+                // Still update lockfile so we track it going forward, and keep provenance in sync.
                 let mut hasher = Sha256::new();
                 hasher.update(file.content.as_bytes());
                 let hash = format!("sha256:{:x}", hasher.finalize());
-                lockfile.set(&key, &hash);
+                match provenance_by_output_path
+                    .and_then(|m| m.get(&file.path))
+                    .cloned()
+                {
+                    Some(provenance) => lockfile.set_with_provenance(&key, &hash, provenance),
+                    None => lockfile.set(&key, &hash),
+                }
             }
         }
 
@@ -808,4 +1101,15 @@ where
             None
         }
     }
+}
+
+#[derive(Debug)]
+struct LayeredAssets {
+    assets: Vec<Asset>,
+    merged_assets_by_id: std::collections::HashMap<String, MergedAsset>,
+    warnings: Vec<String>,
+}
+
+fn default_user_layer_path() -> Option<PathBuf> {
+    crate::infrastructure::calvin_home_dir().map(|h| h.join(".calvin/.promptpack"))
 }

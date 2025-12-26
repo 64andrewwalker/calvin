@@ -53,6 +53,93 @@ pub fn interactive_first_run(
     }
 }
 
+/// Menu shown when no project layer exists, but global layers (user/custom) exist.
+pub fn interactive_global_layers_only(
+    cwd: &Path,
+    asset_count: usize,
+    ui: &crate::ui::context::UiContext,
+    verbose: u8,
+    color: Option<ColorWhen>,
+    no_animation: bool,
+) -> Result<()> {
+    println!("Found {} prompts in global layers\n", asset_count);
+    println!("No .promptpack/ in this directory.\n");
+
+    let items = vec![
+        "[1] Deploy to this project",
+        "[2] Deploy to home directory",
+        "[3] Clean deployed files",
+        "[4] Set up a project .promptpack here",
+        "[5] Show layer info",
+        "[6] Explain yourself",
+        "[7] Quit",
+    ];
+
+    let selection = Select::new()
+        .with_prompt("What would you like to do?")
+        .items(&items)
+        .default(0)
+        .interact()?;
+
+    let source = cwd.join(".promptpack");
+
+    match selection {
+        0 => commands::deploy::cmd_deploy_with_explicit_target(
+            &source,
+            false,
+            true, // explicit_project
+            None,
+            &None,
+            &[],
+            false,
+            false,
+            false,
+            true,
+            false,
+            false,
+            false,
+            verbose,
+            color,
+            no_animation,
+        ),
+        1 => commands::deploy::cmd_deploy_with_explicit_target(
+            &source,
+            true, // home
+            false,
+            None,
+            &None,
+            &[],
+            false,
+            false,
+            false,
+            true,
+            false,
+            false,
+            false,
+            verbose,
+            color,
+            no_animation,
+        ),
+        2 => commands::clean::cmd_clean(
+            &source,
+            false, // home
+            false, // project
+            false, // all
+            false, // dry_run
+            false, // yes
+            false, // force
+            false, // json
+            verbose,
+            color,
+            no_animation,
+        ),
+        3 => wizard::setup_wizard(cwd, ui),
+        4 => commands::layers::cmd_layers(false, verbose, color, no_animation),
+        5 => commands::explain::cmd_explain(false, false, verbose),
+        _ => Ok(()),
+    }
+}
+
 pub fn interactive_existing_project(
     cwd: &Path,
     asset_count: Option<usize>,
@@ -95,6 +182,9 @@ pub fn interactive_existing_project(
             true, // explicit_project: user explicitly chose "Deploy to this project"
             None,
             &None,
+            &[],
+            false,
+            false,
             false,
             true,
             false,
@@ -110,6 +200,9 @@ pub fn interactive_existing_project(
             false, // explicit_project: N/A, home is true
             None,
             &None,
+            &[],
+            false,
+            false,
             false,
             true,
             false,
@@ -129,6 +222,9 @@ pub fn interactive_existing_project(
                 false,
                 Some(remote),
                 &None,
+                &[],
+                false,
+                false,
                 false,
                 true,
                 false,
@@ -140,8 +236,17 @@ pub fn interactive_existing_project(
             )
         }
         4 => commands::debug::cmd_diff(&source, false, false),
-        5 => commands::watch::cmd_watch(&source, false, false, color, no_animation),
-        6 => commands::check::cmd_check("balanced", false, false, verbose, color, no_animation),
+        5 => commands::watch::cmd_watch(&source, false, false, false, color, no_animation),
+        6 => commands::check::cmd_check(
+            "balanced",
+            false,
+            false,
+            false,
+            false,
+            verbose,
+            color,
+            no_animation,
+        ),
         7 => commands::clean::cmd_clean(
             &source,
             false, // home
@@ -172,7 +277,8 @@ fn deploy_both(
 
     use crate::ui::views::deploy::{render_deploy_header, render_deploy_summary};
 
-    let config = calvin::config::Config::load_or_default(Some(source));
+    let project_root = source.parent().unwrap_or_else(|| Path::new("."));
+    let config = calvin::config::Config::load_or_default(Some(project_root));
     let ui = crate::ui::context::UiContext::new(false, verbose, color, no_animation, &config);
 
     // One header, two deploy phases.

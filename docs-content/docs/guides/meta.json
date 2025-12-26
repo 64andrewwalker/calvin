@@ -4,6 +4,7 @@
     "pages": [
         "index",
         "configuration",
+        "multi-layer",
         "clean-command",
         "scope-guide",
         "pitfall-mitigations",

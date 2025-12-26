@@ -54,11 +54,15 @@ pub enum Commands {
         source: PathBuf,
 
         /// Deploy to user home directory (install all assets globally)
-        #[arg(long, conflicts_with = "remote")]
+        #[arg(long, conflicts_with_all = ["project", "remote"])]
         home: bool,
 
+        /// Deploy to current project (override config)
+        #[arg(long, conflicts_with_all = ["home", "remote"])]
+        project: bool,
+
         /// Remote destination (user@host:/path)
-        #[arg(long)]
+        #[arg(long, conflicts_with_all = ["home", "project"])]
         remote: Option<String>,
 
         /// Force overwrite of modified files
@@ -80,6 +84,18 @@ pub enum Commands {
         /// Target platforms (will prompt interactively if not specified)
         #[arg(short, long, value_delimiter = ',')]
         targets: Option<Vec<Target>>,
+
+        /// Additional promptpack layers (can be specified multiple times)
+        #[arg(long = "layer", value_name = "PATH")]
+        layers: Vec<PathBuf>,
+
+        /// Disable user layer (~/.calvin/.promptpack)
+        #[arg(long)]
+        no_user_layer: bool,
+
+        /// Disable additional configured layers
+        #[arg(long)]
+        no_additional_layers: bool,
     },
 
     /// Check configuration and security (replaces doctor + audit)
@@ -91,6 +107,14 @@ pub enum Commands {
         /// Fail on warnings too (CI mode)
         #[arg(long)]
         strict_warnings: bool,
+
+        /// Check all registered projects (global registry)
+        #[arg(long)]
+        all: bool,
+
+        /// Check all resolved layers (user/custom/project)
+        #[arg(long)]
+        all_layers: bool,
     },
 
     /// Explain Calvin's usage (for humans/AI assistants)
@@ -109,6 +133,10 @@ pub enum Commands {
         /// Sync to user home directory (instead of project root)
         #[arg(long)]
         home: bool,
+
+        /// Watch all resolved layers (user/custom/project), not just the project layer
+        #[arg(long)]
+        watch_all_layers: bool,
     },
 
     /// Preview changes without writing
@@ -155,6 +183,10 @@ pub enum Commands {
         #[arg(default_value = ".")]
         path: PathBuf,
 
+        /// Initialize user-level promptpack (~/.calvin/.promptpack)
+        #[arg(long)]
+        user: bool,
+
         /// Template to use (minimal, standard, full)
         #[arg(short, long, default_value = "standard")]
         template: String,
@@ -178,7 +210,7 @@ pub enum Commands {
         #[arg(long, conflicts_with = "all")]
         project: bool,
 
-        /// Clean all deployments (home + project)
+        /// Clean all projects in the global registry
         #[arg(long)]
         all: bool,
 
@@ -193,6 +225,23 @@ pub enum Commands {
         /// Force delete even if files were modified
         #[arg(short, long)]
         force: bool,
+    },
+
+    /// List all Calvin-managed projects (global registry)
+    Projects {
+        /// Remove invalid projects from registry
+        #[arg(long)]
+        prune: bool,
+    },
+
+    /// Show the resolved multi-layer stack
+    Layers,
+
+    /// Show lockfile provenance for outputs
+    Provenance {
+        /// Filter outputs by substring
+        #[arg(long)]
+        filter: Option<String>,
     },
 }
 
@@ -250,10 +299,14 @@ mod tests {
         if let Some(Commands::Check {
             mode,
             strict_warnings,
+            all,
+            all_layers,
         }) = cli.command
         {
             assert_eq!(mode, "balanced");
             assert!(!strict_warnings);
+            assert!(!all);
+            assert!(!all_layers);
         } else {
             panic!("Expected Check command");
         }
@@ -382,11 +435,13 @@ mod tests {
         let cli = Cli::try_parse_from(["calvin", "init"]).unwrap();
         if let Some(Commands::Init {
             path,
+            user,
             template,
             force,
         }) = cli.command
         {
             assert_eq!(path, PathBuf::from("."));
+            assert!(!user);
             assert_eq!(template, "standard");
             assert!(!force);
         } else {

@@ -7,7 +7,7 @@ description: Understand how Calvin manages deployment destinations and asset sco
 
 > Understand how Calvin manages deployment destinations and asset scopes
 
-> **Updated**: 2025-12-21
+> **Updated**: 2025-12-25
 
 ---
 
@@ -195,7 +195,7 @@ This signature allows Calvin to safely identify and clean up orphaned files.
 
 ## Lockfile
 
-Calvin tracks deployed files in `.promptpack/.calvin.lock`:
+Calvin tracks deployed files in `calvin.lock` at the project root:
 
 ```toml
 [files."home:~/.claude/commands/test.md"]
@@ -220,11 +220,12 @@ The lockfile enables:
 2. **Use user scope for personal** — Global preferences and personal workflows
 3. **Be explicit** — Set `[deploy] target` in config.toml to avoid confusion
 4. **Clean up when switching** — Use `--cleanup` when changing targets
-5. **Commit lockfile** — Include `.promptpack/.calvin.lock` in version control
+5. **Commit lockfile** — Include `calvin.lock` in version control
 
 ---
 
 ## See Also
 
+- [Multi-Layer PromptPacks](/guides/multi-layer) — Share assets across projects
 - [Frontmatter Spec](/api/frontmatter) — Complete frontmatter reference
 - [Pitfall Mitigations](/guides/pitfall-mitigations) — Architectural decisions

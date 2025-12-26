@@ -5,7 +5,7 @@ description: Rationale and coverage for test variants and edge cases
 
 # Test Variants Rationale
 
-> **Updated**: 2025-12-21
+> **Updated**: 2025-12-24
 
 This document explains test variants and the edge cases they cover.
 
@@ -108,12 +108,12 @@ This document explains test variants and the edge cases they cover.
 ### `engine_local_uses_project_lockfile`
 - **Scenario:** Local deploy lockfile path
 - **Coverage:** Path calculation correctness
-- **Expected:** `.promptpack/.calvin.lock`
+- **Expected:** `./calvin.lock` (project root)
 
 ### `engine_remote_uses_source_lockfile`
 - **Scenario:** Remote deploy lockfile path
 - **Coverage:** Remote mode local lockfile
-- **Expected:** `source/.calvin.lock`
+- **Expected:** `./calvin.lock` (project root)
 
 ## Overfitting Prevention Measures
 

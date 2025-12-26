@@ -17,6 +17,7 @@ pub mod config;
 pub mod conflict;
 pub mod events;
 pub mod fs;
+pub mod layer;
 pub mod repositories;
 pub mod sync;
 
@@ -25,6 +26,7 @@ pub use adapters::{all_adapters, get_adapter, ClaudeCodeAdapter, CursorAdapter};
 pub use config::TomlConfigRepository;
 pub use conflict::InteractiveResolver;
 pub use events::JsonEventSink;
-pub use fs::{LocalFs, RemoteFs};
-pub use repositories::{FsAssetRepository, TomlLockfileRepository};
+pub use fs::{calvin_home_dir, LocalFs, RemoteFs, CALVIN_TEST_HOME_VAR};
+pub use layer::FsLayerLoader;
+pub use repositories::{FsAssetRepository, TomlLockfileRepository, TomlRegistryRepository};
 pub use sync::{LocalHomeDestination, LocalProjectDestination, RemoteDestination};

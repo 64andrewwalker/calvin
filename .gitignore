@@ -47,5 +47,9 @@ secrets/
 # Lockfile tracks user-specific deployment state (should not be committed)
 .promptpack/.calvin.lock
 
+# Worktree initialization state (per-worktree, not shared)
+.worktree-initialized
+.cargo-lock-hash
+
 # Keep .promptpack/ (source of truth for prompts)
 # !.promptpack/

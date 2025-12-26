@@ -8,8 +8,10 @@ use calvin::Target;
 
 use super::options::DeployOptions;
 use super::targets::DeployTarget;
+use crate::commands::project_root::discover_project_root;
 use crate::ui::context::UiContext;
 use crate::ui::primitives::icon::Icon;
+use crate::ui::primitives::text::display_with_tilde;
 use crate::ui::views::deploy::{render_deploy_header, render_deploy_summary};
 use calvin::presentation::ColorWhen;
 
@@ -27,6 +29,9 @@ pub fn cmd_deploy(
     home: bool,
     remote: Option<String>,
     targets: &Option<Vec<Target>>,
+    layers: &[std::path::PathBuf],
+    no_user_layer: bool,
+    no_additional_layers: bool,
     force: bool,
     interactive: bool,
     dry_run: bool,
@@ -42,6 +47,9 @@ pub fn cmd_deploy(
         false, // explicit_project: use config default
         remote,
         targets,
+        layers,
+        no_user_layer,
+        no_additional_layers,
         force,
         interactive,
         dry_run,
@@ -63,6 +71,9 @@ pub fn cmd_deploy_with_explicit_target(
     explicit_project: bool,
     remote: Option<String>,
     targets: &Option<Vec<Target>>,
+    layers: &[std::path::PathBuf],
+    no_user_layer: bool,
+    no_additional_layers: bool,
     force: bool,
     interactive: bool,
     dry_run: bool,
@@ -79,8 +90,8 @@ pub fn cmd_deploy_with_explicit_target(
         anyhow::bail!("--home and --remote cannot be used together");
     }
 
-    // Determine project root
-    let project_root = source.parent().unwrap_or(source).to_path_buf();
+    let invocation_dir = std::env::current_dir()?;
+    let project_root = discover_project_root(&invocation_dir);
 
     // Load configuration early to determine effective target
     let config = calvin::config::Config::load_or_default(Some(&project_root));
@@ -133,6 +144,209 @@ pub fn cmd_deploy_with_explicit_target(
     let target_for_bridge = target.clone();
     let options_for_bridge = options.clone();
 
+    let is_remote_target = matches!(&target_for_bridge, DeployTarget::Remote(_));
+
+    let use_project_layer = is_remote_target || !config.sources.disable_project_layer;
+
+    let use_user_layer = !is_remote_target
+        && !no_user_layer
+        && config.sources.use_user_layer
+        && !config.sources.ignore_user_layer;
+
+    let mut additional_layers: Vec<std::path::PathBuf> = if config.sources.ignore_additional_layers
+    {
+        Vec::new()
+    } else {
+        config.sources.additional_layers.clone()
+    };
+    if !no_additional_layers {
+        additional_layers.extend(layers.iter().cloned());
+    } else {
+        additional_layers.clear();
+    }
+    let use_additional_layers = !is_remote_target && !no_additional_layers;
+
+    let project_layer_path = if source.is_relative() {
+        invocation_dir.join(source)
+    } else {
+        source.to_path_buf()
+    };
+
+    // Interactive layer selection when multiple layers exist
+    let (use_user_layer, use_project_layer, additional_layers, use_additional_layers) =
+        if interactive && !is_remote_target {
+            // Query available layers using Application layer UseCase
+            // This respects the user-specified source path via -s flag
+            use calvin::application::layers::{LayerQueryOptions, LayerQueryUseCase};
+
+            let query_options = LayerQueryOptions {
+                project_layer_path: Some(project_layer_path.clone()),
+                use_user_layer,
+                use_additional_layers,
+                additional_layers: additional_layers.clone(),
+                disable_project_layer: !use_project_layer,
+            };
+
+            let use_case = LayerQueryUseCase::default();
+            match use_case.query_with_options(&project_root, &config, &query_options) {
+                Ok(layers_result) if layers_result.layers.len() > 1 => {
+                    // Multiple layers exist, prompt user to select
+                    match crate::ui::menu::select_layers_interactive(&layers_result, json) {
+                        Some(selection) => {
+                            let filtered_additional = if selection.use_additional_layers {
+                                additional_layers.clone()
+                            } else {
+                                Vec::new()
+                            };
+                            (
+                                selection.use_user_layer && use_user_layer,
+                                selection.use_project_layer && use_project_layer,
+                                filtered_additional,
+                                selection.use_additional_layers,
+                            )
+                        }
+                        None => anyhow::bail!("Layer selection aborted"),
+                    }
+                }
+                _ => {
+                    // Single layer or error - use defaults
+                    (
+                        use_user_layer,
+                        use_project_layer,
+                        additional_layers,
+                        use_additional_layers,
+                    )
+                }
+            }
+        } else {
+            (
+                use_user_layer,
+                use_project_layer,
+                additional_layers,
+                use_additional_layers,
+            )
+        };
+
+    // Update user_layer_path based on layer selection
+    let user_layer_path = if use_user_layer {
+        config
+            .sources
+            .user_layer_path
+            .clone()
+            .or_else(|| Some(calvin::config::default_user_layer_path()))
+    } else {
+        None
+    };
+
+    // Verbose: show resolved layer stack with asset provenance (PRD §10.4, §12.2)
+    if !json && verbose > 0 {
+        use calvin::domain::services::{merge_layers, LayerResolver};
+        use calvin::infrastructure::FsLayerLoader;
+
+        let mut resolver = LayerResolver::new(project_root.clone())
+            .with_project_layer_path(project_layer_path.clone())
+            .with_disable_project_layer(!use_project_layer)
+            .with_additional_layers(if use_additional_layers {
+                additional_layers.clone()
+            } else {
+                Vec::new()
+            })
+            .with_remote_mode(is_remote_target);
+
+        if use_user_layer {
+            if let Some(user_layer_path) = user_layer_path
+                .clone()
+                .or_else(|| Some(calvin::config::default_user_layer_path()))
+            {
+                resolver = resolver.with_user_layer_path(user_layer_path);
+            }
+        }
+
+        match resolver.resolve() {
+            Ok(resolution) => {
+                // Load assets for each layer to get counts and provenance
+                use calvin::domain::ports::LayerLoader;
+                let loader = FsLayerLoader::default();
+                let mut layers_with_assets = Vec::new();
+                for layer in &resolution.layers {
+                    let mut layer_with_assets = layer.clone();
+                    // Try to load assets; if it fails, use empty assets
+                    let _ = loader.load_layer_assets(&mut layer_with_assets);
+                    layers_with_assets.push(layer_with_assets);
+                }
+
+                // Print layer stack with asset counts (same format as `calvin layers`)
+                let total_layers = layers_with_assets.len();
+                println!("Layer Stack (highest priority first):");
+                for (idx, layer) in layers_with_assets.iter().rev().enumerate() {
+                    let layer_num = total_layers - idx;
+                    println!(
+                        "  {}. [{}] {} ({} assets)",
+                        layer_num,
+                        layer.name,
+                        display_with_tilde(layer.path.original()),
+                        layer.assets.len()
+                    );
+                }
+
+                // Merge layers to get provenance and overrides
+                let merge_result = merge_layers(&layers_with_assets);
+
+                // Print asset provenance (PRD §10.4)
+                // At -v level, show summary. At -vv level, show full list.
+                if !merge_result.assets.is_empty() {
+                    let override_count = merge_result.overrides.len();
+                    let total_assets = merge_result.assets.len();
+
+                    if verbose >= 2 {
+                        // Full provenance list at -vv
+                        println!("\nAsset Provenance ({} assets):", total_assets);
+                        let mut sorted_assets: Vec<_> = merge_result.assets.iter().collect();
+                        sorted_assets.sort_by(|a, b| a.0.cmp(b.0));
+                        for (id, merged) in sorted_assets {
+                            let override_note = if merged.overrides.is_some() {
+                                " (override)"
+                            } else {
+                                ""
+                            };
+                            println!(
+                                "  • {:<20} ← {}:{}{}",
+                                id,
+                                merged.source_layer,
+                                display_with_tilde(&merged.source_file),
+                                override_note
+                            );
+                        }
+                    } else {
+                        // Summary at -v
+                        println!(
+                            "\nAssets: {} merged ({} overridden)",
+                            total_assets, override_count
+                        );
+                    }
+                }
+
+                // Print override information (PRD §12.2) - always show if present
+                if !merge_result.overrides.is_empty() {
+                    println!("\nOverrides:");
+                    for ov in &merge_result.overrides {
+                        println!(
+                            "  • {:<20} {} overrides {}",
+                            ov.asset_id, ov.by_layer, ov.from_layer
+                        );
+                    }
+                }
+
+                for warning in resolution.warnings {
+                    eprintln!("Warning: {}", warning);
+                }
+            }
+            Err(e) => {
+                eprintln!("Warning: failed to resolve layers: {}", e);
+            }
+        }
+    }
+
     // Render header
     if !json {
         let action = if dry_run {
@@ -182,28 +396,45 @@ pub fn cmd_deploy_with_explicit_target(
 
     // Determine effective targets: CLI > config > default
     // This is resolved once and used for both adapters and options
-    let effective_targets = if options_for_bridge.targets.is_empty() {
-        config.enabled_targets()
-    } else {
-        options_for_bridge.targets.clone()
-    };
+    let effective_targets = super::layer_config::resolve_effective_targets(
+        &config,
+        &options_for_bridge.targets,
+        interactive,
+        json,
+        calvin::config::PromptpackLayerInputs {
+            project_root: project_root.clone(),
+            project_layer_path: project_layer_path.clone(),
+            disable_project_layer: config.sources.disable_project_layer,
+            user_layer_path: user_layer_path.clone(),
+            use_user_layer,
+            additional_layers: additional_layers.clone(),
+            use_additional_layers,
+            remote_mode: is_remote_target,
+        },
+    )?;
 
     // Run deploy
-    let is_remote_target = matches!(&target_for_bridge, DeployTarget::Remote(_));
-
     let result = if is_remote_target {
         // Remote: use new engine with SyncDestination abstraction
         if let DeployTarget::Remote(remote_spec) = &target_for_bridge {
             let use_case_options = super::bridge::convert_options(
-                source,
+                &project_root,
+                &project_layer_path,
                 &target_for_bridge,
                 &options_for_bridge,
                 cleanup,
                 &effective_targets,
+                super::bridge::LayerInputs {
+                    use_project_layer: true,
+                    user_layer_path: None,
+                    use_user_layer: false,
+                    additional_layers: Vec::new(),
+                    use_additional_layers: false,
+                },
             );
             super::bridge::run_remote_deployment(
                 remote_spec,
-                source,
+                &project_layer_path,
                 &use_case_options,
                 &effective_targets,
             )
@@ -216,11 +447,19 @@ pub fn cmd_deploy_with_explicit_target(
         use std::sync::Arc;
 
         let use_case_options = super::bridge::convert_options(
-            source,
+            &project_root,
+            &project_layer_path,
             &target_for_bridge,
             &options_for_bridge,
             cleanup,
             &effective_targets,
+            super::bridge::LayerInputs {
+                use_project_layer,
+                user_layer_path: user_layer_path.clone(),
+                use_user_layer,
+                additional_layers: additional_layers.clone(),
+                use_additional_layers,
+            },
         );
         let use_case = super::bridge::create_use_case_for_targets(&effective_targets);
         let json_sink = Arc::new(JsonEventSink::stdout());
@@ -228,11 +467,19 @@ pub fn cmd_deploy_with_explicit_target(
     } else {
         // Non-JSON local mode: use new DeployUseCase architecture
         let use_case_options = super::bridge::convert_options(
-            source,
+            &project_root,
+            &project_layer_path,
             &target_for_bridge,
             &options_for_bridge,
             cleanup,
             &effective_targets,
+            super::bridge::LayerInputs {
+                use_project_layer,
+                user_layer_path: user_layer_path.clone(),
+                use_user_layer,
+                additional_layers: additional_layers.clone(),
+                use_additional_layers,
+            },
         );
         let use_case = super::bridge::create_use_case_for_targets(&effective_targets);
         use_case.execute(&use_case_options)
@@ -242,9 +489,9 @@ pub fn cmd_deploy_with_explicit_target(
     if json {
         // Already emitted in the JSON block above
     } else {
-        // Estimate assets from written files (rough)
-        let asset_count = result.written.len() / 4; // ~4 files per asset
-        let target_count = 5; // All targets
+        // Use actual asset count from result
+        let asset_count = result.asset_count;
+        let target_count = effective_targets.len().max(1); // Use actual target count
         print!(
             "{}",
             render_deploy_summary(
@@ -265,9 +512,20 @@ pub fn cmd_deploy_with_explicit_target(
     // Note: Orphan detection is now handled by DeployUseCase internally
     // (when options.clean_orphans is set)
 
-    // Save deploy target to config for watch command (only on success, not dry-run, local only)
-    if !dry_run && result.is_success() && target_for_bridge.is_local() {
-        let config_path = source.join("config.toml");
+    // Save deploy target to config for watch command.
+    //
+    // Semantics:
+    // - Only persist when the user did NOT explicitly override the destination via CLI flags.
+    // - Only persist when the effective deploy target is currently Unset (avoid rewriting user intent).
+    // - Never persist for dry-run or non-local targets.
+    if !dry_run
+        && result.is_success()
+        && target_for_bridge.is_local()
+        && !home
+        && !explicit_project
+        && config.deploy.target == DeployTargetValue::Unset
+    {
+        let config_path = project_layer_path.join("config.toml");
         let target_config = if use_home {
             DeployTargetValue::Home
         } else {
@@ -275,6 +533,15 @@ pub fn cmd_deploy_with_explicit_target(
         };
         // Silently save - don't fail deploy if config save fails
         let _ = calvin::config::Config::save_deploy_target(&config_path, target_config);
+    }
+
+    if !result.is_success() {
+        let mut message = format!("Deploy failed with {} error(s):", result.errors.len());
+        for err in &result.errors {
+            message.push_str("\n- ");
+            message.push_str(err);
+        }
+        anyhow::bail!(message);
     }
 
     Ok(())

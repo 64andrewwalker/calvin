@@ -1,98 +1,61 @@
 //! Integration tests for orphan cleanup functionality
 
-use std::process::Command;
-use tempfile::tempdir;
+mod common;
 
-/// Create a test project with promptpack structure
-fn create_test_project() -> tempfile::TempDir {
-    let dir = tempdir().unwrap();
-    let promptpack = dir.path().join(".promptpack");
-    std::fs::create_dir_all(&promptpack).unwrap();
-
-    // Create a simple asset
-    std::fs::write(
-        promptpack.join("test.md"),
-        r#"---
-kind: policy
-description: Test Policy
-scope: project
----
-Test content
-"#,
-    )
-    .unwrap();
-
-    // Create config
-    std::fs::write(
-        promptpack.join("config.toml"),
-        r#"
-[deploy]
-target = "project"
-
-[targets]
-enabled = ["cursor"]
-"#,
-    )
-    .unwrap();
-
-    dir
-}
+use common::*;
 
 #[test]
 fn test_deploy_cleanup_flag_accepted() {
-    let dir = create_test_project();
-    let bin = env!("CARGO_BIN_EXE_calvin");
+    let env = TestEnv::builder()
+        .with_project_asset("test.md", SIMPLE_POLICY)
+        .with_project_config(CONFIG_DEPLOY_PROJECT)
+        .build();
 
-    let output = Command::new(bin)
-        .current_dir(dir.path())
-        .args(["deploy", "--cleanup", "--dry-run"])
-        .output()
-        .unwrap();
+    let result = env.run(&["deploy", "--cleanup", "--dry-run"]);
 
-    if !output.status.success() {
-        println!("STDOUT:\n{}", String::from_utf8_lossy(&output.stdout));
-        println!("STDERR:\n{}", String::from_utf8_lossy(&output.stderr));
-    }
-    assert!(output.status.success());
+    assert!(
+        result.success,
+        "deploy --cleanup --dry-run failed:\n{}",
+        result.combined_output()
+    );
 }
 
 #[test]
 fn test_deploy_no_cleanup_warns_only() {
-    let dir = create_test_project();
-    let bin = env!("CARGO_BIN_EXE_calvin");
+    let env = TestEnv::builder()
+        .with_project_asset("test.md", SIMPLE_POLICY)
+        .with_project_config(CONFIG_DEPLOY_PROJECT)
+        .build();
 
     // First deploy to create lockfile
-    let output = Command::new(bin)
-        .current_dir(dir.path())
-        .args(["deploy", "--yes"])
-        .output()
-        .unwrap();
-    assert!(output.status.success());
+    let result = env.run(&["deploy", "--yes"]);
+    assert!(
+        result.success,
+        "Initial deploy failed:\n{}",
+        result.combined_output()
+    );
 
     // Remove the asset (simulates orphan scenario)
-    std::fs::remove_file(dir.path().join(".promptpack/test.md")).unwrap();
-
-    // Create a new asset instead
-    std::fs::write(
-        dir.path().join(".promptpack/new.md"),
+    env.remove_project_asset("test.md");
+    env.write_project_file(
+        ".promptpack/new.md",
         r#"---
 kind: policy
 description: New Policy
 scope: project
+targets: [cursor]
 ---
 New content
 "#,
-    )
-    .unwrap();
+    );
 
     // Deploy without --cleanup should warn but not delete
-    let output = Command::new(bin)
-        .current_dir(dir.path())
-        .args(["deploy", "--yes"])
-        .output()
-        .unwrap();
-
-    assert!(output.status.success());
+    let result = env.run(&["deploy", "--yes"]);
+    assert!(
+        result.success,
+        "Deploy without --cleanup failed:\n{}",
+        result.combined_output()
+    );
 
     // Check output contains warning
     // We can't easily check for colors/icons in raw output without filtering, but we can check for text.
@@ -106,21 +69,22 @@ New content
 
 #[test]
 fn test_deploy_cleanup_json_events() {
-    let dir = create_test_project();
-    let bin = env!("CARGO_BIN_EXE_calvin");
+    let env = TestEnv::builder()
+        .with_project_asset("test.md", SIMPLE_POLICY)
+        .with_project_config(CONFIG_DEPLOY_PROJECT)
+        .build();
 
-    let output = Command::new(bin)
-        .current_dir(dir.path())
-        .args(["deploy", "--cleanup", "--json", "--yes"])
-        .output()
-        .unwrap();
+    let result = env.run(&["deploy", "--cleanup", "--json", "--yes"]);
 
     // Should produce valid JSON output
-    assert!(output.status.success());
+    assert!(
+        result.success,
+        "deploy --cleanup --json failed:\n{}",
+        result.combined_output()
+    );
 
     // Output should be valid NDJSON
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    for line in stdout.lines() {
+    for line in result.stdout.lines() {
         if !line.trim().is_empty() {
             // Each line should be valid JSON
             let _: serde_json::Value = serde_json::from_str(line)
@@ -131,24 +95,26 @@ fn test_deploy_cleanup_json_events() {
 
 #[test]
 fn test_deploy_dry_run_shows_orphans() {
-    let dir = create_test_project();
-    let bin = env!("CARGO_BIN_EXE_calvin");
+    let env = TestEnv::builder()
+        .with_project_asset("test.md", SIMPLE_POLICY)
+        .with_project_config(CONFIG_DEPLOY_PROJECT)
+        .build();
 
     // First deploy to create lockfile
-    let output = Command::new(bin)
-        .current_dir(dir.path())
-        .args(["deploy", "--yes"])
-        .output()
-        .unwrap();
-    assert!(output.status.success());
+    let result = env.run(&["deploy", "--yes"]);
+    assert!(
+        result.success,
+        "Initial deploy failed:\n{}",
+        result.combined_output()
+    );
 
     // Now do a dry-run - should still show orphan info if applicable
-    let output = Command::new(bin)
-        .current_dir(dir.path())
-        .args(["deploy", "--dry-run"])
-        .output()
-        .unwrap();
+    let result = env.run(&["deploy", "--dry-run"]);
 
     // Should succeed without errors
-    assert!(output.status.success());
+    assert!(
+        result.success,
+        "deploy --dry-run failed:\n{}",
+        result.combined_output()
+    );
 }

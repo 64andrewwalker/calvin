@@ -5,8 +5,32 @@
 Calvin reads configuration from:
 
 1. **Built-in defaults** (lowest priority)
-2. **Project config**: `.promptpack/config.toml`
-3. **CLI arguments** (highest priority)
+2. **User config**: `~/.config/calvin/config.toml` (XDG, preferred) or `~/.calvin/config.toml` (legacy fallback)
+3. **Project config**: `.promptpack/config.toml`
+4. **Environment variables**: `CALVIN_*`
+5. **CLI arguments** (highest priority)
+
+### Merge Rules
+
+- Project config overrides user config at the **top-level section** granularity (no deep merge).
+- Exception: `[sources]` is merged so project ignore flags can coexist with user-defined paths.
+
+Example (PRD §11.2):
+
+```toml
+# ~/.config/calvin/config.toml
+[security]
+mode = "balanced"
+allow_naked = true
+
+# .promptpack/config.toml
+[security]
+mode = "strict"  # overrides the entire [security] section
+```
+
+Effective result:
+- `security.mode = strict` (project)
+- `security.allow_naked = false` (default, because project section overrides)
 
 ---
 
@@ -54,6 +78,21 @@ enabled = ["claude-code", "cursor", "vscode", "antigravity", "codex"]
 # - enabled field missing      → Deploy to ALL targets (default behavior)
 
 #───────────────────────────────────────────────────────────────
+# DEPLOY DESTINATION
+#───────────────────────────────────────────────────────────────
+[deploy]
+# Where `calvin deploy` / `calvin watch` write outputs by default.
+# Valid values: "project" | "home"
+#
+# Notes:
+# - If omitted, `calvin deploy` defaults to "project" and will persist the choice
+#   to `.promptpack/config.toml` on a successful local deploy (non-dry-run).
+# - CLI flags override config without modifying it:
+#     - `calvin deploy --home`
+#     - `calvin deploy --project`
+target = "project"
+
+#───────────────────────────────────────────────────────────────
 # SYNC BEHAVIOR
 #───────────────────────────────────────────────────────────────
 [sync]
@@ -76,9 +115,43 @@ args = ["-y", "@modelcontextprotocol/server-github"]
 
 ---
 
+## Multi-Layer Sources (`[sources]`)
+
+Multi-layer PromptPacks are configured via `[sources]` and resolved in this order (low → high):
+
+1. User layer (default: `~/.calvin/.promptpack`)
+2. Additional layers (user-configured paths, in array order)
+3. Project layer (default: `./.promptpack`, unless disabled)
+
+### User config (`~/.config/calvin/config.toml` or `~/.calvin/config.toml`)
+
+```toml
+[sources]
+use_user_layer = true
+user_layer_path = "~/.calvin/.promptpack"
+additional_layers = ["~/work/team-prompts/.promptpack"]
+disable_project_layer = false
+```
+
+### Project config (`.promptpack/config.toml`)
+
+Project config can only **disable** layers (it cannot add arbitrary external paths):
+
+```toml
+[sources]
+ignore_user_layer = false
+ignore_additional_layers = false
+```
+
+Notes:
+- `user_layer_path` and `additional_layers` support `~` expansion.
+- `disable_project_layer` is intended for debugging/special cases.
+
+---
+
 ## Environment Variables
 
-Calvin’s config module supports environment overrides (prefix `CALVIN_`), but not every CLI code path applies them yet.
+Environment variables override configuration files, but can be overridden by CLI flags.
 
 Supported env vars:
 
@@ -88,6 +161,8 @@ Supported env vars:
 | `CALVIN_TARGETS` | `targets.enabled` | `claude-code,cursor` |
 | `CALVIN_VERBOSITY` | `output.verbosity` | `debug` |
 | `CALVIN_ATOMIC_WRITES` | `sync.atomic_writes` | `false` |
+| `CALVIN_SOURCES_USE_USER_LAYER` | `sources.use_user_layer` | `false` |
+| `CALVIN_SOURCES_USER_LAYER_PATH` | `sources.user_layer_path` | `~/dotfiles/.promptpack` |
 
 ---
 
@@ -121,8 +196,8 @@ calvin deploy --remote user@host:/path
 
 | OS | Path |
 |----|------|
-| macOS | `~/.config/calvin/config.toml` |
-| Linux | `~/.config/calvin/config.toml` (XDG compliant) |
+| macOS | `~/.config/calvin/config.toml` (preferred), `~/.calvin/config.toml` (fallback) |
+| Linux | `~/.config/calvin/config.toml` (XDG compliant, preferred), `~/.calvin/config.toml` (fallback) |
 | Windows | `%APPDATA%\calvin\config.toml` |
 
 ### Project Configuration

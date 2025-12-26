@@ -94,23 +94,91 @@ pub fn cmd_migrate(
         );
     }
 
-    // Placeholder for future migration logic
-    // Currently only version 1.0 exists.
+    // Lockfile migration (Phase 0): `.promptpack/.calvin.lock` → `./calvin.lock`
+    let old_lockfile = cwd.join(".promptpack/.calvin.lock");
+    let new_lockfile = cwd.join("calvin.lock");
+
+    let mut changes: Vec<serde_json::Value> = Vec::new();
+    if old_lockfile.exists() && !new_lockfile.exists() {
+        changes.push(serde_json::json!({
+            "type": "move_lockfile",
+            "from": old_lockfile.display().to_string(),
+            "to": new_lockfile.display().to_string(),
+        }));
+    }
+
+    if changes.is_empty() {
+        if json {
+            crate::ui::json::emit(serde_json::json!({
+                "event": "complete",
+                "command": "migrate",
+                "status": "success",
+                "message": "Already at latest version (1.0). No migration needed.",
+                "changes": []
+            }))?;
+        } else {
+            println!();
+            print!(
+                "{}",
+                crate::ui::views::migrate::render_migrate_complete(
+                    "Already at latest version (1.0). No migration needed.",
+                    ui.color,
+                    ui.unicode
+                )
+            );
+        }
+        return Ok(());
+    }
+
+    if dry_run {
+        if json {
+            crate::ui::json::emit(serde_json::json!({
+                "event": "complete",
+                "command": "migrate",
+                "status": "success",
+                "message": "Dry run - no changes made.",
+                "changes": changes
+            }))?;
+        } else {
+            println!();
+            print!(
+                "{}",
+                crate::ui::views::migrate::render_migrate_complete(
+                    "Dry run - no changes made.",
+                    ui.color,
+                    ui.unicode
+                )
+            );
+        }
+        return Ok(());
+    }
+
+    // Apply changes
+    if old_lockfile.exists() && !new_lockfile.exists() {
+        std::fs::create_dir_all(
+            new_lockfile
+                .parent()
+                .expect("calvin.lock parent must exist"),
+        )?;
+        let content = std::fs::read_to_string(&old_lockfile)?;
+        std::fs::write(&new_lockfile, content)?;
+        let _ = std::fs::remove_file(&old_lockfile);
+    }
 
     if json {
         crate::ui::json::emit(serde_json::json!({
             "event": "complete",
             "command": "migrate",
             "status": "success",
-            "message": "Already at latest version (1.0). No migration needed.",
-            "changes": []
+            "message": "Migration complete.",
+            "changes": changes
         }))?;
     } else {
         println!();
         print!(
             "{}",
             crate::ui::views::migrate::render_migrate_complete(
-                "Already at latest version (1.0). No migration needed.",
+                "Migration complete.",
                 ui.color,
                 ui.unicode
             )
@@ -126,10 +194,55 @@ pub fn cmd_diff(source: &Path, home: bool, json: bool) -> Result<()> {
     use calvin::presentation::factory::create_diff_use_case;
     use std::fs;
 
-    // Load configuration
-    let config_path = source.join("config.toml");
-    let (config, warnings) = calvin::config::Config::load_with_warnings(&config_path)
-        .unwrap_or((calvin::config::Config::default(), Vec::new()));
+    let project_root = std::env::current_dir()?;
+
+    // Load base config (user config + project config, if present).
+    let base_config = calvin::config::Config::load_or_default(Some(&project_root));
+
+    // Merge config across resolved promptpack layers (user/custom/project).
+    let project_layer_path = if source.is_relative() {
+        project_root.join(source)
+    } else {
+        source.to_path_buf()
+    };
+
+    let additional_layers: Vec<std::path::PathBuf> = if base_config.sources.ignore_additional_layers
+    {
+        Vec::new()
+    } else {
+        base_config.sources.additional_layers.clone()
+    };
+    let use_additional_layers = !base_config.sources.ignore_additional_layers;
+
+    let use_user_layer =
+        base_config.sources.use_user_layer && !base_config.sources.ignore_user_layer;
+
+    let (config, warnings) = calvin::config::merge_promptpack_layer_configs(
+        &base_config,
+        calvin::config::PromptpackLayerInputs {
+            project_root: project_root.clone(),
+            project_layer_path,
+            disable_project_layer: base_config.sources.disable_project_layer,
+            user_layer_path: base_config.sources.user_layer_path.clone(),
+            use_user_layer,
+            additional_layers: additional_layers.clone(),
+            use_additional_layers,
+            remote_mode: false,
+        },
+    )?;
+    for warning in warnings {
+        eprintln!(
+            "Warning: Unknown config key '{}' in {}{}",
+            warning.key,
+            warning.file.display(),
+            warning
+                .suggestion
+                .as_ref()
+                .map(|s| format!(". Did you mean '{}'?", s))
+                .unwrap_or_default()
+        );
+    }
+
     let ui = crate::ui::context::UiContext::new(json, 0, None, true, &config);
 
     // Determine effective scope: CLI flag overrides config
@@ -152,20 +265,31 @@ pub fn cmd_diff(source: &Path, home: bool, json: bool) -> Result<()> {
             crate::ui::views::diff::render_diff_header(source, ui.color, ui.unicode)
         );
     }
-    print_config_warnings(&config_path, &warnings, &ui);
 
     // Create and execute DiffUseCase
     let use_case = create_diff_use_case();
-    let options = DiffOptions::new(source).with_scope(scope);
+    let mut targets = config.enabled_targets();
+    if targets.contains(&calvin::Target::All) {
+        targets = calvin::Target::ALL_CONCRETE.to_vec();
+    }
+    let options = DiffOptions::new(source)
+        .with_scope(scope)
+        .with_project_root(&project_root)
+        .with_targets(targets)
+        .with_project_layer_enabled(!base_config.sources.disable_project_layer)
+        .with_user_layer_enabled(use_user_layer)
+        .with_additional_layers_enabled(use_additional_layers)
+        .with_additional_layers(additional_layers);
+    let options = if let Some(path) = base_config.sources.user_layer_path.clone() {
+        options.with_user_layer_path(path)
+    } else {
+        options
+    };
     let result = use_case.execute(&options);
 
     // Determine compare root for reading existing content
-    let project_root = source
-        .parent()
-        .map(|p| p.to_path_buf())
-        .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
     let compare_root = if scope == Scope::User {
-        dirs::home_dir().unwrap_or_default()
+        calvin::infrastructure::calvin_home_dir().unwrap_or_default()
     } else {
         project_root
     };

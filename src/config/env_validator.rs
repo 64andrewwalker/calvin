@@ -176,7 +176,7 @@ mod tests {
     fn test_env_validator_warning_message() {
         let validator = EnvVarValidator::new("CALVIN_TEST", &["foo", "bar", "baz"]);
         let mut output = Vec::new();
-        let _ = validator.parse_with_writer(
+        validator.parse_with_writer(
             "fooo",
             |s| if s == "foo" { Some(1) } else { None },
             0,
@@ -194,7 +194,7 @@ mod tests {
     fn test_env_validator_suggestion_typo() {
         let validator = EnvVarValidator::new("TEST", &["strict", "balanced", "yolo"]);
         let mut output = Vec::new();
-        let _ = validator.parse_with_writer("strct", |_| None, (), &mut output);
+        validator.parse_with_writer("strct", |_| None, (), &mut output);
 
         let msg = String::from_utf8(output).unwrap();
         assert!(
@@ -208,12 +208,7 @@ mod tests {
     fn test_env_validator_no_suggestion_for_distant_value() {
         let validator = EnvVarValidator::new("TEST", &["strict", "balanced", "yolo"]);
         let mut output = Vec::new();
-        let _ = validator.parse_with_writer(
-            "something_completely_different",
-            |_| None,
-            (),
-            &mut output,
-        );
+        validator.parse_with_writer("something_completely_different", |_| None, (), &mut output);
 
         let msg = String::from_utf8(output).unwrap();
         assert!(
@@ -227,7 +222,7 @@ mod tests {
     fn test_env_validator_shows_valid_values() {
         let validator = EnvVarValidator::new("TEST", &["a", "b", "c"]);
         let mut output = Vec::new();
-        let _ = validator.parse_with_writer("x", |_| None, (), &mut output);
+        validator.parse_with_writer("x", |_| None, (), &mut output);
 
         let msg = String::from_utf8(output).unwrap();
         assert!(

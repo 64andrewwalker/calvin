@@ -5,51 +5,92 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.5.1](https://github.com/64andrewwalker/calvin/compare/v0.5.0...v0.5.1) (2025-12-24)
+## [Unreleased]
 
+### Added
+
+- **Multi-Layer System (Phase 1)**: Load and merge assets from multiple layers
+  - User layer (`~/.calvin/.promptpack/`) with lowest priority
+  - Additional layers via `--layer` flag (middle priority)
+  - Project layer (`./.promptpack/`) with highest priority
+  - Verbose mode (`-v`) displays resolved layer stack
+  - Same-ID assets: higher-priority layer overrides lower
+  - Different-ID assets: all are preserved
+  - Symlink support with circular symlink detection
+  - Lockfile now records `source_layer`, `source_file`, and `overrides` provenance
+
+- **Global Registry (Phase 2)**: Track all Calvin-managed projects
+  - `calvin projects` - List all registered projects with asset counts and last-deploy times
+  - `calvin projects --prune` - Remove entries for projects with missing lockfiles
+  - Successful `calvin deploy` automatically registers projects to `~/.calvin/registry.toml`
+  - Paths stored as canonical absolute paths for stable matching
+
+- **Registry-Wide Clean**: `calvin clean --all` now cleans all registered projects
+  - Iterates all projects in the registry
+  - Skips projects with missing lockfiles
+  - JSON output includes per-project results
+
+- **Visibility & Tooling (Phase 4)**: New inspection and debugging commands
+  - `calvin layers` - Show resolved multi-layer stack with asset counts
+  - `calvin provenance` - Show lockfile provenance (source layer, asset, file, overrides)
+  - `calvin provenance --filter <SUBSTR>` - Filter outputs by substring
+  - `calvin check --all` - Check all registered projects (global registry)
+  - `calvin check --all-layers` - Check all resolved layers for the current project
+  - `calvin migrate` - Migrate lockfile from legacy to new location
+  - `calvin migrate --dry-run` - Preview migration without applying
+
+### Changed
+
+- **Breaking**: `calvin clean --all` semantic changed from "all scopes (home + project)" to "all registered projects"
+  - To clean both scopes in the current project, use interactive mode or run `--home` and `--project` separately
+- Lockfile location changed from `.promptpack/.calvin.lock` to `./calvin.lock` (Phase 0, auto-migrated)
+
+### Fixed
+
+- Relative paths (e.g., `./`) now canonicalized before registry storage
+
+---
+
+## [0.5.1](https://github.com/64andrewwalker/calvin/compare/v0.5.0...v0.5.1) (2025-12-24)
 
 ### Bug Fixes
 
-* Cursor-only deploy now generates commands ([9a085e2](https://github.com/64andrewwalker/calvin/commit/9a085e2b274516e2f7c21cc8828ce33dfc322b4d))
-* Cursor-only deploy now generates commands ([a57c720](https://github.com/64andrewwalker/calvin/commit/a57c7207cf3ada8353754bd5ea9da860d669c920))
-* respect targets config in config.toml ([9c6420b](https://github.com/64andrewwalker/calvin/commit/9c6420b675427bc985fd2bd4bd97ef5ffef30049))
+- Cursor-only deploy now generates commands ([9a085e2](https://github.com/64andrewwalker/calvin/commit/9a085e2b274516e2f7c21cc8828ce33dfc322b4d))
+- Cursor-only deploy now generates commands ([a57c720](https://github.com/64andrewwalker/calvin/commit/a57c7207cf3ada8353754bd5ea9da860d669c920))
+- respect targets config in config.toml ([9c6420b](https://github.com/64andrewwalker/calvin/commit/9c6420b675427bc985fd2bd4bd97ef5ffef30049))
 
 ## [0.5.0](https://github.com/64andrewwalker/calvin/compare/v0.4.0...v0.5.0) (2025-12-23)
 
-
 ### Features
 
-* **clean:** add --all option for non-interactive full cleanup ([ac2544a](https://github.com/64andrewwalker/calvin/commit/ac2544abab90ef116602e332020f8fe4b23a59c6))
-* **clean:** add TreeMenu widget and clean UI views ([271884a](https://github.com/64andrewwalker/calvin/commit/271884a5638817ef376890a5099724e9355e3ea9))
-* **clean:** filter non-cleanable files in interactive mode ([0fb523a](https://github.com/64andrewwalker/calvin/commit/0fb523a9b3d9a21b66a29f14ad6ac77fbd589ee4))
-* **clean:** implement API improvements following TDD ([84c5aad](https://github.com/64andrewwalker/calvin/commit/84c5aadc2887138d0c370c17f7e398e595c50a13))
-* **fuzz:** add 5 new fuzz targets for comprehensive coverage ([ac9d52d](https://github.com/64andrewwalker/calvin/commit/ac9d52d0557e914c8a16877db49a755d5192ca3f))
-* implement clean command with CLI options and tests ([f4a5b83](https://github.com/64andrewwalker/calvin/commit/f4a5b837fdded5e2be6aca7c7d03012af9666e84))
-* **ui:** add CalvinTheme with ●/○ icons and fix cursor restoration ([1700e4e](https://github.com/64andrewwalker/calvin/commit/1700e4e592eb303dc372f78ac6760af775930f1d))
-* update GEMINI.md to a comprehensive development guide and apply minor formatting adjustments to CLAUDE.md and AGENTS.md. ([ab44248](https://github.com/64andrewwalker/calvin/commit/ab44248ff6dca1b567aa0db14a5276332e36facc))
-
+- **clean:** add --all option for non-interactive full cleanup ([ac2544a](https://github.com/64andrewwalker/calvin/commit/ac2544abab90ef116602e332020f8fe4b23a59c6))
+- **clean:** add TreeMenu widget and clean UI views ([271884a](https://github.com/64andrewwalker/calvin/commit/271884a5638817ef376890a5099724e9355e3ea9))
+- **clean:** filter non-cleanable files in interactive mode ([0fb523a](https://github.com/64andrewwalker/calvin/commit/0fb523a9b3d9a21b66a29f14ad6ac77fbd589ee4))
+- **clean:** implement API improvements following TDD ([84c5aad](https://github.com/64andrewwalker/calvin/commit/84c5aadc2887138d0c370c17f7e398e595c50a13))
+- **fuzz:** add 5 new fuzz targets for comprehensive coverage ([ac9d52d](https://github.com/64andrewwalker/calvin/commit/ac9d52d0557e914c8a16877db49a755d5192ca3f))
+- implement clean command with CLI options and tests ([f4a5b83](https://github.com/64andrewwalker/calvin/commit/f4a5b837fdded5e2be6aca7c7d03012af9666e84))
+- **ui:** add CalvinTheme with ●/○ icons and fix cursor restoration ([1700e4e](https://github.com/64andrewwalker/calvin/commit/1700e4e592eb303dc372f78ac6760af775930f1d))
+- update GEMINI.md to a comprehensive development guide and apply minor formatting adjustments to CLAUDE.md and AGENTS.md. ([ab44248](https://github.com/64andrewwalker/calvin/commit/ab44248ff6dca1b567aa0db14a5276332e36facc))
 
 ### Bug Fixes
 
-* **clean:** remove orphan lockfile entries for missing/unsigned files ([37437ce](https://github.com/64andrewwalker/calvin/commit/37437ce6945251bb4785b88548f07a7deae9d45c))
-* **clean:** respect selected_keys for selective deletion ([3895539](https://github.com/64andrewwalker/calvin/commit/3895539a2f25b66920df68f7ea5596752103998f))
-* normalize paths in CleanUseCase tests for Windows CI ([967e3c0](https://github.com/64andrewwalker/calvin/commit/967e3c0b3b84e29ef6c37244a6eea4cc7bb6640f))
-* normalize paths in integration tests for Windows CI ([50faaec](https://github.com/64andrewwalker/calvin/commit/50faaecf0e387f7824cefa2280fe562f03111d32))
-* remove version from generated file headers/footers ([00506a7](https://github.com/64andrewwalker/calvin/commit/00506a7fd08175c56bccfb124e619f4755c3b01c))
-* **vscode:** only generate AGENTS.md for project scope deployments ([c5d8b3f](https://github.com/64andrewwalker/calvin/commit/c5d8b3f6dab86c278c92b84fa9846059a09d9596))
+- **clean:** remove orphan lockfile entries for missing/unsigned files ([37437ce](https://github.com/64andrewwalker/calvin/commit/37437ce6945251bb4785b88548f07a7deae9d45c))
+- **clean:** respect selected_keys for selective deletion ([3895539](https://github.com/64andrewwalker/calvin/commit/3895539a2f25b66920df68f7ea5596752103998f))
+- normalize paths in CleanUseCase tests for Windows CI ([967e3c0](https://github.com/64andrewwalker/calvin/commit/967e3c0b3b84e29ef6c37244a6eea4cc7bb6640f))
+- normalize paths in integration tests for Windows CI ([50faaec](https://github.com/64andrewwalker/calvin/commit/50faaecf0e387f7824cefa2280fe562f03111d32))
+- remove version from generated file headers/footers ([00506a7](https://github.com/64andrewwalker/calvin/commit/00506a7fd08175c56bccfb124e619f4755c3b01c))
+- **vscode:** only generate AGENTS.md for project scope deployments ([c5d8b3f](https://github.com/64andrewwalker/calvin/commit/c5d8b3f6dab86c278c92b84fa9846059a09d9596))
 
 ## [0.4.0](https://github.com/64andrewwalker/calvin/compare/v0.3.0...v0.4.0) (2025-12-22)
 
-
 ### Features
 
-* add Homebrew formula and auto-update workflow ([f115bc8](https://github.com/64andrewwalker/calvin/commit/f115bc8ef8c295ce7a4f2fe59de224f7af57d828))
-* **ci:** add release-please for automated changelog ([1c63183](https://github.com/64andrewwalker/calvin/commit/1c6318348277ea4db2bde3848a758d2c456a94ec))
-
+- add Homebrew formula and auto-update workflow ([f115bc8](https://github.com/64andrewwalker/calvin/commit/f115bc8ef8c295ce7a4f2fe59de224f7af57d828))
+- **ci:** add release-please for automated changelog ([1c63183](https://github.com/64andrewwalker/calvin/commit/1c6318348277ea4db2bde3848a758d2c456a94ec))
 
 ### Bug Fixes
 
-* **ci:** use gh CLI to download release assets for checksums ([a450e85](https://github.com/64andrewwalker/calvin/commit/a450e856dad361045fe37fe5757c7e7797d40efb))
+- **ci:** use gh CLI to download release assets for checksums ([a450e85](https://github.com/64andrewwalker/calvin/commit/a450e856dad361045fe37fe5757c7e7797d40efb))
 
 ## [0.3.0] - 2025-12-23
 

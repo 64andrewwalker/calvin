@@ -8,10 +8,13 @@ use crate::domain::ports::{
     DeployEventSink, FileSystem, FsResult, LockfileRepository, TargetAdapter,
 };
 use crate::domain::value_objects::{Scope, Target};
+use crate::infrastructure::TomlLockfileRepository;
+use crate::{application::RegistryUseCase, domain::ports::RegistryRepository};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use tempfile::tempdir;
 
 // Mock implementations for testing
 
@@ -51,6 +54,11 @@ impl LockfileRepository for MockLockfileRepository {
         _path: &Path,
     ) -> Result<(), crate::domain::ports::LockfileError> {
         *self.lockfile.borrow_mut() = lockfile.clone();
+        Ok(())
+    }
+
+    fn delete(&self, _path: &Path) -> Result<(), crate::domain::ports::LockfileError> {
+        *self.lockfile.borrow_mut() = Lockfile::new();
         Ok(())
     }
 }
@@ -151,6 +159,58 @@ fn create_use_case() -> DeployUseCase<MockAssetRepository, MockLockfileRepositor
 }
 
 #[test]
+fn deploy_registers_project_in_registry() {
+    struct TestRegistryRepo {
+        entries: std::sync::Mutex<Vec<crate::domain::entities::ProjectEntry>>,
+    }
+
+    impl RegistryRepository for TestRegistryRepo {
+        fn load(
+            &self,
+        ) -> Result<crate::domain::entities::Registry, crate::domain::ports::RegistryError>
+        {
+            Ok(crate::domain::entities::Registry::new())
+        }
+
+        fn save(
+            &self,
+            _registry: &crate::domain::entities::Registry,
+        ) -> Result<(), crate::domain::ports::RegistryError> {
+            Ok(())
+        }
+
+        fn update_project(
+            &self,
+            entry: crate::domain::entities::ProjectEntry,
+        ) -> Result<(), crate::domain::ports::RegistryError> {
+            self.entries.lock().unwrap().push(entry);
+            Ok(())
+        }
+    }
+
+    let dir = tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join(".promptpack")).unwrap();
+
+    let registry_repo = Arc::new(TestRegistryRepo {
+        entries: std::sync::Mutex::new(Vec::new()),
+    });
+    let registry_use_case = Arc::new(RegistryUseCase::new(registry_repo.clone()));
+
+    let use_case = create_use_case().with_registry_use_case(registry_use_case);
+    let options =
+        DeployOptions::new(dir.path().join(".promptpack")).with_targets(vec![Target::ClaudeCode]);
+
+    let result = use_case.execute(&options);
+    assert!(result.is_success());
+
+    let entries = registry_repo.entries.lock().unwrap();
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0].path, dir.path().canonicalize().unwrap());
+    assert_eq!(entries[0].lockfile, dir.path().join("calvin.lock"));
+    assert_eq!(entries[0].asset_count, 1);
+}
+
+#[test]
 fn deploy_use_case_executes_successfully() {
     let use_case = create_use_case();
     // Explicitly specify targets (empty targets now means "no deployment")
@@ -218,6 +278,27 @@ fn execute_with_events_emits_started_event() {
     assert!(events
         .iter()
         .any(|e| matches!(e, DeployEvent::Started { .. })));
+}
+
+#[test]
+fn migrate_lockfile_from_old_location() {
+    let dir = tempdir().unwrap();
+    let project_root = dir.path();
+    let source = project_root.join(".promptpack");
+    let old_path = source.join(".calvin.lock");
+    let new_path = project_root.join("calvin.lock");
+
+    std::fs::create_dir_all(old_path.parent().unwrap()).unwrap();
+    std::fs::write(&old_path, "version = 1\n").unwrap();
+
+    let lockfile_repo = TomlLockfileRepository::new();
+    let (lockfile_path, warning) =
+        crate::application::resolve_lockfile_path(project_root, &source, &lockfile_repo);
+
+    assert_eq!(lockfile_path, new_path);
+    assert!(warning.is_some());
+    assert!(new_path.exists());
+    assert!(!old_path.exists());
 }
 
 #[test]

@@ -1,6 +1,11 @@
 //! Clean command handler
 //!
 //! Removes deployed files tracked in the lockfile.
+//!
+//! # Size Justification
+//!
+//! calvin-no-split: This command keeps CLI flow, UI rendering, and interactive selection logic in
+//! one place for now. Refactor/split after the multi-layer migration stabilizes.
 
 use std::path::{Path, PathBuf};
 
@@ -8,6 +13,8 @@ use anyhow::Result;
 use is_terminal::IsTerminal;
 
 use calvin::application::clean::{CleanOptions, CleanResult, CleanUseCase};
+use calvin::application::global_lockfile_path;
+use calvin::application::resolve_lockfile_path;
 use calvin::domain::entities::Lockfile;
 use calvin::domain::ports::{FileSystem, LockfileRepository};
 use calvin::domain::value_objects::Scope;
@@ -33,34 +40,155 @@ pub fn cmd_clean(
     color: Option<ColorWhen>,
     no_animation: bool,
 ) -> Result<()> {
+    if all {
+        return cmd_clean_all(dry_run, yes, force, json, verbose, color, no_animation);
+    }
+
+    let project_root = std::env::current_dir()?;
+
     // Load config for UI context
-    let config = calvin::config::Config::load_or_default(Some(source));
+    let config = calvin::config::Config::load_or_default(Some(&project_root));
 
     // Build UI context for proper icon rendering
     let ui = UiContext::new(json, verbose, color, no_animation, &config);
 
     // Determine scope
-    // --all means clean both home and project (no scope filter)
     // --home means clean only home
     // --project means clean only project
     // None of the above: interactive mode (unless --yes or --dry-run)
-    let scope = match (home, project, all) {
-        (true, false, false) => Some(Scope::User),
-        (false, true, false) => Some(Scope::Project),
-        (false, false, true) => None,  // All scopes, non-interactive
-        (false, false, false) => None, // Interactive mode
+    let scope = match (home, project) {
+        (true, false) => Some(Scope::User),
+        (false, true) => Some(Scope::Project),
+        (false, false) => None, // Interactive mode
         _ => unreachable!("clap conflicts_with should prevent this"),
     };
 
     // Determine if a scope was explicitly specified (for interactive mode detection)
-    let scope_specified = home || project || all;
+    let scope_specified = home || project;
 
     // Build use case dependencies
     let lockfile_repo = TomlLockfileRepository::new();
     let fs = LocalFs::new();
 
-    // Get lockfile path
-    let lockfile_path = source.join(".calvin.lock");
+    // Precompute lockfile paths.
+    // - Project deployments: `{cwd}/calvin.lock` (with legacy migration from `.promptpack/.calvin.lock`)
+    // - Home deployments: `{HOME}/.calvin/calvin.lock` (global)
+    let global_lockfile_path = global_lockfile_path();
+    let (project_lockfile_path, project_migration_note) =
+        resolve_lockfile_path(&project_root, source, &lockfile_repo);
+
+    // Interactive tree menu mode: allow choosing between project/home when both exist.
+    //
+    // This is important for multi-layer scenarios where a directory may have no `.promptpack/`,
+    // but still has project deployments (via `calvin.lock`) and/or global home deployments.
+    let use_tree_menu =
+        !scope_specified && !json && std::io::stdin().is_terminal() && !yes && !dry_run;
+
+    if use_tree_menu {
+        let project_exists = fs.exists(&project_lockfile_path);
+        let home_exists = global_lockfile_path
+            .as_ref()
+            .is_some_and(|path| fs.exists(path));
+
+        let selection = match (project_exists, home_exists) {
+            (false, false) => {
+                eprintln!(
+                    "No deployments found.\n  - Project lockfile: {}\n  - Home lockfile: {}",
+                    project_lockfile_path.display(),
+                    global_lockfile_path
+                        .as_ref()
+                        .map(|p| p.display().to_string())
+                        .unwrap_or_else(|| "<unavailable>".to_string())
+                );
+                return Ok(());
+            }
+            (true, false) => 0, // project
+            (false, true) => 1, // home
+            (true, true) => {
+                use dialoguer::Select;
+                let items = vec!["Project (./) deployments", "Home (~) deployments", "Cancel"];
+
+                Select::new()
+                    .with_prompt("What would you like to clean?")
+                    .items(&items)
+                    .default(0)
+                    .interact()?
+            }
+        };
+
+        match selection {
+            0 => {
+                if !json {
+                    if let Some(note) = project_migration_note {
+                        eprintln!("ℹ {}", note);
+                    }
+                    print!(
+                        "{}",
+                        render_clean_header(
+                            source,
+                            Some(Scope::Project),
+                            false,
+                            ui.caps.supports_color,
+                            ui.caps.supports_unicode
+                        )
+                    );
+                }
+
+                let lockfile = lockfile_repo.load(&project_lockfile_path)?;
+                if lockfile.is_empty() {
+                    println!("No files to clean. Lockfile is empty.");
+                    return Ok(());
+                }
+
+                return run_interactive_clean(&lockfile, &project_lockfile_path, force, &fs, &ui);
+            }
+            1 => {
+                let Some(home_lockfile_path) = global_lockfile_path else {
+                    anyhow::bail!("Failed to resolve home directory for global lockfile");
+                };
+
+                if !json {
+                    print!(
+                        "{}",
+                        render_clean_header(
+                            source,
+                            Some(Scope::User),
+                            false,
+                            ui.caps.supports_color,
+                            ui.caps.supports_unicode
+                        )
+                    );
+                }
+
+                let lockfile = lockfile_repo.load(&home_lockfile_path)?;
+                if lockfile.is_empty() {
+                    println!("No files to clean. Lockfile is empty.");
+                    return Ok(());
+                }
+
+                return run_interactive_clean(&lockfile, &home_lockfile_path, force, &fs, &ui);
+            }
+            _ => {
+                println!("Aborted.");
+                return Ok(());
+            }
+        }
+    }
+
+    // Non-tree-menu mode: pick lockfile path based on explicit scope.
+    let (lockfile_path, migration_note) = if scope == Some(Scope::User) {
+        let Some(path) = global_lockfile_path.as_ref() else {
+            anyhow::bail!("Failed to resolve home directory for global lockfile");
+        };
+        (path.clone(), None)
+    } else {
+        (project_lockfile_path, project_migration_note)
+    };
+    if !json {
+        if let Some(note) = migration_note {
+            eprintln!("ℹ {}", note);
+        }
+    }
 
     // Check if lockfile exists
     if !fs.exists(&lockfile_path) {
@@ -69,17 +197,56 @@ pub fn cmd_clean(
                 r#"{{"type":"clean_complete","deleted":0,"skipped":0,"message":"No lockfile found"}}"#
             );
         } else {
-            eprintln!(
-                "No deployments found. Lockfile does not exist: {}",
-                lockfile_path.display()
-            );
-            eprintln!("Run `calvin deploy` first to create a lockfile.");
+            match scope {
+                Some(Scope::User) => {
+                    eprintln!(
+                        "No home deployments found. Lockfile does not exist: {}",
+                        lockfile_path.display()
+                    );
+                    eprintln!("Run `calvin deploy --home` first to create a lockfile.");
+                }
+                Some(Scope::Project) => {
+                    eprintln!(
+                        "No project deployments found. Lockfile does not exist: {}",
+                        lockfile_path.display()
+                    );
+                    eprintln!("Run `calvin deploy` first to create a lockfile.");
+                }
+                None => {
+                    let home_exists = global_lockfile_path
+                        .as_ref()
+                        .is_some_and(|path| fs.exists(path));
+                    eprintln!(
+                        "No project deployments found. Lockfile does not exist: {}",
+                        lockfile_path.display()
+                    );
+                    if home_exists {
+                        eprintln!(
+                            "Home deployments exist. Run `calvin clean --home` to clean them."
+                        );
+                    } else {
+                        eprintln!("Run `calvin deploy` first to create a lockfile.");
+                    }
+                }
+            }
         }
         return Ok(());
     }
 
     // Load lockfile
-    let lockfile = lockfile_repo.load_or_new(&lockfile_path);
+    let lockfile = match lockfile_repo.load(&lockfile_path) {
+        Ok(lockfile) => lockfile,
+        Err(e) => {
+            if json {
+                println!(
+                    r#"{{"type":"clean_error","kind":"lockfile","message":"{}"}}"#,
+                    e.to_string().replace('"', "\\\"")
+                );
+                return Ok(());
+            }
+            return Err(e.into());
+        }
+    };
 
     if lockfile.is_empty() {
         if json {
@@ -132,6 +299,231 @@ pub fn cmd_clean(
 
     // Exit with code 1 if there were errors
     if has_errors {
+        std::process::exit(1);
+    }
+
+    Ok(())
+}
+
+fn cmd_clean_all(
+    dry_run: bool,
+    yes: bool,
+    force: bool,
+    json: bool,
+    verbose: u8,
+    color: Option<ColorWhen>,
+    no_animation: bool,
+) -> Result<()> {
+    use crate::ui::blocks::header::CommandHeader;
+    use crate::ui::blocks::summary::ResultSummary;
+    use crate::ui::primitives::icon::Icon;
+    use crate::ui::primitives::text::ColoredText;
+    use crate::ui::widgets::list::{ItemStatus, StatusList};
+    use calvin::domain::ports::RegistryError;
+    use calvin::presentation::factory::create_registry_use_case;
+
+    let cwd = std::env::current_dir()?;
+    let config = calvin::config::Config::load_or_default(Some(&cwd));
+    let ui = UiContext::new(json, verbose, color, no_animation, &config);
+
+    let registry = create_registry_use_case();
+    let projects = registry.list_projects().map_err(|e| match e {
+        RegistryError::Corrupted { path, .. } => {
+            anyhow::Error::new(calvin::CalvinError::RegistryCorrupted { path })
+        }
+        _ => anyhow::Error::new(e),
+    })?;
+
+    if projects.is_empty() {
+        if json {
+            println!(r#"{{"type":"clean_all_complete","projects":0}}"#);
+        } else {
+            println!(
+                "{} {}",
+                Icon::Pending.colored(ui.caps.supports_color, ui.caps.supports_unicode),
+                ColoredText::dim("No projects in registry.").render(ui.caps.supports_color)
+            );
+            println!(
+                "{}",
+                ColoredText::dim("Run `calvin deploy` in a project to register it.")
+                    .render(ui.caps.supports_color)
+            );
+        }
+        return Ok(());
+    }
+
+    if json {
+        println!(
+            r#"{{"type":"clean_all_start","projects":{}}}"#,
+            projects.len()
+        );
+    } else {
+        let mut header = CommandHeader::new(Icon::Trash, "Calvin Clean All");
+        header.add("Projects", projects.len().to_string());
+        print!(
+            "{}",
+            header.render(ui.caps.supports_color, ui.caps.supports_unicode)
+        );
+        println!();
+        println!(
+            "{}",
+            ColoredText::dim("Will clean these projects:").render(ui.caps.supports_color)
+        );
+        for project in &projects {
+            println!(
+                "  {} {}",
+                Icon::Pending.colored(ui.caps.supports_color, ui.caps.supports_unicode),
+                project.path.display()
+            );
+        }
+        println!();
+
+        if !yes {
+            use dialoguer::Confirm;
+            let confirmed = Confirm::new()
+                .with_prompt("Clean all projects?")
+                .default(false)
+                .interact()?;
+            if !confirmed {
+                println!(
+                    "{} {}",
+                    Icon::Warning.colored(ui.caps.supports_color, ui.caps.supports_unicode),
+                    ColoredText::warning("Aborted.").render(ui.caps.supports_color)
+                );
+                return Ok(());
+            }
+        }
+    }
+
+    let lockfile_repo = TomlLockfileRepository::new();
+    let fs = LocalFs::new();
+    let use_case = CleanUseCase::new(lockfile_repo, fs);
+
+    let options = CleanOptions::new()
+        .with_scope(None)
+        .with_dry_run(dry_run)
+        .with_force(force);
+
+    let original_cwd = std::env::current_dir()?;
+
+    let mut list = StatusList::with_visible_count(10);
+    for project in &projects {
+        list.add(project.path.display().to_string());
+    }
+
+    let mut total_deleted = 0usize;
+    let mut error_count = 0usize;
+
+    for (idx, project) in projects.iter().enumerate() {
+        if !json {
+            list.update(idx, ItemStatus::InProgress);
+            print!(
+                "{}",
+                list.render(ui.caps.supports_color, ui.caps.supports_unicode)
+            );
+        }
+
+        if !project.lockfile.exists() {
+            error_count += 1;
+            if json {
+                println!(
+                    r#"{{"type":"project_skipped","path":"{}","reason":"missing_lockfile"}}"#,
+                    project.path.display()
+                );
+            } else {
+                list.update(idx, ItemStatus::Warning);
+                list.update_detail(idx, "missing lockfile".to_string());
+            }
+            continue;
+        }
+
+        if let Err(e) = std::env::set_current_dir(&project.path) {
+            error_count += 1;
+            if json {
+                println!(
+                    r#"{{"type":"project_error","path":"{}","error":"{}"}}"#,
+                    project.path.display(),
+                    e.to_string().replace('\\', "\\\\").replace('"', "\\\"")
+                );
+            } else {
+                list.update(idx, ItemStatus::Error);
+                list.update_detail(idx, "chdir failed".to_string());
+            }
+            continue;
+        }
+
+        let result = if dry_run {
+            use_case.execute(&project.lockfile, &options)
+        } else {
+            use_case.execute_confirmed(&project.lockfile, &options)
+        };
+
+        total_deleted += result.deleted.len();
+
+        if result.is_success() {
+            if json {
+                println!(
+                    r#"{{"type":"project_complete","path":"{}","deleted":{},"skipped":{},"errors":{}}}"#,
+                    project.path.display(),
+                    result.deleted.len(),
+                    result.skipped.len(),
+                    result.error_count()
+                );
+            } else {
+                list.update(idx, ItemStatus::Success);
+                list.update_detail(idx, format!("{} files", result.deleted.len()));
+            }
+        } else {
+            error_count += 1;
+            if json {
+                println!(
+                    r#"{{"type":"project_complete","path":"{}","deleted":{},"skipped":{},"errors":{}}}"#,
+                    project.path.display(),
+                    result.deleted.len(),
+                    result.skipped.len(),
+                    result.error_count()
+                );
+            } else {
+                list.update(idx, ItemStatus::Error);
+                list.update_detail(idx, "errors".to_string());
+            }
+        }
+
+        let _ = std::env::set_current_dir(&original_cwd);
+    }
+
+    let _ = std::env::set_current_dir(&original_cwd);
+
+    if json {
+        println!(
+            r#"{{"type":"clean_all_complete","projects":{},"deleted":{},"errors":{}}}"#,
+            projects.len(),
+            total_deleted,
+            error_count
+        );
+        if error_count > 0 {
+            std::process::exit(1);
+        }
+        return Ok(());
+    }
+
+    println!();
+    let mut summary = if error_count == 0 {
+        ResultSummary::success("Clean Complete")
+    } else {
+        ResultSummary::partial("Clean Completed with Errors")
+    };
+    summary.add_stat("projects", projects.len());
+    summary.add_stat("files removed", total_deleted);
+    if error_count > 0 {
+        summary.add_warning(format!("{} projects had errors", error_count));
+    }
+    print!(
+        "{}",
+        summary.render(ui.caps.supports_color, ui.caps.supports_unicode)
+    );
+
+    if error_count > 0 {
         std::process::exit(1);
     }
 

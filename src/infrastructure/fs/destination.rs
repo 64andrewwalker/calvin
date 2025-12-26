@@ -156,7 +156,21 @@ mod tests {
         }
 
         fn lockfile_path(&self, source: &Path) -> PathBuf {
-            source.join(".calvin.lock")
+            let source_is_promptpack = source
+                .file_name()
+                .map(|n| n == ".promptpack")
+                .unwrap_or(false);
+
+            let project_root = if source_is_promptpack {
+                source
+                    .parent()
+                    .filter(|p| !p.as_os_str().is_empty())
+                    .unwrap_or_else(|| Path::new("."))
+            } else {
+                source
+            };
+
+            project_root.join("calvin.lock")
         }
     }
 

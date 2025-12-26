@@ -17,6 +17,7 @@ use crate::domain::value_objects::Scope;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::Mutex;
 
 /// Sync destination for remote servers
 ///
@@ -29,6 +30,8 @@ pub struct RemoteDestination {
     remote_path: String,
     /// Source directory (for lockfile path)
     source: PathBuf,
+    /// Cached remote $HOME value (for `~` expansion)
+    cached_home: Mutex<Option<String>>,
 }
 
 impl RemoteDestination {
@@ -46,12 +49,68 @@ impl RemoteDestination {
             host,
             remote_path,
             source,
+            cached_home: Mutex::new(None),
         }
     }
 
     /// Build the remote destination string
     fn remote_dest(&self) -> String {
         format!("{}:{}", self.host, self.remote_path)
+    }
+
+    fn shell_quote(s: &str) -> String {
+        format!("'{}'", s.replace('\'', "'\\''"))
+    }
+
+    fn remote_home(&self) -> Option<String> {
+        if let Ok(cache) = self.cached_home.lock() {
+            if let Some(home) = cache.clone() {
+                return Some(home);
+            }
+        }
+
+        let output = Command::new("ssh")
+            .arg(&self.host)
+            .arg("echo $HOME")
+            .output()
+            .ok()?;
+        if !output.status.success() {
+            return None;
+        }
+        let home = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if home.is_empty() {
+            return None;
+        }
+        if let Ok(mut cache) = self.cached_home.lock() {
+            *cache = Some(home.clone());
+        }
+        Some(home)
+    }
+
+    fn resolved_remote_path(&self) -> Result<String, SyncDestinationError> {
+        let p = self.remote_path.as_str();
+        if p != "~" && !p.starts_with("~/") {
+            return Ok(self.remote_path.clone());
+        }
+        let home = self.remote_home().ok_or_else(|| {
+            SyncDestinationError::ConnectionError(
+                "Failed to resolve remote $HOME for '~' expansion".to_string(),
+            )
+        })?;
+        Ok(if p == "~" {
+            home
+        } else {
+            format!(
+                "{}/{}",
+                home.trim_end_matches('/'),
+                p.trim_start_matches("~/")
+            )
+        })
+    }
+
+    fn remote_file(&self, path: &Path) -> Result<String, SyncDestinationError> {
+        let base = self.resolved_remote_path()?;
+        Ok(format!("{}/{}", base.trim_end_matches('/'), path.display()))
     }
 
     /// Stage output files to a temporary directory
@@ -89,10 +148,12 @@ impl SyncDestination for RemoteDestination {
     }
 
     fn exists(&self, path: &Path) -> bool {
-        let remote_file = format!("{}/{}", self.remote_path, path.display());
+        let Ok(remote_file) = self.remote_file(path) else {
+            return false;
+        };
         Command::new("ssh")
             .arg(&self.host)
-            .arg(format!("test -f '{}'", remote_file))
+            .arg(format!("test -f {}", Self::shell_quote(&remote_file)))
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .status()
@@ -101,10 +162,10 @@ impl SyncDestination for RemoteDestination {
     }
 
     fn read(&self, path: &Path) -> Result<String, SyncDestinationError> {
-        let remote_file = format!("{}/{}", self.remote_path, path.display());
+        let remote_file = self.remote_file(path)?;
         let output = Command::new("ssh")
             .arg(&self.host)
-            .arg(format!("cat '{}'", remote_file))
+            .arg(format!("cat {}", Self::shell_quote(&remote_file)))
             .output()
             .map_err(|e| SyncDestinationError::ConnectionError(e.to_string()))?;
 
@@ -120,10 +181,10 @@ impl SyncDestination for RemoteDestination {
     }
 
     fn hash(&self, path: &Path) -> Result<String, SyncDestinationError> {
-        let remote_file = format!("{}/{}", self.remote_path, path.display());
+        let remote_file = self.remote_file(path)?;
         let output = Command::new("ssh")
             .arg(&self.host)
-            .arg(format!("sha256sum '{}'", remote_file))
+            .arg(format!("sha256sum {}", Self::shell_quote(&remote_file)))
             .output()
             .map_err(|e| SyncDestinationError::ConnectionError(e.to_string()))?;
 
@@ -146,7 +207,7 @@ impl SyncDestination for RemoteDestination {
     }
 
     fn write_file(&self, path: &Path, content: &str) -> Result<(), SyncDestinationError> {
-        let remote_file = format!("{}/{}", self.remote_path, path.display());
+        let remote_file = self.remote_file(path)?;
         let remote_dir = Path::new(&remote_file)
             .parent()
             .map(|p| p.display().to_string())
@@ -155,8 +216,9 @@ impl SyncDestination for RemoteDestination {
         let mut child = Command::new("ssh")
             .arg(&self.host)
             .arg(format!(
-                "mkdir -p '{}' && cat > '{}'",
-                remote_dir, remote_file
+                "mkdir -p {} && cat > {}",
+                Self::shell_quote(&remote_dir),
+                Self::shell_quote(&remote_file)
             ))
             .stdin(Stdio::piped())
             .stdout(Stdio::null())
@@ -186,10 +248,10 @@ impl SyncDestination for RemoteDestination {
     }
 
     fn delete_file(&self, path: &Path) -> Result<(), SyncDestinationError> {
-        let remote_file = format!("{}/{}", self.remote_path, path.display());
+        let remote_file = self.remote_file(path)?;
         let status = Command::new("ssh")
             .arg(&self.host)
-            .arg(format!("rm -f '{}'", remote_file))
+            .arg(format!("rm -f {}", Self::shell_quote(&remote_file)))
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .status()
@@ -235,10 +297,11 @@ impl SyncDestination for RemoteDestination {
         }
 
         // Execute transfer using detected strategy
+        let remote_path = self.resolved_remote_path()?;
         strategy.transfer(
             staging_root,
             &self.host,
-            &self.remote_path,
+            &remote_path,
             &staged_files,
             options,
         )
@@ -249,7 +312,22 @@ impl SyncDestination for RemoteDestination {
     }
 
     fn lockfile_path(&self, _source: &Path) -> PathBuf {
-        self.source.join(".calvin.lock")
+        let source_is_promptpack = self
+            .source
+            .file_name()
+            .map(|n| n == ".promptpack")
+            .unwrap_or(false);
+
+        let project_root = if source_is_promptpack {
+            self.source
+                .parent()
+                .filter(|p| !p.as_os_str().is_empty())
+                .unwrap_or_else(|| Path::new("."))
+        } else {
+            self.source.as_path()
+        };
+
+        project_root.join("calvin.lock")
     }
 }
 
@@ -300,7 +378,7 @@ mod tests {
     fn lockfile_path_is_in_source_dir() {
         let dest = RemoteDestination::new("host:/remote", PathBuf::from("/local/project"));
         let lockfile = dest.lockfile_path(Path::new("/any/path"));
-        assert_eq!(lockfile, PathBuf::from("/local/project/.calvin.lock"));
+        assert_eq!(lockfile, PathBuf::from("/local/project/calvin.lock"));
     }
 
     #[test]
