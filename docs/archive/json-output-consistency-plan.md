@@ -35,10 +35,10 @@ This makes it harder for CI/CD pipelines and tools to parse Calvin's output reli
 
 | ID | Task | Status | File(s) | Acceptance Criteria |
 |----|------|--------|---------|---------------------|
-| 1.1 | Create `events.rs` with shared event types | ⬜ Pending | `src/ui/json/events.rs` | `StartEvent`, `CompleteEvent`, `ErrorEvent`, `ProgressEvent` structs with `#[derive(Serialize)]` |
-| 1.2 | Reorganize `json.rs` into module | ⬜ Pending | `src/ui/json/mod.rs`, `src/ui/json.rs` | Existing `emit()` function works unchanged |
-| 1.3 | Add `emit_event()` helper | ⬜ Pending | `src/ui/json/mod.rs` | Generic function that serializes any `Serialize` and prints with newline |
-| 1.4 | Add unit tests for events | ⬜ Pending | `src/ui/json/tests.rs` | Tests for each event type's JSON format |
+| 1.1 | Create `events.rs` with shared event types | ✅ Done | `src/ui/json/events.rs` | `StartEvent`, `CompleteEvent`, `ErrorEvent`, `ProgressEvent`, `DataEvent` structs with `#[derive(Serialize)]` |
+| 1.2 | Reorganize `json.rs` into module | ✅ Done | `src/ui/json/mod.rs` | Existing `emit()` function works unchanged |
+| 1.3 | Add `emit_event()` helper | ✅ Done | `src/ui/json/mod.rs` | Generic function that serializes any `Serialize` and prints with newline |
+| 1.4 | Add unit tests for events | ✅ Done | `src/ui/json/events.rs`, `src/ui/json/mod.rs` | 11 tests covering all event types and helpers |
 
 ### Phase 2: Migrate Commands (Backward Compatible)
 
@@ -199,12 +199,37 @@ During transition, emit both fields:
 
 ---
 
-## Testing Strategy
+## Development Approach: TDD
+
+All implementation follows Test-Driven Development:
+
+1. **Write failing test first** - Define expected behavior
+2. **Implement minimum code** - Make test pass
+3. **Refactor** - Improve while keeping tests green
+
+### Testing Strategy
 
 1. **Unit tests**: Each event type serializes correctly
 2. **Integration tests**: JSON output can be parsed by jq
 3. **Snapshot tests**: JSON output format is stable
 4. **Property tests**: No invalid JSON is ever produced
+
+### TDD Workflow Example
+
+```bash
+# 1. Write failing test
+cargo test json_events -- --nocapture
+# Expected: FAIL (module doesn't exist)
+
+# 2. Implement minimum code
+# ...edit code...
+
+# 3. Run test again
+cargo test json_events
+# Expected: PASS
+
+# 4. Refactor if needed, keep tests green
+```
 
 ---
 
