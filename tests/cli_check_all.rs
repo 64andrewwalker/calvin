@@ -32,6 +32,7 @@ fn deploy_project(project_dir: &std::path::Path, home: &std::path::Path) {
     let output = Command::new(bin())
         .current_dir(project_dir)
         .env("HOME", home)
+        .env("USERPROFILE", home) // Windows compatibility
         .env("XDG_CONFIG_HOME", home.join(".config"))
         .args(["deploy", "--yes", "--targets", "cursor"])
         .output()
@@ -60,6 +61,7 @@ fn check_all_emits_project_field_in_json_events() {
     let output = Command::new(bin())
         .current_dir(dir.path())
         .env("HOME", &home)
+        .env("USERPROFILE", &home) // Windows compatibility
         .env("XDG_CONFIG_HOME", home.join(".config"))
         .args(["check", "--all", "--json"])
         .output()

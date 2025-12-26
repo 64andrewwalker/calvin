@@ -89,6 +89,7 @@ impl TestEnv {
         cmd.current_dir(cwd)
             .args(args)
             .env("HOME", self.home_dir.path())
+            .env("USERPROFILE", self.home_dir.path()) // Windows compatibility
             .env("XDG_CONFIG_HOME", self.home_dir.path().join(".config"))
             .env("CALVIN_NO_COLOR", "1");
 
