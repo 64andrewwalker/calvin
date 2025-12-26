@@ -28,6 +28,8 @@ fn interactive_can_read_legacy_dot_calvin_config_toml() {
     fs::create_dir_all(&user_layer).unwrap();
     fs::create_dir_all(home.join(".calvin")).unwrap();
 
+    // Use forward slashes in TOML to avoid Windows backslash escaping issues
+    let user_layer_toml_path = user_layer.display().to_string().replace('\\', "/");
     fs::write(
         home.join(".calvin/config.toml"),
         format!(
@@ -35,7 +37,7 @@ fn interactive_can_read_legacy_dot_calvin_config_toml() {
 [sources]
 user_layer_path = "{}"
 "#,
-            user_layer.display()
+            user_layer_toml_path
         ),
     )
     .unwrap();
