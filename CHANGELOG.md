@@ -5,6 +5,65 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0](https://github.com/64andrewwalker/calvin/compare/v0.5.1...v0.6.0) (2025-12-26)
+
+
+### Features
+
+* **clean:** delete empty lockfile after all assets cleaned ([cbfc058](https://github.com/64andrewwalker/calvin/commit/cbfc05883046d91bfcf23200d3c11648a8e202b9))
+* **config:** add validation warnings for invalid environment variables ([2915a78](https://github.com/64andrewwalker/calvin/commit/2915a788fb89b4910714b48536ee6cb63b2d08fb))
+* **config:** add validation warnings for invalid environment variables ([43de992](https://github.com/64andrewwalker/calvin/commit/43de992a4da3fd35bd55430ccbb3eace60b828a5))
+* **deploy:** add --project override ([331e863](https://github.com/64andrewwalker/calvin/commit/331e863e41232f731ec7a8fba1720003cb1c2fa5))
+* **deploy:** add interactive layer selection for multi-layer deploys ([003960f](https://github.com/64andrewwalker/calvin/commit/003960f74b924b8bcc531e92768035530eb2d45d))
+* **errors:** harden registry/lockfile and add migration tests ([243d329](https://github.com/64andrewwalker/calvin/commit/243d3297454db79ac70be3fc8ab1b8d083244a07))
+* **interactive:** add layer selection for deployment ([f62829f](https://github.com/64andrewwalker/calvin/commit/f62829f240febd0667e774eb0cd438de9585ee66))
+* **layers:** add Layer entity ([0051a78](https://github.com/64andrewwalker/calvin/commit/0051a784532bb7ea3c39375368acbbc6eb7e8001))
+* **layers:** add LayerLoader and FsLayerLoader ([479d691](https://github.com/64andrewwalker/calvin/commit/479d691801b08a03bf58543ad4dec025d3536d63))
+* **layers:** add LayerResolver ([5f78847](https://github.com/64andrewwalker/calvin/commit/5f788470ae70082d0acb219472be3254875d14b5))
+* **layers:** deploy from merged multi-layer stack ([395bf55](https://github.com/64andrewwalker/calvin/commit/395bf55d7b8178af7c8e17b8c0a9bd8c638caed2))
+* **layers:** merge assets across layers ([2f56889](https://github.com/64andrewwalker/calvin/commit/2f56889064d9926e73249757ec4a39f7307a6c3c))
+* **lockfile:** migrate to project root with provenance ([a01d360](https://github.com/64andrewwalker/calvin/commit/a01d3603e039e6e1650a887251e6b33fbc53bc68))
+* **registry:** add domain Registry entity ([3ba5f79](https://github.com/64andrewwalker/calvin/commit/3ba5f790c65d30ffe3a223e5d0313c6a38a2b233))
+* **registry:** add projects and clean-all commands ([d9dffc1](https://github.com/64andrewwalker/calvin/commit/d9dffc1c4fc4b473debe29e629c6f496a0e041f7))
+* **registry:** add RegistryRepository port ([f789e13](https://github.com/64andrewwalker/calvin/commit/f789e13d8769cdee65c2c8181059209c96052a43))
+* **registry:** add TOML registry repository ([c3a2440](https://github.com/64andrewwalker/calvin/commit/c3a2440470dd6eb12ffc34b57d9ff45a8fd01a0f))
+* **registry:** register projects on deploy ([66891a9](https://github.com/64andrewwalker/calvin/commit/66891a965f5daf7772bf1d88890d91463ef26fbd))
+* **scripts:** add worktree initialization scripts ([49a5666](https://github.com/64andrewwalker/calvin/commit/49a5666271fc61e86a114eadee937551e7bc9883))
+* **sources:** add config + CLI layer controls ([f5b706e](https://github.com/64andrewwalker/calvin/commit/f5b706e0d27361e49e605e9af57d244fd71bf198))
+* **tests:** add WindowsCompatExt trait for cross-platform test isolation ([60d01d2](https://github.com/64andrewwalker/calvin/commit/60d01d2078f20ff9352719063f86136000ab9eaf))
+* **visibility:** add layers and provenance tooling ([6ab9a35](https://github.com/64andrewwalker/calvin/commit/6ab9a350e3344f3eb43b9f114a6d967311811206))
+* **visibility:** enhance layer stack display with provenance and tilde paths ([96178a6](https://github.com/64andrewwalker/calvin/commit/96178a681dc17854dd68625286032afa3345d32d))
+
+
+### Bug Fixes
+
+* Add `USERPROFILE` environment variable for Windows compatibility in tests, Sensei. ([f97f7cf](https://github.com/64andrewwalker/calvin/commit/f97f7cf86e6b1541327b4b8af919fa4921c4cebf))
+* centralize documentation URLs in docs module ([0cd2d40](https://github.com/64andrewwalker/calvin/commit/0cd2d40c26b41a6ba071cb4a7414b5c213da1b73))
+* **clean:** interactive choose project vs home ([cdedded](https://github.com/64andrewwalker/calvin/commit/cdeddedd68b6c3ae695e36bfc66e7a1f082e5ccc))
+* **config:** add CALVIN_USER_CONFIG_PATH for Windows CI compatibility ([9e48e8a](https://github.com/64andrewwalker/calvin/commit/9e48e8a5508fc2ee2f6c1f74ad5c293b2caea514))
+* **config:** add CALVIN_XDG_CONFIG_PATH for Windows CI compatibility ([6a31290](https://github.com/64andrewwalker/calvin/commit/6a312909e70fd8b71d4b21c1c1bd676d31a5cbfa))
+* **deploy:** respect project root and exit codes ([175bf3c](https://github.com/64andrewwalker/calvin/commit/175bf3c3ea3a0e2adc2a3d42f2bef75a5eb1850b))
+* **home:** global lockfile for --home deploy/clean ([189cc23](https://github.com/64andrewwalker/calvin/commit/189cc23596d3e8be4cc62abfb70ba1ebb0107783))
+* **interactive:** add global_layers_only state alias ([31a6066](https://github.com/64andrewwalker/calvin/commit/31a6066e8910a10fea43911a2bd459ce64aa9a8d))
+* **interactive:** detect user layer when no project .promptpack exists ([7a71032](https://github.com/64andrewwalker/calvin/commit/7a7103229ef0704f00a5e665190da446c5b90fa5))
+* **multi-layer:** align diff + targets merge with PRD ([96a48dd](https://github.com/64andrewwalker/calvin/commit/96a48dde01c3a46708b1c4e7b52cee3d8f78594a))
+* **multi-layer:** interactive sources, layered promptpack config, init schema ([813a370](https://github.com/64andrewwalker/calvin/commit/813a370bdf66e1d66f9e8aedc732a851462491b5))
+* **multi-layer:** project-root lockfile, layered targets, interactive menu ([9c02632](https://github.com/64andrewwalker/calvin/commit/9c02632430153f9e349ad6a59938e95247856588))
+* **multi-layer:** remote ~, diff/watch project_root, config merge ([8b92b51](https://github.com/64andrewwalker/calvin/commit/8b92b5115bfc83a7a1c91cb285687cff851faeb8))
+* **multi-layer:** watch stack, disable project layer, legacy config ([0e995e0](https://github.com/64andrewwalker/calvin/commit/0e995e0c946cb84b616bef80238229470f255df6))
+* normalize path separators for Windows CI ([61720a7](https://github.com/64andrewwalker/calvin/commit/61720a7e56d1921e1a2f0002a63a607d172e4ef8))
+* **setup:** enhance lockfile hash retrieval for cross-platform compatibility ([4bbb2cd](https://github.com/64andrewwalker/calvin/commit/4bbb2cd13d1619b05ed9d92fb0eb8a0d3a8b219c))
+* **test:** escape Windows paths in TOML config for legacy user config test ([75da682](https://github.com/64andrewwalker/calvin/commit/75da6823d49fa267d18083030cc61488e957e308))
+* **test:** escape Windows paths in TOML config for user_layer_path_config test ([29f546c](https://github.com/64andrewwalker/calvin/commit/29f546c0bc32b81e5fdf32afdaa56ff887fb7f95))
+* **tests:** add Windows CI compatibility for directory path tests ([85149f7](https://github.com/64andrewwalker/calvin/commit/85149f73b6cb97c38cf5afae8b2c2e188135ef33))
+* **tests:** handle Windows path separators in JSON output assertions ([2feb18f](https://github.com/64andrewwalker/calvin/commit/2feb18f9ade1b4a715f3d069b03c27e1bae07615))
+* **tests:** use forward slashes in TOML paths for Windows compatibility ([c723cd7](https://github.com/64andrewwalker/calvin/commit/c723cd72062eb310a9963feec5ae0059d4ead8ac))
+* **test:** update test configuration to enhance ci stability ([940b999](https://github.com/64andrewwalker/calvin/commit/940b9996ed685f2ecd0e896986b26d0bda436470))
+* **ui:** use actual asset_count in deploy summary instead of estimate ([ba84d11](https://github.com/64andrewwalker/calvin/commit/ba84d112990f08f93a39680f0a452eb799479f3c))
+* **watch:** process notify events correctly ([5b17642](https://github.com/64andrewwalker/calvin/commit/5b1764205f151569670077a881e09a150b58aaba))
+* **windows:** complete home directory unification for test isolation ([bf61a22](https://github.com/64andrewwalker/calvin/commit/bf61a22827f754b2a28c9f589f97e2e44c068964))
+* **windows:** unify home directory resolution with calvin_home_dir() ([22c52b5](https://github.com/64andrewwalker/calvin/commit/22c52b5a0c49cc6e09249a42bf5206b50e99d3fd))
+
 ## [Unreleased]
 
 ### Added
