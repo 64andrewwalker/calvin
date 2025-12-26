@@ -82,7 +82,15 @@ pub fn load_or_default_with_warnings(
     // Prefer XDG config (`~/.config/calvin/config.toml`), but support legacy
     // `~/.calvin/config.toml` as an alternative (PRD note).
     let xdg_user_config_path = dirs_config_dir().map(|d| d.join("calvin/config.toml"));
-    let legacy_user_config_path = dirs::home_dir().map(|h| h.join(".calvin/config.toml"));
+
+    // Allow override for testing (especially on Windows where dirs::home_dir
+    // uses system API and cannot be overridden via environment variables).
+    // Fallback to legacy path if the override is not set.
+    let legacy_user_config_path = std::env::var("CALVIN_USER_CONFIG_PATH")
+        .ok()
+        .map(PathBuf::from)
+        .or_else(|| dirs::home_dir().map(|h| h.join(".calvin/config.toml")));
+
     let user_config_path = xdg_user_config_path
         .as_ref()
         .filter(|p| p.exists())

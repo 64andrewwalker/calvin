@@ -89,6 +89,7 @@ impl TestEnv {
         let calvin_dir = self.home_dir.path().join(".calvin");
         let registry_path = calvin_dir.join("registry.toml");
         let user_layer_path = calvin_dir.join(".promptpack");
+        let user_config_path = calvin_dir.join("config.toml");
 
         let mut cmd = Command::new(&self.calvin_bin);
         cmd.current_dir(cwd)
@@ -99,6 +100,7 @@ impl TestEnv {
             // Windows-specific: override paths that use dirs::home_dir
             .env("CALVIN_REGISTRY_PATH", &registry_path)
             .env("CALVIN_SOURCES_USER_LAYER_PATH", &user_layer_path)
+            .env("CALVIN_USER_CONFIG_PATH", &user_config_path)
             .env("CALVIN_NO_COLOR", "1");
 
         for (key, value) in env_vars {

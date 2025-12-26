@@ -33,6 +33,7 @@ pub trait WindowsCompatExt {
     /// - `XDG_CONFIG_HOME` (XDG standard)
     /// - `CALVIN_REGISTRY_PATH` (overrides `dirs::home_dir()` for registry)
     /// - `CALVIN_SOURCES_USER_LAYER_PATH` (overrides `dirs::home_dir()` for user layer)
+    /// - `CALVIN_USER_CONFIG_PATH` (overrides `dirs::home_dir()` for legacy user config)
     fn with_test_home(&mut self, home: &Path) -> &mut Self;
 }
 
@@ -41,12 +42,14 @@ impl WindowsCompatExt for Command {
         let calvin_dir = home.join(".calvin");
         let registry_path = calvin_dir.join("registry.toml");
         let user_layer_path = calvin_dir.join(".promptpack");
+        let user_config_path = calvin_dir.join("config.toml");
 
         self.env("HOME", home)
             .env("USERPROFILE", home)
             .env("XDG_CONFIG_HOME", home.join(".config"))
             .env("CALVIN_REGISTRY_PATH", &registry_path)
             .env("CALVIN_SOURCES_USER_LAYER_PATH", &user_layer_path)
+            .env("CALVIN_USER_CONFIG_PATH", &user_config_path)
     }
 }
 
