@@ -16,7 +16,7 @@ use crate::domain::ports::LockfileRepository;
 ///
 /// Returns `None` if the home directory cannot be resolved.
 pub fn global_lockfile_path() -> Option<PathBuf> {
-    dirs::home_dir().map(|h| h.join(".calvin/calvin.lock"))
+    crate::infrastructure::calvin_home_dir().map(|h| h.join(".calvin/calvin.lock"))
 }
 
 /// Resolve the lockfile path for a project and migrate legacy lockfile if present.

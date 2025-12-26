@@ -289,7 +289,7 @@ pub fn cmd_diff(source: &Path, home: bool, json: bool) -> Result<()> {
 
     // Determine compare root for reading existing content
     let compare_root = if scope == Scope::User {
-        dirs::home_dir().unwrap_or_default()
+        calvin::infrastructure::calvin_home_dir().unwrap_or_default()
     } else {
         project_root
     };

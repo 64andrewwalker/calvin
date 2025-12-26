@@ -1111,5 +1111,5 @@ struct LayeredAssets {
 }
 
 fn default_user_layer_path() -> Option<PathBuf> {
-    dirs::home_dir().map(|h| h.join(".calvin/.promptpack"))
+    crate::infrastructure::calvin_home_dir().map(|h| h.join(".calvin/.promptpack"))
 }

@@ -204,7 +204,7 @@ impl Default for SourcesConfig {
 }
 
 pub fn default_user_layer_path() -> PathBuf {
-    dirs::home_dir()
+    crate::infrastructure::calvin_home_dir()
         .map(|h| h.join(".calvin/.promptpack"))
         .unwrap_or_else(|| PathBuf::from("~/.calvin/.promptpack"))
 }
