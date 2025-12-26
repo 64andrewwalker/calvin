@@ -1,8 +1,11 @@
 //! Integration tests for `calvin projects` (Phase 2: Global Registry)
 
+mod common;
+
 use std::fs;
 use std::process::Command;
 
+use common::WindowsCompatExt;
 use tempfile::tempdir;
 
 fn bin() -> &'static str {
@@ -34,8 +37,7 @@ POLICY
 
     let output = Command::new(bin())
         .current_dir(project_dir)
-        .env("HOME", home)
-        .env("XDG_CONFIG_HOME", home.join(".config"))
+        .with_test_home(home)
         .args(["deploy", "--yes", "--targets", "cursor"])
         .output()
         .unwrap();
@@ -63,8 +65,7 @@ fn projects_lists_registered_projects() {
 
     let output = Command::new(bin())
         .current_dir(dir.path())
-        .env("HOME", &home)
-        .env("XDG_CONFIG_HOME", home.join(".config"))
+        .with_test_home(&home)
         .args(["--json", "projects"])
         .output()
         .unwrap();
@@ -120,8 +121,7 @@ fn projects_prune_removes_entries_with_missing_lockfile() {
 
     let output = Command::new(bin())
         .current_dir(dir.path())
-        .env("HOME", &home)
-        .env("XDG_CONFIG_HOME", home.join(".config"))
+        .with_test_home(&home)
         .args(["--json", "projects", "--prune"])
         .output()
         .unwrap();

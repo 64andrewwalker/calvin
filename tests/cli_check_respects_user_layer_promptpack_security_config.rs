@@ -3,9 +3,12 @@
 //! PRD: `~/.calvin/.promptpack/config.toml` participates in config merge across layers.
 //! Security settings from the user layer should be visible to `calvin check` (doctor).
 
+mod common;
+
 use std::fs;
 use std::process::Command;
 
+use common::WindowsCompatExt;
 use tempfile::tempdir;
 
 fn bin() -> &'static str {
@@ -37,8 +40,7 @@ allow_naked = true
 
     let output = Command::new(bin())
         .current_dir(project_dir)
-        .env("HOME", &home)
-        .env("XDG_CONFIG_HOME", home.join(".config"))
+        .with_test_home(&home)
         .args(["--json", "check"])
         .output()
         .unwrap();

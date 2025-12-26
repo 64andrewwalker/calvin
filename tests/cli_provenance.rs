@@ -1,8 +1,11 @@
 //! Integration tests for `calvin provenance` (Phase 4)
 
+mod common;
+
 use std::fs;
 use std::process::Command;
 
+use common::WindowsCompatExt;
 use tempfile::tempdir;
 
 fn bin() -> &'static str {
@@ -55,8 +58,7 @@ PROJECT SHARED
 
     let deploy = Command::new(bin())
         .current_dir(project_dir)
-        .env("HOME", &home)
-        .env("XDG_CONFIG_HOME", home.join(".config"))
+        .with_test_home(&home)
         .args(["deploy", "--yes", "--targets", "cursor"])
         .output()
         .unwrap();
@@ -69,8 +71,7 @@ PROJECT SHARED
 
     let output = Command::new(bin())
         .current_dir(project_dir)
-        .env("HOME", &home)
-        .env("XDG_CONFIG_HOME", home.join(".config"))
+        .with_test_home(&home)
         .args(["--json", "provenance"])
         .output()
         .unwrap();

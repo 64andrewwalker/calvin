@@ -1,8 +1,11 @@
 //! End-to-end test: corrupted registry should surface a helpful error (not silently empty).
 
+mod common;
+
 use std::fs;
 use std::process::Command;
 
+use common::WindowsCompatExt;
 use tempfile::tempdir;
 
 #[test]
@@ -20,7 +23,7 @@ fn projects_errors_when_registry_is_corrupted() {
     let bin = env!("CARGO_BIN_EXE_calvin");
     let output = Command::new(bin)
         .current_dir(project_dir)
-        .env("HOME", &fake_home)
+        .with_test_home(&fake_home)
         .args(["projects"])
         .output()
         .unwrap();

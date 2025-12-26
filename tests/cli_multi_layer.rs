@@ -1,8 +1,11 @@
 //! Integration tests for multi-layer promptpack behavior (Phase 1)
 
+mod common;
+
 use std::fs;
 use std::process::Command;
 
+use common::WindowsCompatExt;
 use tempfile::tempdir;
 
 fn write_asset(promptpack: &std::path::Path, filename: &str, body: &str) {
@@ -68,8 +71,7 @@ PROJECT SHARED
     let bin = env!("CARGO_BIN_EXE_calvin");
     let output = Command::new(bin)
         .current_dir(project_dir)
-        .env("HOME", &fake_home)
-        .env("XDG_CONFIG_HOME", fake_home.join(".config"))
+        .with_test_home(&fake_home)
         .args(["deploy", "--yes", "--targets", "cursor"])
         .output()
         .unwrap();
@@ -135,8 +137,7 @@ SOLO USER
     let bin = env!("CARGO_BIN_EXE_calvin");
     let output = Command::new(bin)
         .current_dir(project_dir)
-        .env("HOME", &fake_home)
-        .env("XDG_CONFIG_HOME", fake_home.join(".config"))
+        .with_test_home(&fake_home)
         .args(["deploy", "--yes", "--targets", "cursor"])
         .output()
         .unwrap();

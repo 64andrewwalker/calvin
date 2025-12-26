@@ -5,9 +5,12 @@
 //! - Single-line merged summary
 //! - Title: "Layer Stack (highest priority first)" or similar
 
+mod common;
+
 use std::fs;
 use std::process::Command;
 
+use common::WindowsCompatExt;
 use tempfile::tempdir;
 
 fn bin() -> &'static str {
@@ -56,8 +59,7 @@ Local content
 
     let output = Command::new(bin())
         .current_dir(project_dir)
-        .env("HOME", &fake_home)
-        .env("XDG_CONFIG_HOME", fake_home.join(".config"))
+        .with_test_home(&fake_home)
         .args(["layers"])
         .output()
         .unwrap();
@@ -116,8 +118,7 @@ targets: [cursor]
 
     let output = Command::new(bin())
         .current_dir(project_dir)
-        .env("HOME", &fake_home)
-        .env("XDG_CONFIG_HOME", fake_home.join(".config"))
+        .with_test_home(&fake_home)
         .args(["layers"])
         .output()
         .unwrap();
@@ -180,8 +181,7 @@ targets: [cursor]
 
     let output = Command::new(bin())
         .current_dir(project_dir)
-        .env("HOME", &fake_home)
-        .env("XDG_CONFIG_HOME", fake_home.join(".config"))
+        .with_test_home(&fake_home)
         .args(["layers"])
         .output()
         .unwrap();

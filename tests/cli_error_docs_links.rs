@@ -1,36 +1,19 @@
 //! TDD Test: Error messages should include documentation links (PRD §13.1)
 
-use std::fs;
-use std::process::Command;
+mod common;
 
-use tempfile::tempdir;
-
-fn bin() -> &'static str {
-    env!("CARGO_BIN_EXE_calvin")
-}
+use common::env::TestEnv;
 
 #[test]
 fn no_layers_error_includes_docs_link() {
-    let dir = tempdir().unwrap();
-    let project_dir = dir.path();
-
-    // Setup: fake git repo, fake home with no user layer
-    fs::create_dir_all(project_dir.join(".git")).unwrap();
-    let fake_home = project_dir.join("fake_home");
-    fs::create_dir_all(&fake_home).unwrap();
+    let env = TestEnv::builder().fresh_environment().build();
 
     // NO .promptpack, NO user layer -> should error with "no layers found"
-    let output = Command::new(bin())
-        .current_dir(project_dir)
-        .env("HOME", &fake_home)
-        .env("XDG_CONFIG_HOME", fake_home.join(".config"))
-        .args(["layers"])
-        .output()
-        .unwrap();
+    let output = env.run(&["layers"]);
 
-    assert!(!output.status.success());
+    assert!(!output.success);
 
-    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stderr = output.stderr;
 
     // Should include a docs link
     assert!(
@@ -51,27 +34,16 @@ fn no_layers_error_includes_docs_link() {
 
 #[test]
 fn registry_corrupted_error_includes_docs_link() {
-    let dir = tempdir().unwrap();
-    let project_dir = dir.path();
-
-    let fake_home = project_dir.join("fake_home");
-    fs::create_dir_all(&fake_home).unwrap();
+    let env = TestEnv::builder().fresh_environment().build();
 
     // Create corrupted registry
-    let registry_path = fake_home.join(".calvin/registry.toml");
-    fs::create_dir_all(registry_path.parent().unwrap()).unwrap();
-    fs::write(&registry_path, "not valid toml = = =").unwrap();
+    env.write_home_file(".calvin/registry.toml", "not valid toml = = =");
 
-    let output = Command::new(bin())
-        .current_dir(project_dir)
-        .env("HOME", &fake_home)
-        .args(["projects"])
-        .output()
-        .unwrap();
+    let output = env.run(&["projects"]);
 
-    assert!(!output.status.success());
+    assert!(!output.success);
 
-    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stderr = output.stderr;
 
     // Should include helpful information
     assert!(

@@ -1,8 +1,11 @@
 //! Integration tests for `calvin init --user` (Phase 3: Configuration & CLI)
 
+mod common;
+
 use std::fs;
 use std::process::Command;
 
+use common::WindowsCompatExt;
 use tempfile::tempdir;
 
 fn bin() -> &'static str {
@@ -17,8 +20,7 @@ fn init_user_creates_user_layer_promptpack() {
 
     let output = Command::new(bin())
         .current_dir(dir.path())
-        .env("HOME", &home)
-        .env("XDG_CONFIG_HOME", home.join(".config"))
+        .with_test_home(&home)
         .args(["init", "--user", "--json"])
         .output()
         .unwrap();
@@ -49,8 +51,7 @@ fn init_user_fails_if_user_layer_exists_without_force() {
 
     let output = Command::new(bin())
         .current_dir(dir.path())
-        .env("HOME", &home)
-        .env("XDG_CONFIG_HOME", home.join(".config"))
+        .with_test_home(&home)
         .args(["init", "--user", "--json"])
         .output()
         .unwrap();

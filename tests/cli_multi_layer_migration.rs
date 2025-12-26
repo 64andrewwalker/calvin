@@ -1,8 +1,11 @@
 //! Integration tests for asset provenance when an asset migrates between layers.
 
+mod common;
+
 use std::fs;
 use std::process::Command;
 
+use common::WindowsCompatExt;
 use tempfile::tempdir;
 
 fn write_asset(promptpack: &std::path::Path, filename: &str, body: &str) {
@@ -47,8 +50,7 @@ PROJECT REVIEW
     let bin = env!("CARGO_BIN_EXE_calvin");
     let output = Command::new(bin)
         .current_dir(project_dir)
-        .env("HOME", &fake_home)
-        .env("XDG_CONFIG_HOME", fake_home.join(".config"))
+        .with_test_home(&fake_home)
         .args(["deploy", "--yes", "--targets", "cursor"])
         .output()
         .unwrap();
@@ -88,8 +90,7 @@ USER REVIEW
 
     let output = Command::new(bin)
         .current_dir(project_dir)
-        .env("HOME", &fake_home)
-        .env("XDG_CONFIG_HOME", fake_home.join(".config"))
+        .with_test_home(&fake_home)
         .args(["deploy", "--yes", "--targets", "cursor"])
         .output()
         .unwrap();
@@ -143,8 +144,7 @@ USER REVIEW
     let bin = env!("CARGO_BIN_EXE_calvin");
     let output = Command::new(bin)
         .current_dir(project_dir)
-        .env("HOME", &fake_home)
-        .env("XDG_CONFIG_HOME", fake_home.join(".config"))
+        .with_test_home(&fake_home)
         .args(["deploy", "--yes", "--targets", "cursor"])
         .output()
         .unwrap();
@@ -185,8 +185,7 @@ PROJECT REVIEW
 
     let output = Command::new(bin)
         .current_dir(project_dir)
-        .env("HOME", &fake_home)
-        .env("XDG_CONFIG_HOME", fake_home.join(".config"))
+        .with_test_home(&fake_home)
         .args(["deploy", "--yes", "--targets", "cursor"])
         .output()
         .unwrap();
