@@ -64,6 +64,7 @@ jobs:
       - name: Copy docs content
         run: |
           # 清理目标目录
+          mkdir -p fumadocs/content/docs
           rm -rf fumadocs/content/docs/*
           rm -f fumadocs/content/_home.mdx
           rm -f fumadocs/content/site.config.json

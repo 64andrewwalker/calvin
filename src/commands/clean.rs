@@ -22,6 +22,12 @@ use calvin::infrastructure::{LocalFs, TomlLockfileRepository};
 use calvin::presentation::ColorWhen;
 
 use crate::ui::context::UiContext;
+use crate::ui::json::emit_event;
+use crate::ui::json::events::{
+    CleanAllCompleteEvent, CleanAllStartEvent, CleanCompleteEvent, CleanErrorEvent,
+    CleanStartEvent, FileDeletedEvent, FileSkippedEvent, ProjectCompleteEvent, ProjectErrorEvent,
+    ProjectSkippedEvent,
+};
 use crate::ui::views::clean::{render_clean_header, render_clean_preview, render_clean_result};
 use crate::ui::widgets::tree_menu::{build_tree_from_lockfile, run_interactive, TreeMenu};
 
@@ -193,9 +199,7 @@ pub fn cmd_clean(
     // Check if lockfile exists
     if !fs.exists(&lockfile_path) {
         if json {
-            println!(
-                r#"{{"type":"clean_complete","deleted":0,"skipped":0,"message":"No lockfile found"}}"#
-            );
+            emit_event(&CleanCompleteEvent::new(0, 0, 0).with_message("No lockfile found"))?;
         } else {
             match scope {
                 Some(Scope::User) => {
@@ -238,10 +242,7 @@ pub fn cmd_clean(
         Ok(lockfile) => lockfile,
         Err(e) => {
             if json {
-                println!(
-                    r#"{{"type":"clean_error","kind":"lockfile","message":"{}"}}"#,
-                    e.to_string().replace('"', "\\\"")
-                );
+                emit_event(&CleanErrorEvent::lockfile_error(e.to_string()))?;
                 return Ok(());
             }
             return Err(e.into());
@@ -250,9 +251,7 @@ pub fn cmd_clean(
 
     if lockfile.is_empty() {
         if json {
-            println!(
-                r#"{{"type":"clean_complete","deleted":0,"skipped":0,"message":"No files to clean"}}"#
-            );
+            emit_event(&CleanCompleteEvent::new(0, 0, 0).with_message("No files to clean"))?;
         } else {
             println!("No files to clean. Lockfile is empty.");
         }
@@ -336,7 +335,7 @@ fn cmd_clean_all(
 
     if projects.is_empty() {
         if json {
-            println!(r#"{{"type":"clean_all_complete","projects":0}}"#);
+            emit_event(&CleanAllCompleteEvent::empty())?;
         } else {
             println!(
                 "{} {}",
@@ -353,10 +352,7 @@ fn cmd_clean_all(
     }
 
     if json {
-        println!(
-            r#"{{"type":"clean_all_start","projects":{}}}"#,
-            projects.len()
-        );
+        emit_event(&CleanAllStartEvent::new(projects.len()))?;
     } else {
         let mut header = CommandHeader::new(Icon::Trash, "Calvin Clean All");
         header.add("Projects", projects.len().to_string());
@@ -426,10 +422,9 @@ fn cmd_clean_all(
         if !project.lockfile.exists() {
             error_count += 1;
             if json {
-                println!(
-                    r#"{{"type":"project_skipped","path":"{}","reason":"missing_lockfile"}}"#,
-                    project.path.display()
-                );
+                emit_event(&ProjectSkippedEvent::missing_lockfile(
+                    project.path.display().to_string(),
+                ))?;
             } else {
                 list.update(idx, ItemStatus::Warning);
                 list.update_detail(idx, "missing lockfile".to_string());
@@ -440,11 +435,10 @@ fn cmd_clean_all(
         if let Err(e) = std::env::set_current_dir(&project.path) {
             error_count += 1;
             if json {
-                println!(
-                    r#"{{"type":"project_error","path":"{}","error":"{}"}}"#,
-                    project.path.display(),
-                    e.to_string().replace('\\', "\\\\").replace('"', "\\\"")
-                );
+                emit_event(&ProjectErrorEvent::new(
+                    project.path.display().to_string(),
+                    e.to_string(),
+                ))?;
             } else {
                 list.update(idx, ItemStatus::Error);
                 list.update_detail(idx, "chdir failed".to_string());
@@ -462,13 +456,12 @@ fn cmd_clean_all(
 
         if result.is_success() {
             if json {
-                println!(
-                    r#"{{"type":"project_complete","path":"{}","deleted":{},"skipped":{},"errors":{}}}"#,
-                    project.path.display(),
+                emit_event(&ProjectCompleteEvent::new(
+                    project.path.display().to_string(),
                     result.deleted.len(),
                     result.skipped.len(),
-                    result.error_count()
-                );
+                    result.error_count(),
+                ))?;
             } else {
                 list.update(idx, ItemStatus::Success);
                 list.update_detail(idx, format!("{} files", result.deleted.len()));
@@ -476,13 +469,12 @@ fn cmd_clean_all(
         } else {
             error_count += 1;
             if json {
-                println!(
-                    r#"{{"type":"project_complete","path":"{}","deleted":{},"skipped":{},"errors":{}}}"#,
-                    project.path.display(),
+                emit_event(&ProjectCompleteEvent::new(
+                    project.path.display().to_string(),
                     result.deleted.len(),
                     result.skipped.len(),
-                    result.error_count()
-                );
+                    result.error_count(),
+                ))?;
             } else {
                 list.update(idx, ItemStatus::Error);
                 list.update_detail(idx, "errors".to_string());
@@ -495,12 +487,11 @@ fn cmd_clean_all(
     let _ = std::env::set_current_dir(&original_cwd);
 
     if json {
-        println!(
-            r#"{{"type":"clean_all_complete","projects":{},"deleted":{},"errors":{}}}"#,
+        emit_event(&CleanAllCompleteEvent::new(
             projects.len(),
             total_deleted,
-            error_count
-        );
+            error_count,
+        ))?;
         if error_count > 0 {
             std::process::exit(1);
         }
@@ -651,37 +642,31 @@ fn run_interactive_clean(
 
 /// Output results as JSON
 fn output_json(result: &CleanResult, scope: Option<Scope>) {
-    println!(
-        r#"{{"type":"clean_start","scope":"{}","file_count":{}}}"#,
-        scope
-            .map(|s| format!("{:?}", s))
-            .unwrap_or_else(|| "all".to_string()),
-        result.total_count()
-    );
+    let scope_str = scope
+        .map(|s| format!("{:?}", s))
+        .unwrap_or_else(|| "all".to_string());
+
+    let _ = emit_event(&CleanStartEvent::new(&scope_str, result.total_count()));
+
     for deleted in &result.deleted {
-        // Escape path for JSON
-        let path_str = deleted.path.display().to_string().replace('\\', "\\\\");
-        let key_str = deleted.key.replace('\\', "\\\\").replace('"', "\\\"");
-        println!(
-            r#"{{"type":"file_deleted","path":"{}","key":"{}"}}"#,
-            path_str, key_str
-        );
+        let _ = emit_event(&FileDeletedEvent::new(
+            deleted.path.display().to_string(),
+            deleted.key.clone(),
+        ));
     }
     for skipped in &result.skipped {
-        // Escape path for JSON
-        let path_str = skipped.path.display().to_string().replace('\\', "\\\\");
-        let key_str = skipped.key.replace('\\', "\\\\").replace('"', "\\\"");
-        println!(
-            r#"{{"type":"file_skipped","path":"{}","key":"{}","reason":"{}"}}"#,
-            path_str, key_str, skipped.reason
-        );
+        let _ = emit_event(&FileSkippedEvent::new(
+            skipped.path.display().to_string(),
+            skipped.key.clone(),
+            skipped.reason.to_string(),
+        ));
     }
-    println!(
-        r#"{{"type":"clean_complete","deleted":{},"skipped":{},"errors":{}}}"#,
+
+    let _ = emit_event(&CleanCompleteEvent::new(
         result.deleted.len(),
         result.skipped.len(),
-        result.error_count()
-    );
+        result.error_count(),
+    ));
 }
 
 /// Output interactive results

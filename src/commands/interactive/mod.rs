@@ -86,12 +86,14 @@ pub fn cmd_interactive(
 
         let output = match state {
             ProjectState::NoPromptPack => serde_json::json!({
-                "event": "interactive",
+                "event": "data",
+                "command": "interactive",
                 "state": "no_promptpack",
                 "layers": layers_json,
             }),
             ProjectState::GlobalLayersOnly(count) => serde_json::json!({
-                "event": "interactive",
+                "event": "data",
+                "command": "interactive",
                 // Canonical state name (more accurate than the legacy name below).
                 "state": "global_layers_only",
                 // Backward-compatibility alias for older consumers.
@@ -100,12 +102,14 @@ pub fn cmd_interactive(
                 "layers": layers_json,
             }),
             ProjectState::EmptyPromptPack => serde_json::json!({
-                "event": "interactive",
+                "event": "data",
+                "command": "interactive",
                 "state": "empty_promptpack",
                 "layers": layers_json,
             }),
             ProjectState::Configured(count) => serde_json::json!({
-                "event": "interactive",
+                "event": "data",
+                "command": "interactive",
                 "state": "configured",
                 "assets": { "total": count.total },
                 "layers": layers_json,

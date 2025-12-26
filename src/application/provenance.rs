@@ -33,7 +33,11 @@ pub fn to_json(lockfile: &Lockfile, filter: Option<&str>) -> anyhow::Result<Stri
         })
         .collect();
 
+    // Event envelope with backward compatibility
     let out = serde_json::json!({
+        "event": "data",
+        "command": "provenance",
+        // Deprecated: Use `event` instead. Kept for backward compatibility.
         "type": "provenance",
         "count": entries.len(),
         "entries": entries,

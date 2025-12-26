@@ -267,20 +267,22 @@ calvin clean --force --yes          # Force delete all (skip checks)
 **JSON Output:**
 
 ```json
-{"type":"clean_start","scope":"all","file_count":5}
-{"type":"file_deleted","path":"~/.claude/commands/workflow.md","key":"home:~/.claude/commands/workflow.md"}
-{"type":"file_skipped","path":"~/.cursor/rules/style.mdc","key":"home:~/.cursor/rules/style.mdc","reason":"modified"}
-{"type":"clean_complete","deleted":3,"skipped":2,"errors":0}
+{"event":"start","command":"clean","type":"clean_start","scope":"all","file_count":5}
+{"event":"progress","command":"clean","type":"file_deleted","path":"~/.claude/commands/workflow.md","key":"home:~/.claude/commands/workflow.md"}
+{"event":"progress","command":"clean","type":"file_skipped","path":"~/.cursor/rules/style.mdc","key":"home:~/.cursor/rules/style.mdc","reason":"modified"}
+{"event":"complete","command":"clean","type":"clean_complete","deleted":3,"skipped":2,"errors":0}
 ```
+
+> **Note**: The `type` field is deprecated and will be removed in v1.0. Use `event` + `command` instead.
 
 **Registry-Wide Clean (`--all`) JSON Output:**
 
 ```json
-{"type":"clean_all_start","projects":3}
-{"type":"project_complete","path":"/path/to/project-a","deleted":5,"skipped":0,"errors":0}
-{"type":"project_complete","path":"/path/to/project-b","deleted":3,"skipped":1,"errors":0}
-{"type":"project_skipped","path":"/path/to/project-c","reason":"missing_lockfile"}
-{"type":"clean_all_complete","projects":3,"deleted":8,"errors":1}
+{"event":"start","command":"clean","type":"clean_all_start","projects":3}
+{"event":"progress","command":"clean","type":"project_complete","path":"/path/to/project-a","deleted":5,"skipped":0,"errors":0}
+{"event":"progress","command":"clean","type":"project_complete","path":"/path/to/project-b","deleted":3,"skipped":1,"errors":0}
+{"event":"progress","command":"clean","type":"project_skipped","path":"/path/to/project-c","reason":"missing_lockfile"}
+{"event":"complete","command":"clean","type":"clean_all_complete","projects":3,"deleted":8,"errors":1}
 ```
 
 ---
@@ -315,6 +317,8 @@ calvin projects --json         # JSON output for scripting
 
 ```json
 {
+  "event": "data",
+  "command": "projects",
   "type": "projects",
   "count": 2,
   "projects": [
@@ -336,6 +340,8 @@ calvin projects --json         # JSON output for scripting
   "pruned": []
 }
 ```
+
+> **Note**: The `type` field is deprecated. Use `event` + `command` instead.
 
 ---
 
@@ -362,6 +368,8 @@ calvin layers --json         # JSON output for scripting
 
 ```json
 {
+  "event": "data",
+  "command": "layers",
   "layers": [
     {
       "name": "project",
@@ -415,6 +423,8 @@ calvin provenance --json        # JSON output
 
 ```json
 {
+  "event": "data",
+  "command": "provenance",
   "type": "provenance",
   "count": 2,
   "entries": [
@@ -431,6 +441,8 @@ calvin provenance --json        # JSON output
   ]
 }
 ```
+
+> **Note**: The `type` field is deprecated. Use `event` + `command` instead.
 
 ---
 
@@ -509,4 +521,5 @@ Debug/placeholder commands (no stable API yet): `calvin parse`, `calvin migrate`
 ## See Also
 
 - [Configuration](configuration.md) - Configuration file reference
+- [JSON Output](json-output.md) - JSON output format and event protocol
 - [Architecture](architecture.md) - System design overview

@@ -85,12 +85,16 @@ fn emit_json(
         .map(|p| p.display().to_string())
         .collect();
 
+    // New consistent event format with backward compatibility
     let out = serde_json::json!({
+        "event": "data",
+        "command": "projects",
+        // Deprecated: Use `event` instead. Kept for backward compatibility.
         "type": "projects",
         "count": items.len(),
         "projects": items,
         "pruned": pruned_paths,
     });
 
-    println!("{}", out);
+    let _ = crate::ui::json::emit(out);
 }
