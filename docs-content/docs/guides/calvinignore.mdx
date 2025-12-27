@@ -1,0 +1,146 @@
+---
+title: .calvinignore
+description: Exclude files and directories from PromptPack processing using gitignore-style patterns
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+
+# .calvinignore
+
+Calvin supports a `.calvinignore` file for excluding specific files or directories from PromptPack processing. The syntax follows **gitignore** conventions.
+
+## Quick Start
+
+Create a `.calvinignore` file in your `.promptpack/` directory:
+
+```text
+# Ignore draft policies
+drafts/
+
+# Ignore backup files
+*.bak
+*.tmp
+
+# Ignore work-in-progress skills
+skills/experimental/
+```
+
+## Location
+
+Place `.calvinignore` at the root of each layer:
+
+```text
+~/.calvin/.promptpack/.calvinignore    # User layer
+/path/to/team/.promptpack/.calvinignore  # Custom layers
+./promptpack/.calvinignore             # Project layer
+```
+
+<Callout type="info">
+Each layer has its own `.calvinignore`. Patterns only apply to files within that layer.
+</Callout>
+
+## Pattern Syntax
+
+The syntax follows gitignore conventions:
+
+| Pattern | Matches |
+|---------|---------|
+| `*.bak` | All `.bak` files |
+| `drafts/` | The entire `drafts` directory |
+| `!important.md` | Negation - don't ignore `important.md` |
+| `skills/wip/` | A specific skill directory |
+| `**/temp.md` | `temp.md` in any directory |
+| `#comment` | Comment (ignored) |
+
+### What Gets Ignored
+
+- Regular `.md` assets
+- Entire skill directories (e.g., `skills/experimental/`)
+- Skill supplemental files (e.g., `skills/my-skill/notes.txt`)
+
+## CLI Commands
+
+### View Ignore Patterns
+
+```bash
+# Show patterns for each layer
+calvin check --show-ignored
+```
+
+Output:
+
+```text
+.calvinignore Patterns
+======================
+
+  user (2 patterns)
+    • drafts/
+    • *.bak
+
+  project (0 patterns)
+```
+
+### Debug Ignore Matching
+
+```bash
+# More detailed output
+calvin check --debug-ignore
+```
+
+## Limits
+
+For security and performance:
+
+| Limit | Value |
+|-------|-------|
+| Max file size | 64 KB |
+| Max patterns | 1,000 |
+
+Files exceeding these limits will produce a warning during deploy/check.
+
+## Common Use Cases
+
+### Exclude WIP Content
+
+```text
+# Ignore unfinished policies
+wip-*.md
+drafts/
+
+# Keep stable skills only
+skills/experimental/
+skills/beta/
+```
+
+### Team Templates
+
+```text
+# Ignore personal notes
+*.notes.md
+personal/
+
+# Ignore generated files
+generated/
+```
+
+### CI/CD Workflows
+
+```text
+# Ignore test fixtures
+test-fixtures/
+*.test.md
+```
+
+## Layer Precedence
+
+Remember that `.calvinignore` is per-layer:
+
+- **User layer** patterns only affect user-layer files
+- **Project layer** patterns only affect project-layer files
+- Patterns do **not** cascade across layers
+
+## See Also
+
+- [Multi-Layer Guide](/docs/guides/multi-layer) - Understanding layer hierarchy
+- [Skills Guide](/docs/guides/skills) - Directory-based assets
+- [Configuration](/docs/guides/configuration) - Global Calvin settings
