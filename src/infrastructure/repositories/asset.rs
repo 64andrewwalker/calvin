@@ -100,44 +100,6 @@ impl FsAssetRepository {
         asset
     }
 
-    /// Load all assets from a directory, optionally filtering by ignore patterns.
-    ///
-    /// Returns a tuple of (assets, ignored_count).
-    pub fn load_all_with_ignore(
-        &self,
-        source: &Path,
-        ignore: &IgnorePatterns,
-    ) -> Result<(Vec<Asset>, usize)> {
-        let ctx = IgnoreContext::new(ignore, source);
-        let mut ignored_count = 0;
-
-        // Load regular assets using existing parser
-        let all_prompt_assets = crate::parser::parse_directory(source)?;
-
-        // Filter by ignore patterns
-        let filtered_assets: Vec<Asset> = all_prompt_assets
-            .into_iter()
-            .filter(|pa| {
-                if ignore.is_ignored(&pa.source_path, false) {
-                    ignored_count += 1;
-                    false
-                } else {
-                    true
-                }
-            })
-            .map(Self::convert_prompt_asset)
-            .collect();
-
-        // Load skills with ignore filtering
-        let (skills, skills_ignored) = Self::load_skills_internal(source, Some(&ctx))?;
-        ignored_count += skills_ignored;
-
-        let mut assets = filtered_assets;
-        assets.extend(skills);
-
-        Ok((assets, ignored_count))
-    }
-
     /// Load skills from the skills/ directory.
     ///
     /// `ctx` is optional: if provided, applies ignore pattern filtering.
@@ -337,21 +299,51 @@ impl FsAssetRepository {
 }
 
 impl AssetRepository for FsAssetRepository {
+    /// Load all assets from a directory without `.calvinignore` filtering.
+    ///
+    /// This method is primarily used for testing. In production, prefer calling
+    /// `load_all_with_ignore` via `load_resolved_layers()` for proper ignore support.
     fn load_all(&self, source: &Path) -> Result<Vec<Asset>> {
-        // Use the existing parser for now
-        let prompt_assets = crate::parser::parse_directory(source)?;
+        // Load without ignore filtering - callers should use load_all_with_ignore
+        // for proper .calvinignore support via load_resolved_layers().
+        let empty_ignore = IgnorePatterns::default();
+        let (assets, _ignored_count) = self.load_all_with_ignore(source, &empty_ignore)?;
+        Ok(assets)
+    }
 
-        // Convert from PromptAsset to domain Asset
-        let mut assets: Vec<Asset> = prompt_assets
+    fn load_all_with_ignore(
+        &self,
+        source: &Path,
+        ignore: &IgnorePatterns,
+    ) -> Result<(Vec<Asset>, usize)> {
+        let ctx = IgnoreContext::new(ignore, source);
+        let mut ignored_count = 0;
+
+        // Load regular assets using existing parser
+        let all_prompt_assets = crate::parser::parse_directory(source)?;
+
+        // Filter by ignore patterns
+        let filtered_assets: Vec<Asset> = all_prompt_assets
             .into_iter()
+            .filter(|pa| {
+                if ignore.is_ignored(&pa.source_path, false) {
+                    ignored_count += 1;
+                    false
+                } else {
+                    true
+                }
+            })
             .map(Self::convert_prompt_asset)
             .collect();
 
-        // Load skills (directory-based assets) without ignore filtering
-        let (skills, _) = Self::load_skills_internal(source, None)?;
+        // Load skills with ignore filtering
+        let (skills, skills_ignored) = Self::load_skills_internal(source, Some(&ctx))?;
+        ignored_count += skills_ignored;
+
+        let mut assets = filtered_assets;
         assets.extend(skills);
 
-        Ok(assets)
+        Ok((assets, ignored_count))
     }
 
     fn load_by_path(&self, path: &Path) -> Result<Asset> {

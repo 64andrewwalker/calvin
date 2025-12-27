@@ -34,8 +34,10 @@ use crate::domain::value_objects::{Scope, Target};
 
 use super::options::{DeployOptions, DeployOutputOptions};
 use super::result::DeployResult;
+use crate::application::layer_ops::load_resolved_layers;
 use crate::application::skills::skill_root_from_path;
 use crate::application::RegistryUseCase;
+use crate::config::default_user_layer_path;
 
 /// Deploy use case - orchestrates the deployment flow
 ///
@@ -495,13 +497,6 @@ where
         }
     }
 
-    /// Load assets from source directory
-    fn load_assets(&self, source: &Path) -> Result<Vec<Asset>, String> {
-        self.asset_repo
-            .load_all(source)
-            .map_err(|e| format!("{}", e))
-    }
-
     fn load_assets_from_layers(&self, options: &DeployOptions) -> Result<LayeredAssets, String> {
         let project_root = options.project_root.clone();
 
@@ -521,13 +516,11 @@ where
             })
             .with_remote_mode(options.remote_mode);
         if !options.remote_mode && options.use_user_layer {
-            if let Some(user_layer_path) = options
+            let user_layer_path = options
                 .user_layer_path
                 .clone()
-                .or_else(default_user_layer_path)
-            {
-                layer_resolver = layer_resolver.with_user_layer_path(user_layer_path);
-            }
+                .unwrap_or_else(default_user_layer_path);
+            layer_resolver = layer_resolver.with_user_layer_path(user_layer_path);
         }
 
         let resolution = layer_resolver.resolve().map_err(|e| match e {
@@ -536,11 +529,9 @@ where
         })?;
 
         let mut layers = resolution.layers;
-        for layer in &mut layers {
-            layer.assets = self
-                .load_assets(layer.path.resolved())
-                .map_err(|e| format!("Failed to load layer '{}': {}", layer.name, e))?;
-        }
+
+        // Use shared layer_ops for consistent .calvinignore support
+        load_resolved_layers(&self.asset_repo, &mut layers).map_err(|e| e.to_string())?;
 
         let merge_result = merge_layers(&layers);
         let assets: Vec<Asset> = merge_result
@@ -1241,10 +1232,6 @@ struct LayeredAssets {
     assets: Vec<Asset>,
     merged_assets_by_id: std::collections::HashMap<String, MergedAsset>,
     warnings: Vec<String>,
-}
-
-fn default_user_layer_path() -> Option<PathBuf> {
-    crate::infrastructure::calvin_home_dir().map(|h| h.join(".calvin/.promptpack"))
 }
 
 fn validate_skill_targets(assets: &[Asset]) -> Result<Vec<String>, String> {

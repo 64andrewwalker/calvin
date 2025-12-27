@@ -23,6 +23,7 @@ pub mod clean;
 pub mod compiler;
 pub mod deploy;
 pub mod diff;
+pub mod layer_ops;
 pub mod layers;
 mod lockfile_migration;
 pub mod pipeline;

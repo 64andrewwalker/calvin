@@ -17,3 +17,6 @@ mod layers;
 
 #[path = "contracts/config.rs"]
 mod config;
+
+#[path = "contracts/calvinignore.rs"]
+mod calvinignore;

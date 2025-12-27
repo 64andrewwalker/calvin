@@ -52,6 +52,10 @@ The syntax follows gitignore conventions:
 | `**/temp.md` | `temp.md` in any directory |
 | `#comment` | Comment (ignored) |
 
+<Callout type="warn">
+**Directory patterns require a trailing slash.** To ignore a directory like `skills/_template`, use `skills/_template/` (with `/`). Without the trailing slash, the pattern only matches files, not directories.
+</Callout>
+
 ### What Gets Ignored
 
 - Regular `.md` assets

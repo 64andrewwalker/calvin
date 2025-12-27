@@ -27,6 +27,14 @@ impl AssetRepository for MockAssetRepository {
         Ok(self.assets.clone())
     }
 
+    fn load_all_with_ignore(
+        &self,
+        _source: &Path,
+        _ignore: &crate::domain::value_objects::IgnorePatterns,
+    ) -> anyhow::Result<(Vec<Asset>, usize)> {
+        Ok((self.assets.clone(), 0))
+    }
+
     fn load_by_path(&self, _path: &Path) -> anyhow::Result<Asset> {
         self.assets
             .first()

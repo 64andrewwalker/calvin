@@ -1,8 +1,8 @@
 //! File system LayerLoader implementation
 
+use crate::application::layer_ops::load_resolved_layers;
 use crate::domain::entities::Layer;
-use crate::domain::ports::layer_loader::{ensure_unique_asset_ids, LayerLoadError, LayerLoader};
-use crate::domain::value_objects::IgnorePatterns;
+use crate::domain::ports::layer_loader::{LayerLoadError, LayerLoader};
 use crate::infrastructure::repositories::FsAssetRepository;
 
 pub struct FsLayerLoader {
@@ -47,22 +47,9 @@ impl LayerLoader for FsLayerLoader {
             });
         }
 
-        // Load .calvinignore patterns for this layer
-        let ignore = IgnorePatterns::load(layer_root).map_err(|e| LayerLoadError::LoadFailed {
-            message: format!("Failed to load .calvinignore: {}", e),
-        })?;
+        // Use shared layer_ops for consistent .calvinignore support
+        load_resolved_layers(&self.asset_repo, std::slice::from_mut(layer))?;
 
-        // Load assets with ignore filtering
-        let (assets, ignored_count) = self
-            .asset_repo
-            .load_all_with_ignore(layer_root, &ignore)
-            .map_err(|e| LayerLoadError::LoadFailed {
-                message: e.to_string(),
-            })?;
-
-        ensure_unique_asset_ids(&layer.name, &assets)?;
-        layer.assets = assets;
-        layer.ignored_count = ignored_count;
         Ok(())
     }
 }

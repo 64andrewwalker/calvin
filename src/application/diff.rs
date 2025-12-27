@@ -15,6 +15,7 @@
 
 use std::path::{Path, PathBuf};
 
+use crate::application::layer_ops::load_resolved_layers;
 use crate::domain::entities::{Lockfile, OutputFile};
 use crate::domain::ports::{AssetRepository, FileSystem, LockfileRepository, TargetAdapter};
 use crate::domain::services::{merge_layers, FileAction, Planner, TargetFileState};
@@ -371,12 +372,9 @@ where
             _ => e.to_string(),
         })?;
 
-        for layer in &mut resolution.layers {
-            layer.assets = self
-                .asset_repo
-                .load_all(layer.path.resolved())
-                .map_err(|e| format!("Failed to load layer '{}': {}", layer.name, e))?;
-        }
+        // Use shared layer_ops for consistent .calvinignore support
+        load_resolved_layers(&self.asset_repo, &mut resolution.layers)
+            .map_err(|e| e.to_string())?;
 
         let merge = merge_layers(&resolution.layers);
         Ok(merge.assets.values().map(|m| m.asset.clone()).collect())
@@ -566,6 +564,14 @@ mod tests {
     impl AssetRepository for MockAssetRepository {
         fn load_all(&self, _source: &Path) -> AnyhowResult<Vec<Asset>> {
             Ok(self.assets.clone())
+        }
+
+        fn load_all_with_ignore(
+            &self,
+            _source: &Path,
+            _ignore: &crate::domain::value_objects::IgnorePatterns,
+        ) -> AnyhowResult<(Vec<Asset>, usize)> {
+            Ok((self.assets.clone(), 0))
         }
 
         fn load_by_path(&self, path: &Path) -> AnyhowResult<Asset> {
