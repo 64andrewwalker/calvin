@@ -3,14 +3,69 @@
 //! These tests verify that a reference .promptpack/ directory produces
 //! the expected output for all platform adapters.
 
-#![allow(deprecated)]
-
 use std::path::Path;
 
-use calvin::application::compile_assets;
 use calvin::config::Config;
-use calvin::models::Target;
+use calvin::domain::entities::{Asset, OutputFile};
+use calvin::domain::value_objects::Target as DomainTarget;
+use calvin::infrastructure::adapters::all_adapters;
+use calvin::models::{PromptAsset, Target};
 use calvin::parser::parse_directory;
+
+/// Compile assets using infrastructure adapters (replaces deprecated compile_assets)
+fn compile_assets_with_adapters(
+    assets: &[PromptAsset],
+    targets: &[Target],
+    _config: &Config,
+) -> Vec<OutputFile> {
+    let mut outputs = Vec::new();
+    let adapters = all_adapters();
+
+    // Convert legacy assets to domain assets
+    let domain_assets: Vec<Asset> = assets.iter().map(|a| Asset::from(a.clone())).collect();
+
+    // Convert targets to domain targets
+    let domain_targets: Vec<DomainTarget> = targets
+        .iter()
+        .map(|t| match t {
+            Target::ClaudeCode => DomainTarget::ClaudeCode,
+            Target::Cursor => DomainTarget::Cursor,
+            Target::VSCode => DomainTarget::VSCode,
+            Target::Antigravity => DomainTarget::Antigravity,
+            Target::Codex => DomainTarget::Codex,
+            Target::All => DomainTarget::All,
+        })
+        .collect();
+
+    for asset in &domain_assets {
+        for adapter in &adapters {
+            let adapter_target = adapter.target();
+
+            // Skip if not in requested targets
+            if !domain_targets.is_empty() && !domain_targets.contains(&adapter_target) {
+                continue;
+            }
+
+            if let Ok(files) = adapter.compile(asset) {
+                outputs.extend(files);
+            }
+        }
+    }
+
+    // Post-compile
+    for adapter in &adapters {
+        let adapter_target = adapter.target();
+        if !domain_targets.is_empty() && !domain_targets.contains(&adapter_target) {
+            continue;
+        }
+        if let Ok(files) = adapter.post_compile(&domain_assets) {
+            outputs.extend(files);
+        }
+    }
+
+    outputs.sort_by(|a, b| a.path().cmp(b.path()));
+    outputs
+}
 
 /// Test fixture: a simple policy file
 const SIMPLE_POLICY: &str = r#"---
@@ -65,7 +120,7 @@ mod snapshot_tests {
         let assets = parse_directory(&source).unwrap();
         let config = Config::default();
         let targets = vec![Target::ClaudeCode];
-        let outputs = compile_assets(&assets, &targets, &config).unwrap();
+        let outputs = compile_assets_with_adapters(&assets, &targets, &config);
 
         // Find the code-style output
         let policy_output = outputs
@@ -85,7 +140,7 @@ mod snapshot_tests {
         let assets = parse_directory(&source).unwrap();
         let config = Config::default();
         let targets = vec![Target::ClaudeCode];
-        let outputs = compile_assets(&assets, &targets, &config).unwrap();
+        let outputs = compile_assets_with_adapters(&assets, &targets, &config);
 
         // Find the generate-tests output
         let action_output = outputs
@@ -106,7 +161,7 @@ mod snapshot_tests {
         let assets = parse_directory(&source).unwrap();
         let config = Config::default();
         let targets = vec![Target::Cursor];
-        let outputs = compile_assets(&assets, &targets, &config).unwrap();
+        let outputs = compile_assets_with_adapters(&assets, &targets, &config);
 
         let policy_output = outputs
             .iter()
@@ -125,7 +180,7 @@ mod snapshot_tests {
         let assets = parse_directory(&source).unwrap();
         let config = Config::default();
         let targets = vec![Target::VSCode];
-        let outputs = compile_assets(&assets, &targets, &config).unwrap();
+        let outputs = compile_assets_with_adapters(&assets, &targets, &config);
 
         // VS Code now generates individual .instructions.md files by default
         let instr_output = outputs
@@ -149,7 +204,7 @@ mod snapshot_tests {
         let assets = parse_directory(&source).unwrap();
         let config = Config::default();
         let targets = vec![Target::Antigravity];
-        let outputs = compile_assets(&assets, &targets, &config).unwrap();
+        let outputs = compile_assets_with_adapters(&assets, &targets, &config);
 
         let rule_output = outputs
             .iter()
@@ -168,7 +223,7 @@ mod snapshot_tests {
         let assets = parse_directory(&source).unwrap();
         let config = Config::default();
         let targets = vec![Target::Codex];
-        let outputs = compile_assets(&assets, &targets, &config).unwrap();
+        let outputs = compile_assets_with_adapters(&assets, &targets, &config);
 
         let prompt_output = outputs
             .iter()
@@ -204,7 +259,7 @@ Look for variables named "bar" and "baz".
 
         // Test all targets that produce markdown outputs with content
         for target in [Target::Cursor, Target::ClaudeCode] {
-            let outputs = compile_assets(&assets, &[target], &config).unwrap();
+            let outputs = compile_assets_with_adapters(&assets, &[target], &config);
 
             // Filter to only markdown outputs (not settings.json etc)
             let md_outputs: Vec<_> = outputs
@@ -245,7 +300,7 @@ File path: C:\Users\test
         let config = Config::default();
 
         for target in [Target::ClaudeCode, Target::Cursor, Target::VSCode] {
-            let outputs = compile_assets(&assets, &[target], &config).unwrap();
+            let outputs = compile_assets_with_adapters(&assets, &[target], &config);
             assert!(
                 !outputs.is_empty(),
                 "Should produce output for {:?}",
@@ -276,7 +331,7 @@ Line 3
         let assets = parse_directory(&source).unwrap();
         let config = Config::default();
 
-        let outputs = compile_assets(&assets, &[Target::ClaudeCode], &config).unwrap();
+        let outputs = compile_assets_with_adapters(&assets, &[Target::ClaudeCode], &config);
 
         let output = outputs
             .iter()
