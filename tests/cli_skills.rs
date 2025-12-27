@@ -171,3 +171,74 @@ targets: [codex, antigravity]
         result.combined_output()
     );
 }
+
+#[test]
+fn deploy_warns_on_dangerous_allowed_tools_during_deploy() {
+    let env = TestEnv::builder().build();
+
+    write_project_skill(
+        &env,
+        "dangerous-skill",
+        r#"---
+description: Do something risky.
+kind: skill
+targets: [codex]
+allowed-tools:
+  - rm
+---
+# Instructions
+"#,
+        &[],
+    );
+
+    let result = env.run(&["deploy", "--yes", "--targets", "codex"]);
+    assert!(
+        result.success,
+        "deploy failed:\n{}",
+        result.combined_output()
+    );
+
+    assert!(
+        result
+            .stderr
+            .contains("Tool 'rm' in allowed-tools may pose security risks"),
+        "expected allowed-tools warning during deploy:\n{}",
+        result.combined_output()
+    );
+}
+
+#[test]
+fn deploy_warns_when_deploy_targets_include_platforms_without_skill_support() {
+    let env = TestEnv::builder().build();
+
+    // Targets omitted => skill applies to all concrete targets, including unsupported ones.
+    write_project_skill(
+        &env,
+        "all-targets-skill",
+        r#"---
+description: Applies to all targets.
+kind: skill
+---
+# Instructions
+"#,
+        &[],
+    );
+
+    let result = env.run(&["deploy", "--yes", "--targets", "all"]);
+    assert!(
+        result.success,
+        "deploy failed:\n{}",
+        result.combined_output()
+    );
+
+    assert!(
+        result.stderr.contains("Skills skipped for:"),
+        "expected global skills skip warning:\n{}",
+        result.combined_output()
+    );
+    assert!(
+        result.stderr.contains("VS Code") && result.stderr.contains("Antigravity"),
+        "expected unsupported platforms in warning:\n{}",
+        result.combined_output()
+    );
+}

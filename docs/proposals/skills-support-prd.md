@@ -187,9 +187,9 @@ Following Calvin's non-silent failure policy (multi-layer PRD §13.5):
 | ---------- | ----- | -------- | --------- |
 | Missing SKILL.md | **Repository** | `FsAssetRepository::load_skills()` | Fail fast during asset loading |
 | Binary file detection | **Repository** | `FsAssetRepository::load_supplemental()` | Part of loading, not compilation |
-| Dangerous tools warning | **Adapter** | `TargetAdapter::validate()` | Each adapter can have different rules |
-| Unsupported platform skip | **Adapter** | `TargetAdapter::compile()` | Return `vec![]` when `kind == Skill` |
-| No supported targets | **CompilerService** | After all adapters return | Check if all outputs are empty |
+| Dangerous tools warning | **Adapter + Application** | Adapter: `TargetAdapter::validate()`; surfaced during deploy via `DeployUseCase::validate_skill_outputs()` | Adapter owns platform-specific rules; deploy surfaces warnings (never fail silently) |
+| Unsupported platform skip | **Adapter + Application** | Adapter: `TargetAdapter::compile()` returns empty for skills; warnings surfaced via `validate_skill_targets()` and a global "Skills skipped for: …" deploy warning | Skip is adapter responsibility; user-facing warnings belong to orchestration layer |
+| No supported targets | **Application** | `validate_skill_targets()` | Validate early based on declared skill targets |
 
 ---
 
@@ -434,16 +434,16 @@ version = 1
 [files."project:.claude/skills/draft-commit/SKILL.md"]
 hash = "sha256:..."
 source_layer = "user"
+source_layer_path = "/Users/me/.calvin/.promptpack"
 source_asset = "draft-commit"
-source_path = "skills/draft-commit/SKILL.md"
-kind = "skill"
+source_file = "/Users/me/.calvin/.promptpack/skills/draft-commit/SKILL.md"
 
 [files."project:.claude/skills/draft-commit/scripts/validate.py"]
 hash = "sha256:..."
 source_layer = "user"
+source_layer_path = "/Users/me/.calvin/.promptpack"
 source_asset = "draft-commit"
-source_path = "skills/draft-commit/scripts/validate.py"
-kind = "skill"
+source_file = "/Users/me/.calvin/.promptpack/skills/draft-commit/SKILL.md"
 ```
 
 **Rationale**:
@@ -553,19 +553,17 @@ Verbose output (`-v`) shows skill structure:
 ```
 $ calvin deploy -v
 
-ℹ Layer Stack:
+Layer Stack (highest priority first):
   3. [project] ./.promptpack/ (5 assets, 2 skills)
   2. [user]    ~/.calvin/.promptpack (3 assets, 1 skill)
 
-ℹ Skills:
+Skills:
   • draft-commit-message (user layer)
-    ├── SKILL.md
-    ├── reference.md
-    └── scripts/validate.py
+    - SKILL.md
+    - reference.md
+    - scripts/validate.py
 
-✓ Compiled 8 assets, 3 skills
-✓ Deployed to: claude-code, codex, cursor
-⚠ Skills skipped for: antigravity, vscode (not supported)
+Warning: Skills skipped for: Antigravity, VS Code (skills are not supported on these platforms).
 ```
 
 ### 6.2 `calvin layers`

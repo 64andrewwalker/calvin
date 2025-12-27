@@ -316,6 +316,13 @@ where
             }
         }
 
+        // Step 1.8: Warn if deploy targets include platforms that don't support skills.
+        // This prevents silent skips when deploying to VS Code / Antigravity.
+        for warning in warn_skills_skipped_for_unsupported_deploy_targets(&assets, &options.targets)
+        {
+            result.add_warning(warning);
+        }
+
         // Emit started event
         event_sink.on_event(DeployEvent::Started {
             source: options.source.clone(),
@@ -336,6 +343,9 @@ where
             }
         };
         result.output_count = outputs.len();
+
+        // Step 2.1: Surface adapter validation warnings for skill outputs.
+        self.validate_skill_outputs(&outputs, &mut result);
 
         // Emit compiled event
         event_sink.on_event(DeployEvent::Compiled {
@@ -920,6 +930,54 @@ where
         result
     }
 
+    fn validate_skill_outputs(&self, outputs: &[OutputFile], result: &mut DeployResult) {
+        use crate::domain::ports::DiagnosticSeverity;
+
+        for output in outputs {
+            if output
+                .path()
+                .file_name()
+                .is_none_or(|n| n != std::ffi::OsStr::new("SKILL.md"))
+            {
+                continue;
+            }
+
+            let adapter = self
+                .adapters
+                .iter()
+                .find(|a| a.target() == output.target())
+                .map(|a| a.as_ref());
+            let Some(adapter) = adapter else {
+                continue;
+            };
+
+            let skill_id = output
+                .path()
+                .parent()
+                .and_then(|p| p.file_name())
+                .and_then(|n| n.to_str())
+                .unwrap_or("unknown");
+
+            for diag in adapter.validate(output) {
+                match diag.severity {
+                    DiagnosticSeverity::Warning => result.add_warning(format!(
+                        "Skill '{}' ({}): {}",
+                        skill_id,
+                        output.target().display_name(),
+                        diag.message
+                    )),
+                    DiagnosticSeverity::Error => result.errors.push(format!(
+                        "Skill '{}' ({}): {}",
+                        skill_id,
+                        output.target().display_name(),
+                        diag.message
+                    )),
+                    DiagnosticSeverity::Info => {}
+                }
+            }
+        }
+    }
+
     /// Treat skill supplemental files as safe-to-delete if their SKILL.md is Calvin-signed.
     ///
     /// This allows `calvin deploy --cleanup` and `calvin clean` to fully remove skill directories
@@ -1250,4 +1308,55 @@ fn validate_skill_targets(assets: &[Asset]) -> Result<Vec<String>, String> {
     }
 
     Ok(warnings)
+}
+
+fn warn_skills_skipped_for_unsupported_deploy_targets(
+    assets: &[Asset],
+    deploy_targets: &[crate::domain::value_objects::Target],
+) -> Vec<String> {
+    use crate::domain::entities::AssetKind;
+    use crate::domain::value_objects::Target;
+
+    if deploy_targets.is_empty() {
+        return Vec::new();
+    }
+
+    let active_targets: Vec<Target> = if deploy_targets.iter().any(|t| t.is_all()) {
+        Target::ALL_CONCRETE.to_vec()
+    } else {
+        deploy_targets.to_vec()
+    };
+
+    let mut unsupported: Vec<Target> = active_targets
+        .into_iter()
+        .filter(|t| matches!(t, Target::VSCode | Target::Antigravity))
+        .collect();
+    unsupported.sort_by_key(|t| t.display_name());
+    unsupported.dedup();
+
+    if unsupported.is_empty() {
+        return Vec::new();
+    }
+
+    let has_skills_for_unsupported = assets.iter().any(|asset| {
+        if asset.kind() != AssetKind::Skill {
+            return false;
+        }
+        let effective = asset.effective_targets();
+        unsupported.iter().any(|t| effective.contains(t))
+    });
+
+    if !has_skills_for_unsupported {
+        return Vec::new();
+    }
+
+    let targets = unsupported
+        .iter()
+        .map(|t| t.display_name())
+        .collect::<Vec<_>>()
+        .join(", ");
+    vec![format!(
+        "Skills skipped for: {} (skills are not supported on these platforms).",
+        targets
+    )]
 }
