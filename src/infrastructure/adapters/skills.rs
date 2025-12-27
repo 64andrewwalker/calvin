@@ -47,11 +47,14 @@ pub(crate) fn compile_skill_outputs(
     ));
 
     for (rel_path, content) in asset.supplementals() {
-        if rel_path.is_absolute()
-            || rel_path
-                .components()
-                .any(|c| matches!(c, Component::ParentDir))
-        {
+        let is_escaping = rel_path.components().any(|c| {
+            matches!(
+                c,
+                Component::ParentDir | Component::RootDir | Component::Prefix(_)
+            )
+        });
+
+        if is_escaping {
             return Err(AdapterError::CompilationFailed {
                 message: format!(
                     "Invalid supplemental path for skill '{}': {}",
