@@ -23,6 +23,18 @@ path = "target/nextest/default/junit.xml"
 # CI-specific settings
 fail-fast = true
 retries = 2
+# CI machines are slower, give tests more time
+slow-timeout = { period = "10s", terminate-after = 3 }
+
+# Override for CLI tests that spawn processes
+[[profile.ci.overrides]]
+filter = "binary(/^cli_/)"
+slow-timeout = { period = "30s", terminate-after = 2 }
+
+# Remote deploy tests may need DNS/network init time
+[[profile.ci.overrides]]
+filter = "test(deploy_remote)"
+slow-timeout = { period = "60s", terminate-after = 2 }
 
 # Override for slow CLI tests
 [[profile.default.overrides]]
