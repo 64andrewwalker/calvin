@@ -735,18 +735,18 @@ CONTRACT-ADAPTER-010: Skill with only unsupported targets is error
 - [x] `test_antigravity_compile_skill_returns_empty` - Returns `vec![]`
 - [x] `test_vscode_compile_skill_returns_empty` - Returns `vec![]`
 - [x] `test_skill_dangerous_tool_warning` - Warns for `rm`, `sudo`, etc.
-- [x] `test_skill_no_supported_targets_error` - Error if only antigravity/vscode
+- [x] `deploy_errors_when_skill_has_no_supported_targets` (`src/application/deploy/tests.rs`) - Error if only antigravity/vscode
 - [x] `test_skill_user_scope_uses_home_path` - Respects scope
 
 **Implementation**:
 
-- [x] Add `compile_skill()` to `ClaudeCodeAdapter`
-- [x] Add `compile_skill()` to `CodexAdapter`
-- [x] Add `compile_skill()` to `CursorAdapter`
+- [x] Add skill compilation to `ClaudeCodeAdapter`
+- [x] Add skill compilation to `CodexAdapter`
+- [x] Add skill compilation to `CursorAdapter`
 - [x] Add skill rejection to `AntigravityAdapter::compile()`
 - [x] Add skill rejection to `VSCodeAdapter::compile()`
-- [x] Add `validate_allowed_tools()` helper
-- [x] Add `DANGEROUS_TOOLS` constant
+- [x] Add shared helpers in `src/infrastructure/adapters/skills.rs`
+- [x] Centralize dangerous tools policy (`src/domain/policies/skill_allowed_tools.rs`)
 
 **Files to modify**:
 
@@ -755,6 +755,8 @@ CONTRACT-ADAPTER-010: Skill with only unsupported targets is error
 - `src/infrastructure/adapters/cursor.rs`
 - `src/infrastructure/adapters/antigravity.rs`
 - `src/infrastructure/adapters/vscode.rs`
+- `src/infrastructure/adapters/skills.rs`
+- `src/domain/policies/skill_allowed_tools.rs`
 
 #### 2.3 Acceptance Criteria
 
