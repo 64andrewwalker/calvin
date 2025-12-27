@@ -8,7 +8,6 @@ pub mod live_region;
 pub mod menu;
 pub mod output;
 pub mod primitives;
-pub mod render;
 pub mod terminal;
 pub mod theme;
 pub mod views;

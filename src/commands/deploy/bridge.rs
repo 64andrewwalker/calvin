@@ -2,7 +2,6 @@
 //!
 //! This module provides conversion functions between the old and new architectures,
 //! allowing for a gradual migration.
-#![allow(dead_code)]
 
 use calvin::application::{DeployOptions as UseCaseOptions, DeployResult as UseCaseResult};
 use calvin::domain::value_objects::{Scope, Target as DomainTarget};
