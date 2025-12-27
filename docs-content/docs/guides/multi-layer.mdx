@@ -164,6 +164,22 @@ Example scenario:
 # Provenance shows: "overrides: user:~/.calvin/.promptpack/policies/security.md"
 ```
 
+## Skills in Layers (Directory Assets)
+
+Skills live under `.promptpack/skills/<id>/` and are treated as **directory assets** (not single files).
+
+- The higher-priority layer still wins, but the override is **directory-level**: the entire `skills/<id>/` folder is replaced (no file-level merging).
+- A skill id does not conflict with an action/policy/agent id of the same name (different asset kinds).
+
+Example scenario:
+
+```text
+# User layer has: ~/.calvin/.promptpack/skills/review/ (SKILL.md + reference.md)
+# Project layer has: ./.promptpack/skills/review/ (SKILL.md + scripts/check.py)
+
+# Result: Only the project layer’s skill directory is deployed.
+```
+
 ## Best Practices
 
 ### User Layer

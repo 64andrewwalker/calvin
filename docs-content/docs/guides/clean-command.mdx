@@ -97,13 +97,20 @@ Only files containing Calvin's signature are deleted:
 
 Files without this signature are skipped to prevent deleting user-created content.
 
+**Skills note:** skill supplemental files (scripts, reference docs) may not contain signature markers. Calvin treats these as safe-to-delete **only when** the skill directory’s `SKILL.md` file is Calvin-signed.
+
 ### 2. Hash Verification
 
 Files are checked against their recorded hash. If a file was modified after deployment, it's skipped unless `--force` is used.
 
 ### 3. Lockfile Tracking
 
-Only files tracked in `calvin.lock` (at the project root) are considered. The lockfile is updated after deletion to reflect the current state.
+Only files tracked in the relevant lockfile are considered:
+
+- Project deployments: `./calvin.lock`
+- Home deployments: `~/.calvin/calvin.lock`
+
+The lockfile is updated after deletion to reflect the current state.
 
 ### 4. Confirmation Prompt
 
@@ -224,4 +231,3 @@ Interactive mode requires:
 - A TTY terminal (not piped input)
 - No `--yes` or `--dry-run` flags
 - No explicit scope (`--home` / `--project` / `--all`)
-
