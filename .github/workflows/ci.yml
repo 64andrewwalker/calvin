@@ -43,9 +43,16 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      # Run basic tests on all platforms
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@nextest
+
+      # Run all tests with nextest (faster parallel execution)
       - name: Run tests
-        run: cargo test --all-features
+        run: cargo nextest run --all-features --profile ci
+        
+      # Run doc tests separately (nextest doesn't support doc tests)
+      - name: Run doc tests
+        run: cargo test --doc --all-features
         
       # Coverage only on Linux (faster CI)
       - name: Install cargo-llvm-cov

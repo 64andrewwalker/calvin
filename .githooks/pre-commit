@@ -32,25 +32,30 @@ else
     exit 1
 fi
 
-# 3. Contract tests (core invariants)
-echo -n "📜 Running contract tests... "
-if cargo test --all-features --quiet --test contracts 2>/dev/null; then
-    echo -e "${GREEN}✓${NC}"
+# 3. Tests with cargo-nextest (faster parallel execution)
+# Falls back to cargo test if nextest is not installed
+echo -n "🧪 Running tests... "
+if command -v cargo-nextest &> /dev/null; then
+    # Use nextest with pre-commit profile, skip slow CLI tests (~5s saved)
+    # cli_deploy_targets: 25 tests that spawn processes
+    if cargo nextest run --all-features --profile pre-commit \
+        -E 'not binary(cli_deploy_targets)' 2>/dev/null; then
+        echo -e "${GREEN}✓${NC}"
+    else
+        echo -e "${RED}✗${NC}"
+        echo "Tests failed! Fix them before committing"
+        exit 1
+    fi
 else
-    echo -e "${RED}✗${NC}"
-    echo "Contract tests failed! Fix them before committing"
-    exit 1
-fi
-
-# 4. Remaining tests (skip contract_* to avoid re-running contract tests)
-# Use --lib --bins --tests to skip slow doc tests (they add 10+ seconds for compilation)
-echo -n "🧪 Running remaining tests... "
-if cargo test --all-features --quiet --lib --bins --tests -- --skip contract_ 2>/dev/null; then
-    echo -e "${GREEN}✓${NC}"
-else
-    echo -e "${RED}✗${NC}"
-    echo "Tests failed! Fix them before committing"
-    exit 1
+    # Fallback to cargo test
+    echo -n "(nextest not found, using cargo test) "
+    if cargo test --all-features --quiet --lib --bins --tests -- --skip contract_ 2>/dev/null; then
+        echo -e "${GREEN}✓${NC}"
+    else
+        echo -e "${RED}✗${NC}"
+        echo "Tests failed! Fix them before committing"
+        exit 1
+    fi
 fi
 
 # 5. Coverage check (optional, can be slow)
