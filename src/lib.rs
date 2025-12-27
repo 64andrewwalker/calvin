@@ -29,8 +29,7 @@ pub mod parser;
 pub mod security;
 
 // Re-exports for convenience
-#[allow(deprecated)]
-pub use application::{compile_assets, DeployResult};
+pub use application::DeployResult;
 pub use config::{Config, SecurityMode};
 pub use domain::entities::OutputFile;
 pub use domain::ports::TargetAdapter;
