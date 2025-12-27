@@ -6,7 +6,10 @@ use calvin::{extract_frontmatter, parse_frontmatter};
 
 fn small_line() -> impl Strategy<Value = String> {
     // Keep generated content small and printable to avoid pathological YAML cases.
-    proptest::string::string_regex("[A-Za-z0-9 _:#\\-]{0,40}").unwrap()
+    // Exclude lines that are exactly "---" to avoid conflicting with frontmatter delimiters.
+    proptest::string::string_regex("[A-Za-z0-9 _:#\\-]{0,40}")
+        .unwrap()
+        .prop_filter("not a delimiter", |s| s.trim() != "---")
 }
 
 proptest! {

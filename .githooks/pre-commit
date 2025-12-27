@@ -43,8 +43,9 @@ else
 fi
 
 # 4. Remaining tests (skip contract_* to avoid re-running contract tests)
+# Use --lib --bins --tests to skip slow doc tests (they add 10+ seconds for compilation)
 echo -n "🧪 Running remaining tests... "
-if cargo test --all-features --quiet -- --skip contract_ 2>/dev/null; then
+if cargo test --all-features --quiet --lib --bins --tests -- --skip contract_ 2>/dev/null; then
     echo -e "${GREEN}✓${NC}"
 else
     echo -e "${RED}✗${NC}"
