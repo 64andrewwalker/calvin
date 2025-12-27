@@ -21,6 +21,18 @@ This keeps complexity flat as the feature set grows: “add one helper + one tes
 
 ---
 
+## Current vs Proposed (Quick Comparison)
+
+| Area | Current | Proposed | Benefit | Risk |
+|---|---|---|---|---|
+| Skill compilation (adapters) | 3 near-identical implementations | Shared `infrastructure/adapters/skills.rs` | Removes DRY violations; prevents drift | Low–medium (touches adapters) |
+| Dangerous `allowed-tools` list | 4 copies (adapters + security) | Single domain policy (`SecurityPolicy`/`AllowedToolsPolicy`) | Security-by-default consistency | Medium (security-sensitive; requires careful tests) |
+| Skill directory ownership | Duplicated in Deploy + Clean | Shared `application/skills.rs` helpers | Safer cleanup semantics; one canonical path classifier | Medium (cleanup behavior) |
+| Target capability logic | Embedded match blocks in `DeployUseCase` | `Target::supports_skills()` | Centralizes capability decisions | Low |
+| Skill test helpers | Repeated helper functions in tests | Shared test helper module | Reduces test duplication | Low |
+
+---
+
 ## 1) Current State Assessment
 
 ### 1.1 Component Map (Skills-relevant)
@@ -304,4 +316,3 @@ Potential breaking changes only apply if Step 5 is chosen (changes to parsing se
 - Keep each step as a small PR/commit series, each independently revertible.
 - Prefer “introduce helper → switch one caller → switch remaining callers → delete old code” to minimize risk windows.
 - For security-sensitive changes (dangerous tool list), run the full test suite and add one “policy consistency” test that ensures adapter + security checks share the same list.
-
