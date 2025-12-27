@@ -7,6 +7,7 @@ pub mod antigravity;
 pub mod claude_code;
 pub mod codex;
 pub mod cursor;
+mod skills;
 pub mod vscode;
 
 pub use antigravity::AntigravityAdapter;

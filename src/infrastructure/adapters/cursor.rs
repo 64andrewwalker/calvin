@@ -12,6 +12,7 @@
 
 use std::path::PathBuf;
 
+use super::skills;
 use crate::domain::entities::{Asset, AssetKind, OutputFile};
 use crate::domain::ports::target_adapter::{
     AdapterDiagnostic, AdapterError, DiagnosticSeverity, TargetAdapter,
@@ -66,60 +67,13 @@ impl CursorAdapter {
     }
 
     fn compile_skill(&self, asset: &Asset) -> Result<Vec<OutputFile>, AdapterError> {
-        let mut outputs = Vec::new();
-
-        let skill_dir = self.skills_dir(asset.scope()).join(asset.id());
-
-        outputs.push(OutputFile::new(
-            skill_dir.join("SKILL.md"),
-            self.generate_skill_md(asset),
+        let footer = self.footer(&asset.source_path_normalized());
+        skills::compile_skill_outputs(
+            asset,
+            self.skills_dir(asset.scope()),
             Target::Cursor,
-        ));
-
-        for (rel_path, content) in asset.supplementals() {
-            if rel_path.is_absolute()
-                || rel_path
-                    .components()
-                    .any(|c| matches!(c, std::path::Component::ParentDir))
-            {
-                return Err(AdapterError::CompilationFailed {
-                    message: format!(
-                        "Invalid supplemental path for skill '{}': {}",
-                        asset.id(),
-                        rel_path.display()
-                    ),
-                });
-            }
-            outputs.push(OutputFile::new(
-                skill_dir.join(rel_path),
-                content.clone(),
-                Target::Cursor,
-            ));
-        }
-
-        Ok(outputs)
-    }
-
-    fn generate_skill_md(&self, asset: &Asset) -> String {
-        let mut out = String::new();
-
-        out.push_str("---\n");
-        out.push_str(&format!("name: {}\n", asset.id()));
-        out.push_str(&format!("description: {}\n", asset.description()));
-
-        if !asset.allowed_tools().is_empty() {
-            out.push_str("allowed-tools:\n");
-            for tool in asset.allowed_tools() {
-                out.push_str(&format!("  - {}\n", tool));
-            }
-        }
-
-        out.push_str("---\n\n");
-        out.push_str(asset.content().trim());
-        out.push_str("\n\n");
-        out.push_str(&self.footer(&asset.source_path_normalized()));
-
-        out
+            &footer,
+        )
     }
 }
 
@@ -178,7 +132,7 @@ impl TargetAdapter for CursorAdapter {
             .file_name()
             .is_some_and(|n| n == std::ffi::OsStr::new("SKILL.md"))
         {
-            diagnostics.extend(validate_skill_allowed_tools(output));
+            diagnostics.extend(skills::validate_skill_allowed_tools(output));
         }
 
         // Cursor rules should have frontmatter, but skills/supplementals should not be forced
@@ -197,35 +151,6 @@ impl TargetAdapter for CursorAdapter {
 
         diagnostics
     }
-}
-
-fn validate_skill_allowed_tools(output: &OutputFile) -> Vec<AdapterDiagnostic> {
-    const DANGEROUS_TOOLS: &[&str] = &[
-        "rm", "sudo", "chmod", "chown", "curl", "wget", "nc", "netcat", "ssh", "scp", "rsync",
-    ];
-
-    let extracted = match crate::parser::extract_frontmatter(output.content(), output.path()) {
-        Ok(extracted) => extracted,
-        Err(_) => return Vec::new(),
-    };
-    let fm = match crate::parser::parse_frontmatter(&extracted.yaml, output.path()) {
-        Ok(fm) => fm,
-        Err(_) => return Vec::new(),
-    };
-
-    let mut diags = Vec::new();
-    for tool in &fm.allowed_tools {
-        if DANGEROUS_TOOLS.contains(&tool.as_str()) {
-            diags.push(AdapterDiagnostic {
-                severity: DiagnosticSeverity::Warning,
-                message: format!(
-                    "Tool '{}' in allowed-tools may pose security risks. Ensure this is intentional.",
-                    tool
-                ),
-            });
-        }
-    }
-    diags
 }
 
 #[cfg(test)]

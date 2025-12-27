@@ -18,6 +18,7 @@ use crate::domain::value_objects::Scope;
 
 use super::options::CleanOptions;
 use super::result::{CleanError, CleanResult, SkipReason};
+use crate::application::skills::skill_root_from_path;
 
 /// Clean use case - removes deployed files tracked in lockfile
 pub struct CleanUseCase<LR, FS>
@@ -253,23 +254,6 @@ where
         };
         has_calvin_signature(&content)
     }
-}
-
-fn skill_root_from_path(path: &Path) -> Option<PathBuf> {
-    for ancestor in path.ancestors() {
-        let parent = ancestor.parent()?;
-        if parent.file_name()? != std::ffi::OsStr::new("skills") {
-            continue;
-        }
-        let grandparent = parent.parent()?;
-        let Some(name) = grandparent.file_name() else {
-            continue;
-        };
-        if name == std::ffi::OsStr::new(".claude") || name == std::ffi::OsStr::new(".codex") {
-            return Some(ancestor.to_path_buf());
-        }
-    }
-    None
 }
 
 #[cfg(test)]

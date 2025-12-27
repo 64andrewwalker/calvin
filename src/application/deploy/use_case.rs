@@ -34,6 +34,7 @@ use crate::domain::value_objects::{Scope, Target};
 
 use super::options::{DeployOptions, DeployOutputOptions};
 use super::result::DeployResult;
+use crate::application::skills::skill_root_from_path;
 use crate::application::RegistryUseCase;
 
 /// Deploy use case - orchestrates the deployment flow
@@ -1246,24 +1247,6 @@ fn default_user_layer_path() -> Option<PathBuf> {
     crate::infrastructure::calvin_home_dir().map(|h| h.join(".calvin/.promptpack"))
 }
 
-fn skill_root_from_path(path: &Path) -> Option<PathBuf> {
-    for ancestor in path.ancestors() {
-        let parent = ancestor.parent()?;
-        if parent.file_name()? != std::ffi::OsStr::new("skills") {
-            continue;
-        }
-        let grandparent = parent.parent()?;
-        let Some(name) = grandparent.file_name() else {
-            continue;
-        };
-        if name == std::ffi::OsStr::new(".claude") || name == std::ffi::OsStr::new(".codex") {
-            return Some(ancestor.to_path_buf());
-        }
-    }
-
-    None
-}
-
 fn validate_skill_targets(assets: &[Asset]) -> Result<Vec<String>, String> {
     use crate::domain::entities::AssetKind;
     use crate::domain::value_objects::Target;
@@ -1284,10 +1267,13 @@ fn validate_skill_targets(assets: &[Asset]) -> Result<Vec<String>, String> {
         let mut unsupported: Vec<Target> = Vec::new();
 
         for t in raw_targets {
-            match t {
-                Target::ClaudeCode | Target::Codex | Target::Cursor => has_supported = true,
-                Target::VSCode | Target::Antigravity => unsupported.push(*t),
-                Target::All => {}
+            if t.is_all() {
+                continue;
+            }
+            if t.supports_skills() {
+                has_supported = true;
+            } else {
+                unsupported.push(*t);
             }
         }
 
@@ -1329,7 +1315,7 @@ fn warn_skills_skipped_for_unsupported_deploy_targets(
 
     let mut unsupported: Vec<Target> = active_targets
         .into_iter()
-        .filter(|t| matches!(t, Target::VSCode | Target::Antigravity))
+        .filter(|t| !t.supports_skills())
         .collect();
     unsupported.sort_by_key(|t| t.display_name());
     unsupported.dedup();

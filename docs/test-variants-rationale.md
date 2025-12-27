@@ -36,6 +36,22 @@ These variants focus on two areas introduced around skills:
 
 - `test_load_skill_directory_binary_supplemental_rejected__with_nul_in_text`: boundary/type edge (UTF-8 text containing `NUL`) → rejected as binary, with path included in error.
 
+### `compile_skill_outputs_rejects_parent_dir_supplemental_paths`
+
+- `compile_skill_outputs_rejects_parent_dir_supplemental_paths__with_absolute_path`: error-injection/security (absolute path) → ensures adapters reject path traversal for supplementals.
+
+### `is_dangerous_skill_tool_flags_rm`
+
+- `is_dangerous_skill_tool_flags_rm__with_args`: type/coercion edge (`"rm -rf"` tokenization) → still flagged as dangerous.
+
+### `skill_root_from_path_returns_none_outside_skills`
+
+- `skill_root_from_path_returns_none_outside_skills__when_path_is_skills_dir`: boundary (path is the `skills/` directory itself) → does not misclassify as a skill root.
+
+### `target_supports_skills`
+
+- `target_supports_skills__all_is_false`: boundary/meta-target (`Target::All`) → requires expansion before classification.
+
 ## Anti-Overfitting Measures
 
 - Tests assert stable substrings (e.g., platform names and warning key phrases) rather than full CLI formatting.

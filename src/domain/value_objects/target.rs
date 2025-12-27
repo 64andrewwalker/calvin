@@ -37,6 +37,11 @@ impl Target {
         matches!(self, Target::All)
     }
 
+    /// Returns true if this target supports directory-based skills (`SKILL.md` folders).
+    pub fn supports_skills(&self) -> bool {
+        matches!(self, Target::ClaudeCode | Target::Cursor | Target::Codex)
+    }
+
     /// Expand `All` to concrete targets, or return self if already concrete
     pub fn expand(&self) -> Vec<Target> {
         if self.is_all() {
@@ -321,5 +326,20 @@ mod tests {
             "error should list valid targets: {}",
             msg
         );
+    }
+
+    #[test]
+    fn target_supports_skills() {
+        assert!(Target::ClaudeCode.supports_skills());
+        assert!(Target::Cursor.supports_skills());
+        assert!(Target::Codex.supports_skills());
+        assert!(!Target::VSCode.supports_skills());
+        assert!(!Target::Antigravity.supports_skills());
+    }
+
+    #[test]
+    #[allow(non_snake_case)] // naming convention: `<original_test_name>__<variant_type>`
+    fn target_supports_skills__all_is_false() {
+        assert!(!Target::All.supports_skills());
     }
 }

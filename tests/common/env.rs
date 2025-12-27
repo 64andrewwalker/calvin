@@ -393,12 +393,10 @@ impl TestEnvBuilder {
         }
 
         // Use assert_cmd's cargo_bin approach
-        let cargo_bin = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("target")
             .join("debug")
-            .join("calvin");
-
-        cargo_bin
+            .join("calvin")
     }
 }
 

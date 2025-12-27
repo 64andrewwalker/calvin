@@ -18,10 +18,6 @@ use super::report::DoctorSink;
 use super::types::{CheckStatus, SecurityCheck};
 use super::{EXPECTED_PROMPT_COUNT, MCP_ALLOWLIST};
 
-const SKILL_DANGEROUS_TOOLS: &[&str] = &[
-    "rm", "sudo", "chmod", "chown", "curl", "wget", "nc", "netcat", "ssh", "scp", "rsync",
-];
-
 fn check_skills_dir(skills_dir: &Path, platform: &str, sink: &mut impl DoctorSink) {
     if !skills_dir.exists() {
         sink.add_pass(platform, "skills", "OK");
@@ -79,7 +75,7 @@ fn check_skills_dir(skills_dir: &Path, platform: &str, sink: &mut impl DoctorSin
             if let Ok(extracted) = crate::parser::extract_frontmatter(&content, &skill_md) {
                 if let Ok(fm) = crate::parser::parse_frontmatter(&extracted.yaml, &skill_md) {
                     for tool in fm.allowed_tools {
-                        if SKILL_DANGEROUS_TOOLS.contains(&tool.as_str()) {
+                        if crate::domain::policies::is_dangerous_skill_tool(&tool) {
                             dangerous.push((id.to_string(), tool));
                         }
                     }

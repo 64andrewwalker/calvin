@@ -28,6 +28,7 @@ mod lockfile_migration;
 pub mod pipeline;
 pub mod provenance;
 pub mod registry;
+pub(crate) mod skills;
 pub mod watch;
 
 pub use check::{CheckItem, CheckOptions, CheckResult, CheckStatus, CheckUseCase};

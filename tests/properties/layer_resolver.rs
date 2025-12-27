@@ -79,7 +79,7 @@ proptest! {
             }
             (true, other) => {
                 prop_assert!(
-                    matches!(&other, Ok(_)),
+                    other.is_ok(),
                     "expected successful resolution, got: {other:?}"
                 );
             }
