@@ -3,15 +3,10 @@
   Custom MDX homepage with full control over layout and styling.
   
   Note: Images use absolute paths because next-mdx-remote doesn't support
-  ES module imports for static assets. Images are served from /public/docs/images/.
+  ES module imports for static assets. Images are served from /docs/images/.
 */}
 
-import featureSync from './docs/images/feature-sync.webp';
-import featureAdapters from './docs/images/feature-adapters.webp';
-import featureSecurity from './docs/images/feature-security.webp';
-import featureLockfile from './docs/images/feature-lockfile.webp';
-import featureWatch from './docs/images/feature-watch.webp';
-import featureScope from './docs/images/feature-scope.webp';
+{/* Image paths - use absolute paths, not imports */}
 
 <Hero 
   title="Calvin" 
@@ -34,32 +29,32 @@ import featureScope from './docs/images/feature-scope.webp';
 
 <Features>
   <Feature 
-    image={featureSync}
+    image="/docs/images/feature-sync.webp"
     title="Write Once, Deploy Everywhere" 
     description="Single source of truth for all your AI coding assistant configurations. No more copy-pasting between tools."
   />
   <Feature 
-    image={featureAdapters}
+    image="/docs/images/feature-adapters.webp"
     title="5 Platform Adapters" 
     description="Automatic conversion to Claude Code, Cursor, VS Code (Copilot), Antigravity, and Codex native formats."
   />
   <Feature 
-    image={featureSecurity}
+    image="/docs/images/feature-security.webp"
     title="Built-in Security" 
     description="Audit mode, deny lists, and permission controls to keep your codebase safe from AI mishaps."
   />
   <Feature 
-    image={featureLockfile}
+    image="/docs/images/feature-lockfile.webp"
     title="Lockfile Tracking" 
     description="Track deployed files, detect conflicts, and clean up orphaned configurations automatically."
   />
   <Feature 
-    image={featureWatch}
+    image="/docs/images/feature-watch.webp"
     title="Watch Mode" 
     description="Automatic re-deployment when source files change. Perfect for iterating on prompts."
   />
   <Feature 
-    image={featureScope}
+    image="/docs/images/feature-scope.webp"
     title="Scope Control" 
     description="Deploy to project directories or user home. Team-shared configs or personal preferences — your choice."
   />
