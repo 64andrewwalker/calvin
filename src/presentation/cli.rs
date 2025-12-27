@@ -115,6 +115,14 @@ pub enum Commands {
         /// Check all resolved layers (user/custom/project)
         #[arg(long)]
         all_layers: bool,
+
+        /// Show .calvinignore patterns for each layer
+        #[arg(long)]
+        show_ignored: bool,
+
+        /// Show individual ignored files with matching patterns (debug)
+        #[arg(long)]
+        debug_ignore: bool,
     },
 
     /// Explain Calvin's usage (for humans/AI assistants)
@@ -301,12 +309,16 @@ mod tests {
             strict_warnings,
             all,
             all_layers,
+            show_ignored,
+            debug_ignore,
         }) = cli.command
         {
             assert_eq!(mode, "balanced");
             assert!(!strict_warnings);
             assert!(!all);
             assert!(!all_layers);
+            assert!(!show_ignored);
+            assert!(!debug_ignore);
         } else {
             panic!("Expected Check command");
         }

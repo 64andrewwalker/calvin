@@ -10,6 +10,8 @@ pub fn cmd_check(
     strict_warnings: bool,
     all: bool,
     all_layers: bool,
+    show_ignored: bool,
+    debug_ignore: bool,
     json: bool,
     verbose: u8,
     color: Option<ColorWhen>,
@@ -24,6 +26,18 @@ pub fn cmd_check(
     let project_root = std::env::current_dir()?;
     let config = calvin::config::Config::load_or_default(Some(&project_root));
     let ui = crate::ui::context::UiContext::new(json, verbose, color, no_animation, &config);
+
+    // Handle --show-ignored and --debug-ignore flags
+    if show_ignored || debug_ignore {
+        return display_ignore_info(
+            &project_root,
+            &config,
+            show_ignored,
+            debug_ignore,
+            json,
+            &ui,
+        );
+    }
 
     let options = CheckOptions {
         mode: security_mode,
@@ -93,6 +107,87 @@ pub fn cmd_check(
 
     if has_issues {
         std::process::exit(1);
+    }
+
+    Ok(())
+}
+
+/// Display .calvinignore patterns and/or ignored files for each layer.
+fn display_ignore_info(
+    project_root: &std::path::Path,
+    config: &calvin::config::Config,
+    show_ignored: bool,
+    debug_ignore: bool,
+    json: bool,
+    _ui: &crate::ui::context::UiContext,
+) -> Result<()> {
+    use calvin::application::layers::LayerQueryUseCase;
+    use calvin::domain::value_objects::IgnorePatterns;
+
+    let use_case = LayerQueryUseCase::default();
+    let layer_result = use_case.query(project_root, config)?;
+
+    if json {
+        let mut out = std::io::stdout().lock();
+        for layer in &layer_result.layers {
+            let ignore = IgnorePatterns::load(&layer.resolved_path)?;
+
+            let mut layer_info = serde_json::json!({
+                "event": "ignore_info",
+                "command": "check",
+                "layer": layer.name,
+                "path": layer.resolved_path.display().to_string(),
+                "pattern_count": ignore.pattern_count(),
+            });
+
+            if show_ignored && !ignore.is_empty() {
+                // Read the .calvinignore file content to get patterns
+                let calvinignore_path = layer.resolved_path.join(".calvinignore");
+                if calvinignore_path.exists() {
+                    let content = std::fs::read_to_string(&calvinignore_path)?;
+                    let patterns: Vec<&str> = content
+                        .lines()
+                        .filter(|l| !l.trim().is_empty() && !l.starts_with('#'))
+                        .collect();
+                    layer_info["patterns"] = serde_json::json!(patterns);
+                }
+            }
+
+            let _ = crate::ui::json::write_event(&mut out, &layer_info);
+        }
+        return Ok(());
+    }
+
+    // Text output
+    println!();
+    println!(".calvinignore Patterns");
+    println!("======================");
+    println!();
+
+    for layer in &layer_result.layers {
+        let ignore = IgnorePatterns::load(&layer.resolved_path)?;
+
+        println!("  {} ({} patterns)", layer.name, ignore.pattern_count(),);
+
+        if (show_ignored || debug_ignore) && !ignore.is_empty() {
+            let calvinignore_path = layer.resolved_path.join(".calvinignore");
+            if calvinignore_path.exists() {
+                let content = std::fs::read_to_string(&calvinignore_path)?;
+                for line in content.lines() {
+                    let trimmed = line.trim();
+                    if !trimmed.is_empty() && !trimmed.starts_with('#') {
+                        println!("    • {}", trimmed);
+                    }
+                }
+            }
+        }
+        println!();
+    }
+
+    if debug_ignore {
+        println!();
+        println!("Note: --debug-ignore individual file listing not yet implemented.");
+        println!("Use verbose deploy (-v) for ignored file counts.");
     }
 
     Ok(())
