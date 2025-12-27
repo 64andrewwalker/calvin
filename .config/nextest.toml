@@ -1,0 +1,41 @@
+# cargo-nextest configuration
+# Docs: https://nexte.st/book/configuration
+
+[profile.default]
+# Use all available CPU cores by default
+# On CI, this will be limited by available resources
+test-threads = "num-cpus"
+
+# Fail fast on first failure in CI, continue in local dev
+fail-fast = false
+
+# Retry flaky tests once before failing
+retries = 0
+
+# Show slow tests (>1s)
+slow-timeout = { period = "1s", terminate-after = 2 }
+
+[profile.default.junit]
+# Generate JUnit XML for CI integration
+path = "target/nextest/default/junit.xml"
+
+[profile.ci]
+# CI-specific settings
+fail-fast = true
+retries = 2
+
+# Override for slow CLI tests
+[[profile.default.overrides]]
+filter = "test(/^cli_/)"
+slow-timeout = { period = "5s", terminate-after = 2 }
+
+[[profile.default.overrides]]
+filter = "test(/^watch_/)"
+slow-timeout = { period = "3s", terminate-after = 2 }
+
+# Pre-commit profile: faster execution
+[profile.pre-commit]
+test-threads = "num-cpus"
+fail-fast = true
+# Note: To skip slow tests, use command line:
+# cargo nextest run --profile pre-commit -E 'not binary(cli_deploy_targets)'
