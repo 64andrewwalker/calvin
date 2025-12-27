@@ -15,6 +15,18 @@
 
 ---
 
+## Architecture Redesign (Skills Complexity Reduction)
+
+- [x] `[1-PLAN] Architecture Redesign` → `docs/architecture-redesign.md`
+- [ ] P0: Deduplicate skill compilation across adapters (shared `infrastructure/adapters/skills.rs`)
+- [ ] P0: Centralize dangerous `allowed-tools` policy (single source of truth for tool list)
+- [ ] P1: Deduplicate skill directory ownership logic (Deploy + Clean share `application/skills.rs`)
+- [ ] P1: Add `Target::supports_skills()` and replace ad-hoc target matching
+- [ ] P2: Deduplicate test helpers (`write_project_skill`) across integration tests
+- [ ] P3 (optional): Reduce `yaml_has_key()` complexity by tracking raw key presence or making `Frontmatter.kind` optional
+
+---
+
 ## Phase 0: Project Bootstrap ✅ COMPLETE
 
 - [x] Initialize Rust project (`cargo init --name calvin`)
