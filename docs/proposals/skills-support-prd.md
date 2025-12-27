@@ -186,7 +186,7 @@ Following Calvin's non-silent failure policy (multi-layer PRD §13.5):
 | Validation | Layer | Location | Rationale |
 | ---------- | ----- | -------- | --------- |
 | Missing SKILL.md | **Repository** | `FsAssetRepository::load_skills()` | Fail fast during asset loading |
-| Binary file detection | **Repository** | `FsAssetRepository::load_supplemental()` | Part of loading, not compilation |
+| Binary file detection | **Repository** | `FsAssetRepository::load_skill_supplementals_recursive()` | Part of loading, not compilation |
 | Dangerous tools warning | **Adapter + Application** | Adapter: `TargetAdapter::validate()`; surfaced during deploy via `DeployUseCase::validate_skill_outputs()` | Adapter owns platform-specific rules; deploy surfaces warnings (never fail silently) |
 | Unsupported platform skip | **Adapter + Application** | Adapter: `TargetAdapter::compile()` returns empty for skills; warnings surfaced via `validate_skill_targets()` and a global "Skills skipped for: …" deploy warning | Skip is adapter responsibility; user-facing warnings belong to orchestration layer |
 | No supported targets | **Application** | `validate_skill_targets()` | Validate early based on declared skill targets |
@@ -551,7 +551,7 @@ No new options. Skills are automatically detected in `.promptpack/skills/`.
 Verbose output (`-v`) shows skill structure:
 
 ```
-$ calvin deploy -v
+$ calvin deploy -v --targets all
 
 Layer Stack (highest priority first):
   3. [project] ./.promptpack/ (5 assets, 2 skills)
