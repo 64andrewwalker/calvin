@@ -280,12 +280,19 @@ pub fn cmd_deploy_with_explicit_target(
                 println!("Layer Stack (highest priority first):");
                 for (idx, layer) in layers_with_assets.iter().rev().enumerate() {
                     let layer_num = total_layers - idx;
+                    let skill_count = layer
+                        .assets
+                        .iter()
+                        .filter(|a| a.kind() == calvin::domain::entities::AssetKind::Skill)
+                        .count();
+                    let asset_count = layer.assets.len().saturating_sub(skill_count);
                     println!(
-                        "  {}. [{}] {} ({} assets)",
+                        "  {}. [{}] {} ({} assets, {} skills)",
                         layer_num,
                         layer.name,
                         display_with_tilde(layer.path.original()),
-                        layer.assets.len()
+                        asset_count,
+                        skill_count
                     );
                 }
 
@@ -323,6 +330,34 @@ pub fn cmd_deploy_with_explicit_target(
                             "\nAssets: {} merged ({} overridden)",
                             total_assets, override_count
                         );
+                    }
+                }
+
+                // Print skills structure (PRD: -v shows skills tree)
+                if verbose >= 1 {
+                    let mut skills: Vec<_> = merge_result
+                        .assets
+                        .values()
+                        .filter(|m| m.asset.kind() == calvin::domain::entities::AssetKind::Skill)
+                        .collect();
+                    skills.sort_by(|a, b| a.asset.id().cmp(b.asset.id()));
+
+                    if !skills.is_empty() {
+                        println!("\nSkills:");
+                        for merged in skills {
+                            println!("  • {} ({} layer)", merged.asset.id(), merged.source_layer);
+
+                            let mut files: Vec<String> = Vec::new();
+                            files.push("SKILL.md".to_string());
+                            for rel in merged.asset.supplementals().keys() {
+                                files.push(rel.display().to_string());
+                            }
+                            files.sort();
+
+                            for file in files {
+                                println!("    - {}", file);
+                            }
+                        }
                     }
                 }
 
@@ -507,6 +542,13 @@ pub fn cmd_deploy_with_explicit_target(
                 ui.unicode,
             )
         );
+    }
+
+    // Surface non-fatal warnings (never fail silently).
+    if !json && !result.warnings.is_empty() {
+        for warning in &result.warnings {
+            eprintln!("Warning: {}", warning);
+        }
     }
 
     // Note: Orphan detection is now handled by DeployUseCase internally

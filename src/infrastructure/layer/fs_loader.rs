@@ -172,4 +172,61 @@ ACTION
             Err(LayerLoadError::DuplicateAssetInLayer { .. })
         ));
     }
+
+    #[test]
+    fn fs_loader_allows_skill_id_to_overlap_action_id() {
+        let dir = tempdir().unwrap();
+        let layer_path = dir.path().join(".promptpack");
+        std::fs::create_dir_all(layer_path.join("actions")).unwrap();
+        std::fs::create_dir_all(layer_path.join("skills/review")).unwrap();
+
+        // Action asset: id = "review"
+        std::fs::write(
+            layer_path.join("actions/review.md"),
+            r#"---
+kind: action
+description: Review action
+scope: project
+---
+ACTION
+"#,
+        )
+        .unwrap();
+
+        // Skill asset: id = directory name "review" (overlaps action id)
+        std::fs::write(
+            layer_path.join("skills/review/SKILL.md"),
+            r#"---
+description: Review skill
+scope: project
+targets:
+  - claude-code
+---
+
+# Instructions
+"#,
+        )
+        .unwrap();
+
+        let loader = FsLayerLoader::default();
+        let mut layer = crate::domain::entities::Layer::new(
+            "test-layer",
+            LayerPath::new(layer_path.clone(), layer_path.clone()),
+            LayerType::Project,
+        );
+
+        loader.load_layer_assets(&mut layer).unwrap();
+
+        // Both assets should be present.
+        assert_eq!(layer.assets.len(), 2);
+        assert!(layer
+            .assets
+            .iter()
+            .any(|a| a.kind() == crate::domain::entities::AssetKind::Action));
+        assert!(layer
+            .assets
+            .iter()
+            .any(|a| a.kind() == crate::domain::entities::AssetKind::Skill));
+        assert!(layer.assets.iter().any(|a| a.id() == "review"));
+    }
 }

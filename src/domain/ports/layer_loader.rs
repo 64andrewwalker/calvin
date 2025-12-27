@@ -6,6 +6,7 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 
 use crate::domain::entities::Layer;
+use crate::domain::entities::{Asset, AssetKind};
 
 pub trait LayerLoader: Send + Sync {
     fn load_layer_assets(&self, layer: &mut Layer) -> Result<(), LayerLoadError>;
@@ -36,27 +37,34 @@ pub enum LayerLoadError {
 
 pub(crate) fn ensure_unique_asset_ids(
     layer_name: &str,
-    assets: &[crate::domain::entities::Asset],
+    assets: &[Asset],
 ) -> Result<(), LayerLoadError> {
-    let mut seen: HashSet<&str> = HashSet::new();
-    let mut first_path_by_id: std::collections::HashMap<&str, &std::path::PathBuf> =
+    let mut seen: HashSet<String> = HashSet::new();
+    let mut first_path_by_key: std::collections::HashMap<String, &std::path::PathBuf> =
         std::collections::HashMap::new();
     for asset in assets {
-        let id = asset.id();
-        if !seen.insert(id) {
-            let file1 = first_path_by_id
-                .get(id)
+        let key = asset_key_for_uniqueness(asset);
+        if !seen.insert(key.clone()) {
+            let file1 = first_path_by_key
+                .get(&key)
                 .map(|p| (*p).clone())
                 .unwrap_or_else(|| asset.source_path().clone());
             let file2 = asset.source_path().clone();
             return Err(LayerLoadError::DuplicateAssetInLayer {
                 layer_name: layer_name.to_string(),
-                asset_id: id.to_string(),
+                asset_id: asset.id().to_string(),
                 file1,
                 file2,
             });
         }
-        first_path_by_id.insert(id, asset.source_path());
+        first_path_by_key.insert(key, asset.source_path());
     }
     Ok(())
+}
+
+fn asset_key_for_uniqueness(asset: &Asset) -> String {
+    match asset.kind() {
+        AssetKind::Skill => format!("skill:{}", asset.id()),
+        _ => asset.id().to_string(),
+    }
 }

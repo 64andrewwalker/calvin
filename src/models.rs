@@ -19,6 +19,8 @@ pub enum AssetKind {
     Action,
     /// Specialized sub-agents/roles
     Agent,
+    /// Directory-based skills (SKILL.md + supplementals)
+    Skill,
 }
 
 /// Scope of the asset (where it should be installed)
@@ -58,6 +60,12 @@ pub struct Frontmatter {
     /// File glob pattern for conditional application (e.g., "*.rs")
     #[serde(default)]
     pub apply: Option<String>,
+
+    /// Skill-only: allowed tools list (validated at compile/check time)
+    ///
+    /// Ignored for non-skill assets.
+    #[serde(default, rename = "allowed-tools")]
+    pub allowed_tools: Vec<String>,
 }
 
 impl Frontmatter {
@@ -69,6 +77,7 @@ impl Frontmatter {
             scope: Scope::default(),
             targets: Vec::new(),
             apply: None,
+            allowed_tools: Vec::new(),
         }
     }
 
@@ -137,6 +146,7 @@ mod tests {
         assert_eq!(fm.scope, Scope::Project); // default
         assert!(fm.targets.is_empty()); // default
         assert!(fm.apply.is_none()); // default
+        assert!(fm.allowed_tools.is_empty()); // default
     }
 
     #[test]
@@ -149,6 +159,8 @@ targets:
   - claude-code
   - cursor
 apply: "*.rs"
+allowed-tools:
+  - git
 "#;
         let fm: Frontmatter = serde_yaml_ng::from_str(yaml).unwrap();
 
@@ -157,6 +169,7 @@ apply: "*.rs"
         assert_eq!(fm.scope, Scope::Project);
         assert_eq!(fm.targets, vec![Target::ClaudeCode, Target::Cursor]);
         assert_eq!(fm.apply, Some("*.rs".to_string()));
+        assert_eq!(fm.allowed_tools, vec!["git".to_string()]);
     }
 
     #[test]
@@ -182,6 +195,31 @@ kind: agent
         let fm: Frontmatter = serde_yaml_ng::from_str(yaml).unwrap();
 
         assert_eq!(fm.kind, AssetKind::Agent);
+    }
+
+    #[test]
+    fn test_frontmatter_skill_kind_parses() {
+        let yaml = r#"
+description: A skill
+kind: skill
+"#;
+        let fm: Frontmatter = serde_yaml_ng::from_str(yaml).unwrap();
+
+        assert_eq!(fm.kind, AssetKind::Skill);
+    }
+
+    #[test]
+    fn test_frontmatter_allowed_tools_parses() {
+        let yaml = r#"
+description: A skill
+kind: skill
+allowed-tools:
+  - git
+  - cat
+"#;
+        let fm: Frontmatter = serde_yaml_ng::from_str(yaml).unwrap();
+
+        assert_eq!(fm.allowed_tools, vec!["git".to_string(), "cat".to_string()]);
     }
 
     #[test]
@@ -266,6 +304,10 @@ kind: agent
         let yaml = "agent";
         let kind: AssetKind = serde_yaml_ng::from_str(yaml).unwrap();
         assert_eq!(kind, AssetKind::Agent);
+
+        let yaml = "skill";
+        let kind: AssetKind = serde_yaml_ng::from_str(yaml).unwrap();
+        assert_eq!(kind, AssetKind::Skill);
     }
 
     #[test]

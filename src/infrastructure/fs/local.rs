@@ -43,7 +43,16 @@ impl FileSystem for LocalFs {
 
     fn remove(&self, path: &Path) -> FsResult<()> {
         let expanded = self.expand_home(path);
-        std::fs::remove_file(&expanded).map_err(Into::into)
+        match std::fs::remove_file(&expanded) {
+            Ok(()) => Ok(()),
+            Err(e) => {
+                if expanded.is_dir() {
+                    std::fs::remove_dir(&expanded).map_err(Into::into)
+                } else {
+                    Err(e.into())
+                }
+            }
+        }
     }
 
     fn create_dir_all(&self, path: &Path) -> FsResult<()> {

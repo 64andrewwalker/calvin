@@ -35,6 +35,13 @@ impl CodexAdapter {
         }
     }
 
+    fn skills_dir(&self, scope: Scope) -> PathBuf {
+        match scope {
+            Scope::User => PathBuf::from("~/.codex/skills"),
+            Scope::Project => PathBuf::from(".codex/skills"),
+        }
+    }
+
     /// Generate YAML frontmatter for Codex prompts
     fn generate_frontmatter(&self, asset: &Asset) -> String {
         let mut fm = String::from("---\n");
@@ -48,10 +55,69 @@ impl CodexAdapter {
             AssetKind::Policy => {
                 // Policy prompts don't need arguments
             }
+            AssetKind::Skill => {
+                // Skills use SKILL.md format, not Codex prompts frontmatter.
+            }
         }
 
         fm.push_str("---\n");
         fm
+    }
+
+    fn compile_skill(&self, asset: &Asset) -> Result<Vec<OutputFile>, AdapterError> {
+        let mut outputs = Vec::new();
+        let skill_dir = self.skills_dir(asset.scope()).join(asset.id());
+
+        outputs.push(OutputFile::new(
+            skill_dir.join("SKILL.md"),
+            self.generate_skill_md(asset),
+            Target::Codex,
+        ));
+
+        for (rel_path, content) in asset.supplementals() {
+            if rel_path.is_absolute()
+                || rel_path
+                    .components()
+                    .any(|c| matches!(c, std::path::Component::ParentDir))
+            {
+                return Err(AdapterError::CompilationFailed {
+                    message: format!(
+                        "Invalid supplemental path for skill '{}': {}",
+                        asset.id(),
+                        rel_path.display()
+                    ),
+                });
+            }
+            outputs.push(OutputFile::new(
+                skill_dir.join(rel_path),
+                content.clone(),
+                Target::Codex,
+            ));
+        }
+
+        Ok(outputs)
+    }
+
+    fn generate_skill_md(&self, asset: &Asset) -> String {
+        let mut out = String::new();
+
+        out.push_str("---\n");
+        out.push_str(&format!("name: {}\n", asset.id()));
+        out.push_str(&format!("description: {}\n", asset.description()));
+
+        if !asset.allowed_tools().is_empty() {
+            out.push_str("allowed-tools:\n");
+            for tool in asset.allowed_tools() {
+                out.push_str(&format!("  - {}\n", tool));
+            }
+        }
+
+        out.push_str("---\n\n");
+        out.push_str(asset.content().trim());
+        out.push_str("\n\n");
+        out.push_str(&self.footer(&asset.source_path_normalized()));
+
+        out
     }
 }
 
@@ -67,6 +133,11 @@ impl TargetAdapter for CodexAdapter {
     }
 
     fn compile(&self, asset: &Asset) -> Result<Vec<OutputFile>, AdapterError> {
+        // Skills are compiled to `.codex/skills/<id>/SKILL.md` (implemented separately).
+        if asset.kind() == AssetKind::Skill {
+            return self.compile_skill(asset);
+        }
+
         let mut outputs = Vec::new();
 
         let prompts_dir = self.prompts_dir(asset.scope());
@@ -88,6 +159,7 @@ impl TargetAdapter for CodexAdapter {
             AssetKind::Policy => {
                 format!("{}\n{}\n\n{}", frontmatter, asset.content().trim(), footer)
             }
+            AssetKind::Skill => String::new(), // unreachable (guarded above)
         };
 
         outputs.push(OutputFile::new(path, content, self.target()));
@@ -97,6 +169,14 @@ impl TargetAdapter for CodexAdapter {
 
     fn validate(&self, output: &OutputFile) -> Vec<AdapterDiagnostic> {
         let mut diagnostics = Vec::new();
+
+        if output
+            .path()
+            .file_name()
+            .is_some_and(|n| n == std::ffi::OsStr::new("SKILL.md"))
+        {
+            diagnostics.extend(validate_skill_allowed_tools(output));
+        }
 
         // Check for named placeholders without documentation
         let content = output.content();
@@ -146,9 +226,39 @@ impl TargetAdapter for CodexAdapter {
     }
 }
 
+fn validate_skill_allowed_tools(output: &OutputFile) -> Vec<AdapterDiagnostic> {
+    const DANGEROUS_TOOLS: &[&str] = &[
+        "rm", "sudo", "chmod", "chown", "curl", "wget", "nc", "netcat", "ssh", "scp", "rsync",
+    ];
+
+    let extracted = match crate::parser::extract_frontmatter(output.content(), output.path()) {
+        Ok(extracted) => extracted,
+        Err(_) => return Vec::new(),
+    };
+    let fm = match crate::parser::parse_frontmatter(&extracted.yaml, output.path()) {
+        Ok(fm) => fm,
+        Err(_) => return Vec::new(),
+    };
+
+    let mut diags = Vec::new();
+    for tool in &fm.allowed_tools {
+        if DANGEROUS_TOOLS.contains(&tool.as_str()) {
+            diags.push(AdapterDiagnostic {
+                severity: DiagnosticSeverity::Warning,
+                message: format!(
+                    "Tool '{}' in allowed-tools may pose security risks. Ensure this is intentional.",
+                    tool
+                ),
+            });
+        }
+    }
+    diags
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
 
     fn create_action_asset(id: &str, description: &str, content: &str) -> Asset {
         Asset::new(id, format!("actions/{}.md", id), description, content)
@@ -158,6 +268,14 @@ mod tests {
     fn create_policy_asset(id: &str, description: &str, content: &str) -> Asset {
         Asset::new(id, format!("policies/{}.md", id), description, content)
             .with_kind(AssetKind::Policy)
+    }
+
+    fn create_skill_asset(id: &str, description: &str, content: &str) -> Asset {
+        let mut supplementals: HashMap<PathBuf, String> = HashMap::new();
+        supplementals.insert(PathBuf::from("reference.md"), "# Ref".to_string());
+        Asset::new(id, format!("skills/{}/SKILL.md", id), description, content)
+            .with_kind(AssetKind::Skill)
+            .with_supplementals(supplementals)
     }
 
     // === TDD: Compile Tests ===
@@ -302,5 +420,19 @@ mod tests {
     fn adapter_version_is_one() {
         let adapter = CodexAdapter::new();
         assert_eq!(adapter.version(), 1);
+    }
+
+    // === TDD: Skills ===
+
+    #[test]
+    fn test_codex_compile_skill_path() {
+        let adapter = CodexAdapter::new();
+        let asset = create_skill_asset("my-skill", "My skill", "# Instructions");
+
+        let outputs = adapter.compile(&asset).unwrap();
+
+        assert!(outputs
+            .iter()
+            .any(|o| o.path() == &PathBuf::from(".codex/skills/my-skill/SKILL.md")));
     }
 }

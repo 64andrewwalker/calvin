@@ -303,6 +303,19 @@ where
         let assets = self.apply_scope_policy(assets, options.scope);
         result.asset_count = assets.len();
 
+        // Step 1.75: Validate skills targets (never fail silently)
+        match validate_skill_targets(&assets) {
+            Ok(warnings) => {
+                for warning in warnings {
+                    result.add_warning(warning);
+                }
+            }
+            Err(err) => {
+                result.errors.push(err);
+                return result;
+            }
+        }
+
         // Emit started event
         event_sink.on_event(DeployEvent::Started {
             source: options.source.clone(),
@@ -578,6 +591,13 @@ where
         use crate::domain::services::CompilerService;
         use std::path::PathBuf;
 
+        fn merge_key_for_asset(asset: &Asset) -> String {
+            match asset.kind() {
+                AssetKind::Skill => format!("skill:{}", asset.id()),
+                _ => asset.id().to_string(),
+            }
+        }
+
         let mut outputs = Vec::new();
         let mut provenance_by_output_path: std::collections::HashMap<PathBuf, OutputProvenance> =
             std::collections::HashMap::new();
@@ -615,18 +635,21 @@ where
 
                 match adapter.compile(asset) {
                     Ok(adapter_outputs) => {
-                        let provenance = merged_assets_by_id.get(asset.id()).map(|m| {
-                            let base = OutputProvenance::new(
-                                m.source_layer.clone(),
-                                m.source_layer_path.clone(),
-                                asset.id().to_string(),
-                                m.source_file.clone(),
-                            );
-                            match &m.overrides {
-                                Some(overrides) => base.with_overrides(overrides.clone()),
-                                None => base,
-                            }
-                        });
+                        let provenance =
+                            merged_assets_by_id
+                                .get(&merge_key_for_asset(asset))
+                                .map(|m| {
+                                    let base = OutputProvenance::new(
+                                        m.source_layer.clone(),
+                                        m.source_layer_path.clone(),
+                                        asset.id().to_string(),
+                                        m.source_file.clone(),
+                                    );
+                                    match &m.overrides {
+                                        Some(overrides) => base.with_overrides(overrides.clone()),
+                                        None => base,
+                                    }
+                                });
 
                         for output in adapter_outputs {
                             if let Some(provenance) = provenance.clone() {
@@ -887,11 +910,33 @@ where
             if orphan.exists {
                 if let Ok(content) = self.file_system.read(&resolved) {
                     orphan.has_signature = has_calvin_signature(&content);
+                    if !orphan.has_signature {
+                        orphan.has_signature = self.is_part_of_calvin_skill(&resolved);
+                    }
                 }
             }
         }
 
         result
+    }
+
+    /// Treat skill supplemental files as safe-to-delete if their SKILL.md is Calvin-signed.
+    ///
+    /// This allows `calvin deploy --cleanup` and `calvin clean` to fully remove skill directories
+    /// without requiring Calvin signature markers inside arbitrary supplemental files (scripts, etc.).
+    fn is_part_of_calvin_skill(&self, path: &Path) -> bool {
+        let Some(skill_root) = skill_root_from_path(path) else {
+            return false;
+        };
+
+        let skill_md = skill_root.join("SKILL.md");
+        if !self.file_system.exists(&skill_md) {
+            return false;
+        }
+        let Ok(content) = self.file_system.read(&skill_md) else {
+            return false;
+        };
+        has_calvin_signature(&content)
     }
 
     /// Execute the sync plan
@@ -958,6 +1003,8 @@ where
         project_root: &Path,
         remote_mode: bool,
     ) {
+        use std::collections::HashSet;
+
         // Emit orphans detected event
         if !orphans.orphans.is_empty() {
             let safe_count = orphans
@@ -970,6 +1017,8 @@ where
                 safe_to_delete: safe_count,
             });
         }
+
+        let mut skill_dirs_to_prune: HashSet<PathBuf> = HashSet::new();
 
         for orphan in &orphans.orphans {
             let original = PathBuf::from(&orphan.path);
@@ -984,7 +1033,32 @@ where
                     event_sink.on_event(DeployEvent::OrphanDeleted {
                         path: original.clone(),
                     });
+
+                    // Best-effort: prune empty skill directories after deleting orphan files.
+                    // Skills are directory-based outputs (`.claude/skills/<id>/...`, `.codex/skills/<id>/...`).
+                    if let Some(skill_root) = skill_root_from_path(&resolved) {
+                        let mut current = resolved.parent();
+                        while let Some(dir) = current {
+                            if !dir.starts_with(&skill_root) {
+                                break;
+                            }
+                            skill_dirs_to_prune.insert(dir.to_path_buf());
+                            if dir == skill_root {
+                                break;
+                            }
+                            current = dir.parent();
+                        }
+                    }
                 }
+            }
+        }
+
+        if !skill_dirs_to_prune.is_empty() {
+            let mut dirs: Vec<PathBuf> = skill_dirs_to_prune.into_iter().collect();
+            dirs.sort_by_key(|d| std::cmp::Reverse(d.components().count()));
+            for dir in dirs {
+                // Ignore errors: directories may not be empty or may be re-created later in the deploy.
+                let _ = self.file_system.remove(&dir);
             }
         }
     }
@@ -1112,4 +1186,68 @@ struct LayeredAssets {
 
 fn default_user_layer_path() -> Option<PathBuf> {
     crate::infrastructure::calvin_home_dir().map(|h| h.join(".calvin/.promptpack"))
+}
+
+fn skill_root_from_path(path: &Path) -> Option<PathBuf> {
+    for ancestor in path.ancestors() {
+        let parent = ancestor.parent()?;
+        if parent.file_name()? != std::ffi::OsStr::new("skills") {
+            continue;
+        }
+        let grandparent = parent.parent()?;
+        let Some(name) = grandparent.file_name() else {
+            continue;
+        };
+        if name == std::ffi::OsStr::new(".claude") || name == std::ffi::OsStr::new(".codex") {
+            return Some(ancestor.to_path_buf());
+        }
+    }
+
+    None
+}
+
+fn validate_skill_targets(assets: &[Asset]) -> Result<Vec<String>, String> {
+    use crate::domain::entities::AssetKind;
+    use crate::domain::value_objects::Target;
+
+    let mut warnings = Vec::new();
+
+    for asset in assets {
+        if asset.kind() != AssetKind::Skill {
+            continue;
+        }
+
+        let raw_targets = asset.targets();
+        if raw_targets.is_empty() || raw_targets.iter().any(|t| t.is_all()) {
+            continue;
+        }
+
+        let mut has_supported = false;
+        let mut unsupported: Vec<Target> = Vec::new();
+
+        for t in raw_targets {
+            match t {
+                Target::ClaudeCode | Target::Codex | Target::Cursor => has_supported = true,
+                Target::VSCode | Target::Antigravity => unsupported.push(*t),
+                Target::All => {}
+            }
+        }
+
+        for t in unsupported {
+            warnings.push(format!(
+                "Skill '{}' targets {}, but skills are not supported on this platform; skipping.",
+                asset.id(),
+                t.display_name()
+            ));
+        }
+
+        if !has_supported {
+            return Err(format!(
+                "Skill '{}' has no supported targets (supported: claude-code, codex, cursor).",
+                asset.id()
+            ));
+        }
+    }
+
+    Ok(warnings)
 }

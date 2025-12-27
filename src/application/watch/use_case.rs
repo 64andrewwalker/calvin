@@ -141,6 +141,7 @@ impl WatchUseCase {
                             }
 
                             // Only watch .md assets + config.toml changes.
+                            // Skills are directory-based assets and may include non-.md supplementals (scripts, etc.).
                             let is_md = canonical_path
                                 .extension()
                                 .map(|e| e == "md")
@@ -149,7 +150,10 @@ impl WatchUseCase {
                                 .file_name()
                                 .map(|n| n == "config.toml")
                                 .unwrap_or(false);
-                            if !(is_md || is_config) {
+                            let is_skill_file =
+                                is_path_under_any_skills_dir(&canonical_path, &paths_to_watch);
+
+                            if !(is_md || is_config || is_skill_file) {
                                 continue;
                             }
 
@@ -216,7 +220,7 @@ impl WatchUseCase {
     ) {
         let mut seen: HashSet<PathBuf> = HashSet::new();
         for path in paths {
-            self.poll_for_changes_in_path(path, content_hashes, state, &mut seen);
+            self.poll_for_changes_in_path(path, path, content_hashes, state, &mut seen);
         }
 
         let mut deleted: Vec<PathBuf> = Vec::new();
@@ -234,6 +238,7 @@ impl WatchUseCase {
 
     fn poll_for_changes_in_path(
         &self,
+        root: &Path,
         path: &Path,
         content_hashes: &mut HashMap<PathBuf, String>,
         state: &mut WatcherState,
@@ -251,7 +256,7 @@ impl WatchUseCase {
                     continue;
                 }
                 let child_path = entry.path();
-                self.poll_for_changes_in_path(&child_path, content_hashes, state, seen);
+                self.poll_for_changes_in_path(root, &child_path, content_hashes, state, seen);
             }
             return;
         }
@@ -265,7 +270,8 @@ impl WatchUseCase {
             .file_name()
             .map(|n| n == "config.toml")
             .unwrap_or(false);
-        if !(is_md || is_config) {
+        let is_skill_file = is_path_under_skills_dir(path, root);
+        if !(is_md || is_config || is_skill_file) {
             return;
         }
 
@@ -394,13 +400,14 @@ impl WatchUseCase {
         content_hashes: &mut HashMap<PathBuf, String>,
     ) {
         for path in paths {
-            self.seed_content_hashes_for_path(path, content_hashes);
+            self.seed_content_hashes_for_path(path, path, content_hashes);
         }
     }
 
     fn seed_content_hashes_for_path(
         &self,
-        path: &PathBuf,
+        root: &Path,
+        path: &Path,
         content_hashes: &mut HashMap<PathBuf, String>,
     ) {
         if path.is_dir() {
@@ -414,7 +421,7 @@ impl WatchUseCase {
                 if file_type.is_symlink() {
                     continue;
                 }
-                self.seed_content_hashes_for_path(&entry.path(), content_hashes);
+                self.seed_content_hashes_for_path(root, &entry.path(), content_hashes);
             }
             return;
         }
@@ -428,14 +435,47 @@ impl WatchUseCase {
             .file_name()
             .map(|n| n == "config.toml")
             .unwrap_or(false);
-        if !(is_md || is_config) {
+        let is_skill_file = is_path_under_skills_dir(path, root);
+        if !(is_md || is_config || is_skill_file) {
             return;
         }
 
-        let canonical_path = path.canonicalize().unwrap_or_else(|_| path.clone());
+        let canonical_path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
         let Ok(content) = std::fs::read_to_string(&canonical_path) else {
             return;
         };
         content_hashes.insert(canonical_path, compute_content_hash(&content));
+    }
+}
+
+fn is_path_under_any_skills_dir(path: &Path, roots: &[PathBuf]) -> bool {
+    roots
+        .iter()
+        .any(|root| is_path_under_skills_dir(path, root))
+}
+
+fn is_path_under_skills_dir(path: &Path, root: &Path) -> bool {
+    let Ok(rel) = path.strip_prefix(root) else {
+        return false;
+    };
+    rel.components()
+        .next()
+        .is_some_and(|c| c.as_os_str() == std::ffi::OsStr::new("skills"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn skill_directory_changes_are_considered_relevant() {
+        let root = PathBuf::from(".promptpack");
+        let script = root.join("skills/my-skill/scripts/validate.py");
+        let markdown = root.join("skills/my-skill/reference.md");
+        let policy = root.join("policies/style.md");
+
+        assert!(is_path_under_skills_dir(&script, &root));
+        assert!(is_path_under_skills_dir(&markdown, &root));
+        assert!(!is_path_under_skills_dir(&policy, &root));
     }
 }

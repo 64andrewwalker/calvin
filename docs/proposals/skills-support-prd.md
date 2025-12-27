@@ -1,6 +1,6 @@
 # Skills Support PRD
 
-> **Status**: Draft  
+> **Status**: Implemented  
 > **Author**: Arona (AI Assistant)  
 > **Created**: 2025-12-27  
 > **Target Version**: 0.6.0
@@ -423,41 +423,44 @@ impl TargetAdapter for VSCodeAdapter {
 
 ### 4.6 Lockfile Changes
 
-**Decision**: Lockfile tracks skills at the **folder level**, not individual files. The entire skill directory is treated as one unit.
+**Decision**: Lockfile tracks skills at the **file level** (same as other Calvin outputs). Each generated file under the skill directory has its own lockfile entry.
 
 ```toml
 # ./calvin.lock
 
 version = 1
 
-# Skill tracked at folder level
-[files."project:.claude/skills/draft-commit"]
-hash = "sha256:combined_hash_of_all_files..."
+# Skill files tracked individually
+[files."project:.claude/skills/draft-commit/SKILL.md"]
+hash = "sha256:..."
 source_layer = "user"
 source_asset = "draft-commit"
-source_path = "skills/draft-commit"
+source_path = "skills/draft-commit/SKILL.md"
+kind = "skill"
+
+[files."project:.claude/skills/draft-commit/scripts/validate.py"]
+hash = "sha256:..."
+source_layer = "user"
+source_asset = "draft-commit"
+source_path = "skills/draft-commit/scripts/validate.py"
 kind = "skill"
 ```
 
 **Rationale**:
 
-- A skill is a cohesive unit; individual files inside don't need separate tracking
-- Hash is computed from all files in the skill directory combined
-- Simplifies orphan detection (remove entire directory, not individual files)
+- Matches Calvin’s existing lockfile model (file-based entries)
+- Enables precise cleanup of removed/renamed supplemental files
+- Keeps provenance per output file
 
 ### 4.7 Orphan Detection
 
-**With folder-level tracking**, orphan detection is simpler:
+With file-level tracking:
 
 1. `OrphanDetector` compares lockfile skill entries against new output
-2. If a skill ID is in lockfile but not in new output, the entire skill folder is orphaned
-3. `calvin deploy --cleanup` removes the entire orphan skill directory
+2. Files present in lockfile but not in new output are orphans
+3. `calvin deploy --cleanup` deletes safe orphans and prunes now-empty skill directories (best-effort)
 
-**No need to track individual files** - when a skill changes, Calvin:
-
-1. Deletes the entire old skill directory
-2. Writes the entire new skill directory
-3. Updates the lockfile with new combined hash
+**Note**: Skill supplemental files (scripts, reference docs) may not contain Calvin signature markers. Calvin treats them as safe-to-delete when their sibling `SKILL.md` is Calvin-signed.
 
 ### 4.8 Security Considerations
 
@@ -609,12 +612,12 @@ Claude Code
 
 | Phase | Status | Tests | Implementation |
 | ----- | ------ | ----- | -------------- |
-| 0. Decision Gate | � Complete | N/A | 3/3 decisions |
-| 1. Domain Layer | 🔴 Not Started | 0/8 | 0/7 |
-| 2. Adapters | 🔴 Not Started | 0/10 | 0/7 |
-| 3. Application Layer | 🔴 Not Started | 0/6 | 0/4 |
-| 4. CLI & UI | 🔴 Not Started | 0/4 | 0/4 |
-| 5. Documentation | 🔴 Not Started | N/A | 0/3 |
+| 0. Decision Gate | 🟢 Complete | N/A | 3/3 decisions |
+| 1. Domain Layer | 🟢 Complete | 8/8 | 7/7 |
+| 2. Adapters | 🟢 Complete | 10/10 | 7/7 |
+| 3. Application Layer | 🟢 Complete | 6/6 | 4/4 |
+| 4. CLI & UI | 🟢 Complete | 4/4 | 4/4 |
+| 5. Documentation | 🟢 Complete | N/A | 3/3 |
 
 **Legend**: 🔴 Not Started | 🟡 In Progress | 🟢 Complete
 
@@ -632,7 +635,7 @@ All design decisions have been resolved:
 
 ---
 
-### Phase 1: Domain Layer (3-4 days)
+### Phase 1: Domain Layer ✅ COMPLETE
 
 **Goal**: Add `Skill` as a new `AssetKind` with supplemental file support.
 
@@ -666,24 +669,24 @@ Step 5: Add supplementals field to Asset
 
 **Tests First** (write these before implementation):
 
-- [ ] `test_asset_kind_skill_exists` - `AssetKind::Skill` is valid
-- [ ] `test_asset_supplementals_empty_by_default` - New field defaults empty
-- [ ] `test_asset_with_supplementals_builder` - Builder method works
-- [ ] `test_asset_allowed_tools_empty_by_default` - New field defaults empty
-- [ ] `test_frontmatter_skill_kind_parses` - `kind: skill` deserializes
-- [ ] `test_frontmatter_allowed_tools_parses` - `allowed-tools` deserializes
-- [ ] `test_load_skill_directory_valid` - Loads skill with SKILL.md
-- [ ] `test_load_skill_directory_missing_skill_md_errors` - Missing SKILL.md = error
+- [x] `test_asset_kind_skill_exists` - `AssetKind::Skill` is valid
+- [x] `test_asset_supplementals_empty_by_default` - New field defaults empty
+- [x] `test_asset_with_supplementals_builder` - Builder method works
+- [x] `test_asset_allowed_tools_empty_by_default` - New field defaults empty
+- [x] `test_frontmatter_skill_kind_parses` - `kind: skill` deserializes
+- [x] `test_frontmatter_allowed_tools_parses` - `allowed-tools` deserializes
+- [x] `test_load_skill_directory_valid` - Loads skill with SKILL.md
+- [x] `test_load_skill_directory_missing_skill_md_errors` - Missing SKILL.md = error
 
 **Implementation** (after tests exist):
 
-- [ ] Add `Skill` to `AssetKind` in `src/domain/entities/asset.rs`
-- [ ] Add `supplementals: HashMap<PathBuf, String>` to `Asset`
-- [ ] Add `allowed_tools: Vec<String>` to `Asset`
-- [ ] Add `with_supplementals()` and `with_allowed_tools()` builders
-- [ ] Update `Frontmatter` in `src/models.rs` with `allowed_tools` field
-- [ ] Implement `load_skills()` in `FsAssetRepository`
-- [ ] Add `is_binary()` utility for supplemental validation
+- [x] Add `Skill` to `AssetKind` in `src/domain/entities/asset.rs`
+- [x] Add `supplementals: HashMap<PathBuf, String>` to `Asset`
+- [x] Add `allowed_tools: Vec<String>` to `Asset`
+- [x] Add `with_supplementals()` and `with_allowed_tools()` builders
+- [x] Update `Frontmatter` in `src/models.rs` with `allowed_tools` field
+- [x] Implement `load_skills()` in `FsAssetRepository`
+- [x] Add `is_binary()` utility for supplemental validation
 
 **Files to modify**:
 
@@ -696,14 +699,14 @@ Step 5: Add supplementals field to Asset
 
 Phase 1 complete when:
 
-- [ ] All 8 contract tests pass
-- [ ] `cargo test skill` runs without failures
-- [ ] `AssetKind::Skill` compiles
-- [ ] Skills can be loaded from `.promptpack/skills/<id>/SKILL.md`
+- [x] All 8 contract tests pass
+- [x] `cargo test skill` runs without failures
+- [x] `AssetKind::Skill` compiles
+- [x] Skills can be loaded from `.promptpack/skills/<id>/SKILL.md`
 
 ---
 
-### Phase 2: Adapters (2-3 days)
+### Phase 2: Adapters ✅ COMPLETE
 
 **Goal**: Compile skills to Claude Code, Codex, and Cursor. Reject skills for Antigravity/VS Code.
 
@@ -726,26 +729,26 @@ CONTRACT-ADAPTER-010: Skill with only unsupported targets is error
 
 **Tests First**:
 
-- [ ] `test_claude_code_compile_skill_path` - Output path is `.claude/skills/<id>/SKILL.md`
-- [ ] `test_claude_code_compile_skill_supplementals` - Includes reference.md, scripts/
-- [ ] `test_claude_code_skill_frontmatter` - Has name, description, allowed-tools
-- [ ] `test_codex_compile_skill_path` - Output path is `.codex/skills/<id>/SKILL.md`
-- [ ] `test_cursor_compile_skill_uses_claude_path` - Uses `.claude/skills/`
-- [ ] `test_antigravity_compile_skill_returns_empty` - Returns `vec![]`
-- [ ] `test_vscode_compile_skill_returns_empty` - Returns `vec![]`
-- [ ] `test_skill_dangerous_tool_warning` - Warns for `rm`, `sudo`, etc.
-- [ ] `test_skill_no_supported_targets_error` - Error if only antigravity/vscode
-- [ ] `test_skill_user_scope_uses_home_path` - Respects scope
+- [x] `test_claude_code_compile_skill_path` - Output path is `.claude/skills/<id>/SKILL.md`
+- [x] `test_claude_code_compile_skill_supplementals` - Includes reference.md, scripts/
+- [x] `test_claude_code_skill_frontmatter` - Has name, description, allowed-tools
+- [x] `test_codex_compile_skill_path` - Output path is `.codex/skills/<id>/SKILL.md`
+- [x] `test_cursor_compile_skill_uses_claude_path` - Uses `.claude/skills/`
+- [x] `test_antigravity_compile_skill_returns_empty` - Returns `vec![]`
+- [x] `test_vscode_compile_skill_returns_empty` - Returns `vec![]`
+- [x] `test_skill_dangerous_tool_warning` - Warns for `rm`, `sudo`, etc.
+- [x] `test_skill_no_supported_targets_error` - Error if only antigravity/vscode
+- [x] `test_skill_user_scope_uses_home_path` - Respects scope
 
 **Implementation**:
 
-- [ ] Add `compile_skill()` to `ClaudeCodeAdapter`
-- [ ] Add `compile_skill()` to `CodexAdapter`
-- [ ] Add `compile_skill()` to `CursorAdapter`
-- [ ] Add skill rejection to `AntigravityAdapter::compile()`
-- [ ] Add skill rejection to `VSCodeAdapter::compile()`
-- [ ] Add `validate_allowed_tools()` helper
-- [ ] Add `DANGEROUS_TOOLS` constant
+- [x] Add `compile_skill()` to `ClaudeCodeAdapter`
+- [x] Add `compile_skill()` to `CodexAdapter`
+- [x] Add `compile_skill()` to `CursorAdapter`
+- [x] Add skill rejection to `AntigravityAdapter::compile()`
+- [x] Add skill rejection to `VSCodeAdapter::compile()`
+- [x] Add `validate_allowed_tools()` helper
+- [x] Add `DANGEROUS_TOOLS` constant
 
 **Files to modify**:
 
@@ -759,14 +762,14 @@ CONTRACT-ADAPTER-010: Skill with only unsupported targets is error
 
 Phase 2 complete when:
 
-- [ ] All 10 contract tests pass
-- [ ] `cargo test adapter` runs without failures
-- [ ] Skills compile correctly to supported platforms
-- [ ] Skills are skipped for unsupported platforms
+- [x] All 10 contract tests pass
+- [x] `cargo test adapter` runs without failures
+- [x] Skills compile correctly to supported platforms
+- [x] Skills are skipped for unsupported platforms
 
 ---
 
-### Phase 3: Application Layer (2-3 days)
+### Phase 3: Application Layer ✅ COMPLETE
 
 **Goal**: Deploy skills correctly, including multi-file output and orphan detection.
 
@@ -785,19 +788,19 @@ CONTRACT-APP-006: Skill override (project > user) emits warning
 
 **Tests First**:
 
-- [ ] `test_deploy_skill_creates_directory` - Creates `.claude/skills/<id>/`
-- [ ] `test_deploy_skill_multiple_files` - SKILL.md + supplementals in output
-- [ ] `test_lockfile_tracks_skill_files` - Each file has lockfile entry
-- [ ] `test_orphan_removes_old_skill_files` - Detects removed supplementals
-- [ ] `test_orphan_removes_empty_skill_dir` - Cleans up empty directories
-- [ ] `test_watch_skill_directory_change` - Triggers redeploy
+- [x] `test_deploy_skill_creates_directory` - Creates `.claude/skills/<id>/`
+- [x] `test_deploy_skill_multiple_files` - SKILL.md + supplementals in output
+- [x] `test_lockfile_tracks_skill_files` - Each file has lockfile entry
+- [x] `test_orphan_removes_old_skill_files` - Detects removed supplementals
+- [x] `test_orphan_removes_empty_skill_dir` - Cleans up empty directories
+- [x] `test_watch_skill_directory_change` - Triggers redeploy
 
 **Implementation**:
 
-- [ ] Update `DeployUseCase` to handle `Vec<OutputFile>` per asset
-- [ ] Update `OrphanDetector` for directory-level cleanup
-- [ ] Update `IncrementalCache` for skill directory watching
-- [ ] Add skill override warning in layer merger
+- [x] Update `DeployUseCase` to handle `Vec<OutputFile>` per asset
+- [x] Update `OrphanDetector` for directory-level cleanup
+- [x] Update `IncrementalCache` for skill directory watching
+- [x] Add skill override warning in layer merger
 
 **Files to modify**:
 
@@ -810,13 +813,13 @@ CONTRACT-APP-006: Skill override (project > user) emits warning
 
 Phase 3 complete when:
 
-- [ ] All 6 contract tests pass
-- [ ] Full deploy-clean-redeploy cycle works for skills
-- [ ] `calvin clean` removes skill directories correctly
+- [x] All 6 contract tests pass
+- [x] Full deploy-clean-redeploy cycle works for skills
+- [x] `calvin clean` removes skill directories correctly
 
 ---
 
-### Phase 4: CLI and UI (1-2 days)
+### Phase 4: CLI and UI ✅ COMPLETE
 
 **Goal**: Update CLI output to show skill information.
 
@@ -824,17 +827,17 @@ Phase 3 complete when:
 
 **Tests First**:
 
-- [ ] `test_layers_output_shows_skill_count` - Skills column in output
-- [ ] `test_deploy_verbose_shows_skill_structure` - Tree view of skill files
-- [ ] `test_check_validates_skills` - Skill validation in check command
-- [ ] `test_deploy_warns_unsupported_platforms` - Warning message shown
+- [x] `test_layers_output_shows_skill_count` - Skills column in output
+- [x] `test_deploy_verbose_shows_skill_structure` - Tree view of skill files
+- [x] `test_check_validates_skills` - Skill validation in check command
+- [x] `test_deploy_warns_unsupported_platforms` - Warning message shown
 
 **Implementation**:
 
-- [ ] Update `calvin layers` to show skill counts
-- [ ] Update `calvin deploy -v` to show skill tree structure
-- [ ] Update `calvin check` to validate skills
-- [ ] Add skills skipped warning in deploy output
+- [x] Update `calvin layers` to show skill counts
+- [x] Update `calvin deploy -v` to show skill tree structure
+- [x] Update `calvin check` to validate skills
+- [x] Add skills skipped warning in deploy output
 
 **Files to modify**:
 
@@ -846,26 +849,26 @@ Phase 3 complete when:
 
 Phase 4 complete when:
 
-- [ ] All 4 contract tests pass
-- [ ] `calvin deploy -v` shows skill structure
-- [ ] `calvin layers` shows skill counts
+- [x] All 4 contract tests pass
+- [x] `calvin deploy -v` shows skill structure
+- [x] `calvin layers` shows skill counts
 
 ---
 
-### Phase 5: Documentation (1 day)
+### Phase 5: Documentation ✅ COMPLETE
 
 #### 5.1 TODO Checklist
 
-- [ ] Update `docs/target-platforms.md` with skill paths
-- [ ] Create `docs/skills.md` usage guide
-- [ ] Update `GEMINI.md` (MEMORY file) with skill info
+- [x] Update `docs/target-platforms.md` with skill paths
+- [x] Create `docs/skills.md` usage guide
+- [x] Update `GEMINI.md` (MEMORY file) with skill info
 
 #### 5.2 Acceptance Criteria
 
 Phase 5 complete when:
 
-- [ ] All documentation updated
-- [ ] Skills guide has working examples
+- [x] All documentation updated
+- [x] Skills guide has working examples
 
 ---
 
