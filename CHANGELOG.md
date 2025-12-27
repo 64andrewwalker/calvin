@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0](https://github.com/64andrewwalker/calvin/compare/v0.6.0...v0.7.0) (2025-12-27)
+
+
+### Features
+
+* **ignore:** add --show-ignored and --debug-ignore CLI flags ([85ea089](https://github.com/64andrewwalker/calvin/commit/85ea089690c7d6020f3f4c777752fdeac38806a6))
+* **ignore:** add .calvinignore support for layer filtering ([4a9d97e](https://github.com/64andrewwalker/calvin/commit/4a9d97e60aba94c3a3f12c4346f7008b7b4bc8e5))
+* **json-output:** enforce consistent event and command fields across all JSON outputs ([4ceadf2](https://github.com/64andrewwalker/calvin/commit/4ceadf2b89ea6fc42ee856f23d0f77a61264a5e2))
+* **skills:** add SKILL.md directory assets ([afc5608](https://github.com/64andrewwalker/calvin/commit/afc56084fd825cbdce3df3bd2129e03041513826))
+
+
+### Bug Fixes
+
+* Ensure docs content directory exists before clearing. ([358ff06](https://github.com/64andrewwalker/calvin/commit/358ff06fdb5cedc8561518229e5c2180851dc838))
+* **skills:** harden supplemental path validation ([08b01f6](https://github.com/64andrewwalker/calvin/commit/08b01f6ed7fd0f2b9cfcce34a176a0f965c14c78))
+* **skills:** reject root/prefix supplemental paths ([14c4aec](https://github.com/64andrewwalker/calvin/commit/14c4aecc5d2df2ad08146eac84aae43756d67df8))
+* **skills:** surface deploy warnings via adapter validation ([d0f1c8a](https://github.com/64andrewwalker/calvin/commit/d0f1c8ad35bd9834608c29e52d8a57b99e807543))
+
 ## [0.6.0](https://github.com/64andrewwalker/calvin/compare/v0.5.1...v0.6.0) (2025-12-26)
 
 
