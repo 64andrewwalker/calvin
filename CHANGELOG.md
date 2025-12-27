@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.1](https://github.com/64andrewwalker/calvin/compare/v0.7.0...v0.7.1) (2025-12-27)
+
+
+### Bug Fixes
+
+* **ci:** increase timeout for slow CLI tests in nextest ([5f7500d](https://github.com/64andrewwalker/calvin/commit/5f7500dc6e733b1f0fdb1d48d27634bde70b9d4b))
+* **docs:** remove ES module imports from _home.mdx ([e01c8f5](https://github.com/64andrewwalker/calvin/commit/e01c8f5bbc43f330e0288586b27a9d28ffcf7f53))
+* **docs:** use Platform components instead of inline HTML ([b7a036d](https://github.com/64andrewwalker/calvin/commit/b7a036db47bf4c72c9ccac9305daae1802ee3cd1))
+* **tests:** exclude frontmatter delimiter from proptest yaml_lines ([e88e19a](https://github.com/64andrewwalker/calvin/commit/e88e19aee3ba0487225fddfc45838623b6531a5d))
+
+
+### Performance Improvements
+
+* skip doc tests in pre-commit hook ([86a81f0](https://github.com/64andrewwalker/calvin/commit/86a81f0210002eed2b9d0d93263ae67562ffae38))
+* use cargo-nextest for faster test execution ([12f8f42](https://github.com/64andrewwalker/calvin/commit/12f8f42f61f409f5f53e53f9e02f924067ae8064))
+
 ## [0.7.0](https://github.com/64andrewwalker/calvin/compare/v0.6.0...v0.7.0) (2025-12-27)
 
 
