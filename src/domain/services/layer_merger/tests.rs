@@ -9,6 +9,11 @@ fn create_asset(id: &str, content: &str) -> Asset {
     Asset::new(id, format!("actions/{}.md", id), "desc", content)
 }
 
+fn create_skill_asset(id: &str, content: &str) -> Asset {
+    Asset::new(id, format!("skills/{}/SKILL.md", id), "desc", content)
+        .with_kind(crate::domain::entities::AssetKind::Skill)
+}
+
 #[test]
 fn merge_same_id_higher_wins() {
     let user_layer = Layer::new("user", layer_path("user"), LayerType::User)
@@ -38,4 +43,18 @@ fn merge_different_ids_all_kept() {
     assert_eq!(result.assets.len(), 2);
     assert!(result.assets.contains_key("security"));
     assert!(result.assets.contains_key("style"));
+}
+
+#[test]
+fn merge_skill_id_does_not_conflict_with_non_skill_id() {
+    let layer = Layer::new("project", layer_path("project"), LayerType::Project).with_assets(vec![
+        create_asset("review", "action"),
+        create_skill_asset("review", "skill"),
+    ]);
+
+    let result = merge_layers(&[layer]);
+
+    assert_eq!(result.assets.len(), 2);
+    assert!(result.assets.contains_key("review"));
+    assert!(result.assets.contains_key("skill:review"));
 }

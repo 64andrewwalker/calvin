@@ -83,6 +83,11 @@ pub fn render_deploy_summary(
         summary.add_warning(format!("{} errors encountered", result.errors.len()));
     }
 
+    summary.add_stat("warnings", result.warnings.len());
+    if !result.warnings.is_empty() {
+        summary.add_warning(format!("{} warnings encountered", result.warnings.len()));
+    }
+
     if action.eq_ignore_ascii_case("deploy") {
         summary.with_next_step("Run `calvin check` to verify");
     }

@@ -1,0 +1,109 @@
+---
+title: Skills
+description: Directory-based SKILL.md assets for Claude Code, Codex, and Cursor
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+
+# Skills
+
+Calvin supports **Skills** as a directory-based asset type under `.promptpack/skills/`. A skill compiles to a platform-native `SKILL.md` folder and can include additional files (reference docs, scripts, examples).
+
+<Callout type="warning">
+Skills are supported on **Claude Code**, **Cursor**, and **Codex** only. Calvin skips skills for **VS Code** and **Antigravity** (and surfaces a warning during deploy/check when applicable).
+</Callout>
+
+## When to Use Skills
+
+| Asset Type | Use Case | Example |
+|------------|----------|---------|
+| **Policy** | Rules that apply to AI behavior | Code style, security guidelines |
+| **Action** | Slash commands, one-shot workflows | `/generate-tests`, `/pr-review` |
+| **Skill** | Multi-file capability with scripts/references | Commit drafting with git integration |
+
+Choose **Skills** when you need:
+- **Supporting files**: reference docs, scripts, or examples alongside instructions
+- **Tool restrictions**: explicit `allowed-tools` for security
+- **Encapsulated capability**: a complete, reusable unit of functionality
+
+## Layout
+
+```text
+.promptpack/
+└── skills/
+    └── <id>/
+        ├── SKILL.md          # Required entrypoint (has YAML frontmatter)
+        ├── reference.md      # Optional supplemental
+        └── scripts/          # Optional supplemental subtree
+            └── validate.py
+```
+
+- The **skill id** is the directory name (`<id>`).
+- `SKILL.md` is required and must start with YAML frontmatter (`---`).
+- All other files under the directory are treated as **supplementals** and are copied to outputs with the same relative paths.
+
+## `SKILL.md` frontmatter
+
+`SKILL.md` frontmatter uses the same YAML schema as other PromptPack assets:
+
+- **Required**: `description`
+- **Optional**: `scope`, `targets`, `allowed-tools`
+- **Not supported for skills**: `apply` (Calvin errors if present)
+
+Example:
+
+```markdown
+---
+description: Draft a conventional commit message from staged changes.
+kind: skill
+scope: user
+targets:
+  - claude-code
+  - codex
+allowed-tools:
+  - git
+  - cat
+---
+
+# Instructions
+
+1. Run `git diff --cached --stat` to summarize staged changes
+2. Suggest a conventional commit message
+3. If needed, consult `reference.md`
+```
+
+## Supplemental file rules (safety)
+
+To keep skills safe and portable, Calvin enforces:
+
+- **Text-only**: binary files are rejected (null-byte heuristic)
+- **Valid UTF-8**: invalid encodings are rejected
+- **No symlinks**: symlinks inside skill directories are rejected
+- **Hidden files/dirs are skipped**: any `.`-prefixed path is ignored
+
+## Output paths
+
+Skills compile to `SKILL.md` folders on supported platforms:
+
+| Platform | Project scope | User scope |
+|----------|--------------|------------|
+| Claude Code | `.claude/skills/<id>/SKILL.md` | `~/.claude/skills/<id>/SKILL.md` |
+| Codex | `.codex/skills/<id>/SKILL.md` | `~/.codex/skills/<id>/SKILL.md` |
+| Cursor | `.claude/skills/<id>/SKILL.md` | `~/.claude/skills/<id>/SKILL.md` |
+
+## Multi-layer semantics (override, not merge)
+
+Skills follow Calvin’s layer precedence rules (project > additional layers > user). When the same `skills/<id>/` exists in multiple layers, the higher-priority layer **fully replaces** the lower-priority skill directory (no file-level merging).
+
+## Commands
+
+- `calvin deploy`: compiles skills alongside policies/actions/agents.
+- `calvin deploy -v`: shows skill structure (skill + supplemental files).
+- `calvin layers`: shows per-layer counts for both assets and skills.
+- `calvin check`: validates deployed skill folders and warns on dangerous `allowed-tools`.
+
+## See Also
+
+- [Multi-Layer PromptPacks](/guides/multi-layer) — Share skills across projects
+- [Frontmatter Spec](/api/frontmatter) — Complete frontmatter reference
+- [Configuration](/guides/configuration) — Configure target platforms

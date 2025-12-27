@@ -6,6 +6,7 @@
 mod config_warning;
 mod deploy_target;
 mod hash;
+mod ignore_patterns;
 mod lockfile_namespace;
 mod path;
 mod scope;
@@ -15,6 +16,7 @@ mod target;
 pub use config_warning::ConfigWarning;
 pub use deploy_target::DeployTarget;
 pub use hash::ContentHash;
+pub use ignore_patterns::{IgnoreError, IgnorePatterns};
 pub use lockfile_namespace::{lockfile_key, parse_lockfile_key, LockfileNamespace};
 pub use path::{PathError, SafePath};
 pub use scope::Scope;

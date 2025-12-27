@@ -4,6 +4,7 @@
 //! that define policies, actions, and agents.
 
 use crate::domain::value_objects::{Scope, Target};
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 /// Kind of prompt asset
@@ -16,6 +17,8 @@ pub enum AssetKind {
     Action,
     /// Specialized sub-agents/roles
     Agent,
+    /// Directory-based skills (SKILL.md + supplementals)
+    Skill,
 }
 
 /// A prompt asset from .promptpack/
@@ -39,6 +42,16 @@ pub struct Asset {
     content: String,
     /// Optional apply glob pattern
     apply: Option<String>,
+
+    /// Skill supplemental files (path relative to skill root → content)
+    ///
+    /// Empty for non-skill assets.
+    supplementals: HashMap<PathBuf, String>,
+
+    /// Skill allowed tools list (from `allowed-tools` frontmatter)
+    ///
+    /// Empty for non-skill assets.
+    allowed_tools: Vec<String>,
 }
 
 impl Asset {
@@ -64,6 +77,8 @@ impl Asset {
             targets: Vec::new(),
             content: content.into(),
             apply: None,
+            supplementals: HashMap::new(),
+            allowed_tools: Vec::new(),
         }
     }
 
@@ -88,6 +103,18 @@ impl Asset {
     /// Builder: set the apply pattern
     pub fn with_apply(mut self, apply: impl Into<String>) -> Self {
         self.apply = Some(apply.into());
+        self
+    }
+
+    /// Builder: set supplemental files (skill-only)
+    pub fn with_supplementals(mut self, supplementals: HashMap<PathBuf, String>) -> Self {
+        self.supplementals = supplementals;
+        self
+    }
+
+    /// Builder: set allowed tools (skill-only)
+    pub fn with_allowed_tools(mut self, allowed_tools: Vec<String>) -> Self {
+        self.allowed_tools = allowed_tools;
         self
     }
 
@@ -150,6 +177,16 @@ impl Asset {
     pub fn apply(&self) -> Option<&str> {
         self.apply.as_deref()
     }
+
+    /// Get skill supplemental files
+    pub fn supplementals(&self) -> &HashMap<PathBuf, String> {
+        &self.supplementals
+    }
+
+    /// Get allowed tools list (skill-only)
+    pub fn allowed_tools(&self) -> &[String] {
+        &self.allowed_tools
+    }
 }
 
 // === From implementations ===
@@ -161,6 +198,7 @@ impl From<crate::models::PromptAsset> for Asset {
             crate::models::AssetKind::Policy => AssetKind::Policy,
             crate::models::AssetKind::Action => AssetKind::Action,
             crate::models::AssetKind::Agent => AssetKind::Agent,
+            crate::models::AssetKind::Skill => AssetKind::Skill,
         };
 
         // Convert Scope
@@ -198,6 +236,11 @@ impl From<crate::models::PromptAsset> for Asset {
             asset = asset.with_apply(apply);
         }
 
+        // allowed-tools is ignored for non-skill assets; stored for skills (or future use).
+        if !pa.frontmatter.allowed_tools.is_empty() {
+            asset = asset.with_allowed_tools(pa.frontmatter.allowed_tools);
+        }
+
         asset
     }
 }
@@ -225,6 +268,8 @@ mod tests {
         assert!(asset.targets().is_empty());
         assert_eq!(asset.content(), "Content here");
         assert!(asset.apply().is_none());
+        assert!(asset.supplementals().is_empty());
+        assert!(asset.allowed_tools().is_empty());
     }
 
     #[test]
@@ -274,6 +319,41 @@ mod tests {
         assert_eq!(asset.scope(), Scope::Project);
         assert_eq!(asset.targets(), &[Target::ClaudeCode]);
         assert_eq!(asset.apply(), Some("*.rs"));
+    }
+
+    // === TDD: Skills fields ===
+
+    #[test]
+    fn test_asset_kind_skill_exists() {
+        assert_ne!(AssetKind::Skill, AssetKind::Action);
+    }
+
+    #[test]
+    fn test_asset_supplementals_empty_by_default() {
+        let asset = Asset::new("test", "test.md", "desc", "content");
+        assert!(asset.supplementals().is_empty());
+    }
+
+    #[test]
+    fn test_asset_with_supplementals_builder() {
+        let mut supplementals = HashMap::new();
+        supplementals.insert(PathBuf::from("reference.md"), "# Ref".to_string());
+        supplementals.insert(
+            PathBuf::from("scripts/validate.py"),
+            "print('ok')".to_string(),
+        );
+
+        let asset = Asset::new("my-skill", "skills/my-skill/SKILL.md", "desc", "content")
+            .with_kind(AssetKind::Skill)
+            .with_supplementals(supplementals.clone());
+
+        assert_eq!(asset.supplementals(), &supplementals);
+    }
+
+    #[test]
+    fn test_asset_allowed_tools_empty_by_default() {
+        let asset = Asset::new("test", "test.md", "desc", "content");
+        assert!(asset.allowed_tools().is_empty());
     }
 
     // === TDD: Effective Targets ===
@@ -332,6 +412,7 @@ mod tests {
             scope: ModelScope::User,
             targets: vec![crate::models::Target::Cursor],
             apply: Some("*.rs".to_string()),
+            allowed_tools: vec![],
         };
         let prompt_asset = PromptAsset::new("test-id", "test.md", frontmatter, "Test content");
 

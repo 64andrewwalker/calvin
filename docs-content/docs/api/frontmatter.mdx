@@ -1,24 +1,28 @@
 ---
 title: Frontmatter Specification
-description: YAML frontmatter format specification for Calvin source files
+description: YAML frontmatter format for Calvin PromptPack source files
 ---
 
 # Frontmatter Specification
 
-> Version: 1.0 | Last Updated: 2025-12-21
+> Source Format: 1.0 | Updated: 2025-12-27
 
-This document specifies the YAML frontmatter format for Calvin source files.
+Calvin parses **YAML frontmatter** between `---` delimiters. Frontmatter is required for:
 
-## Overview
+- `.promptpack/actions/**/*.md`
+- `.promptpack/policies/**/*.md`
+- `.promptpack/agents/**/*.md`
+- `.promptpack/skills/<id>/SKILL.md` (skills entrypoint)
 
-Every `.md` file in `.promptpack/` can include YAML frontmatter between `---` delimiters:
+Skill **supplemental files** (anything else under `.promptpack/skills/<id>/`) do not need frontmatter and are copied as-is to outputs.
+
+## Minimal Example
 
 ```markdown
 ---
 description: Generate unit tests for a file
 scope: project
 targets: [claude-code, cursor]
-apply: "**/*.ts"
 ---
 
 # Generate Tests
@@ -26,344 +30,184 @@ apply: "**/*.ts"
 Your prompt content here...
 ```
 
-
----
-
 ## Required Fields
 
-### description
+### `description`
 
 **Type**: `string`  
-**Required**: Yes  
-**Example**: `"Generate unit tests for a file"`
+**Required**: Yes
 
-A short description of the prompt. Used as:
-- Title in some platforms
-- Summary in command listings
-- Metadata for search/filtering
+A short description of the asset. Used by adapters for metadata (titles, summaries, listings).
 
 ```yaml
 description: Code style guidelines for TypeScript
 ```
 
----
-
 ## Optional Fields
 
-### kind
+### `kind`
 
-**Type**: `"action"` | `"policy"` | `"agent"`  
-**Default**: Inferred from directory, or `"action"`
+**Type**: `"action"` | `"policy"` | `"agent"` | `"skill"`  
+**Default**: inferred from directory (or `action`)
 
-Explicit type of asset. Usually inferred from the directory:
-- `.promptpack/actions/` → `action`
-- `.promptpack/policies/` → `policy`
-- `.promptpack/agents/` → `agent`
+Usually inferred from directory:
+
+| Location | Inferred kind |
+|---|---|
+| `.promptpack/actions/` | `action` |
+| `.promptpack/policies/` | `policy` |
+| `.promptpack/agents/` | `agent` |
+| `.promptpack/skills/<id>/SKILL.md` | `skill` |
+
+Notes:
+
+- In `.promptpack/skills/<id>/SKILL.md`, `kind: skill` is optional. If present, it must be `skill`.
+- Skills and actions can share the same id without conflict (different directories).
 
 ```yaml
 kind: policy
 ```
 
-### scope
+### `scope`
 
 **Type**: `"project"` | `"user"`  
 **Default**: `"project"`
 
-Where the compiled output should be deployed:
-- `project`: Deploy to project directory (e.g., `./.claude/`)
-- `user`: Deploy to home directory (e.g., `~/.claude/`)
+Controls where outputs are deployed:
+
+- `project`: write to project directories (e.g., `./.claude/`, `./.codex/`)
+- `user`: write to home directories (e.g., `~/.claude/`, `~/.codex/`)
 
 ```yaml
 scope: user
 ```
 
-**Note**: This field controls *deployment scope*, not *platform*. Use `targets` (plural) to filter platforms.
-
-
-### targets
+### `targets`
 
 **Type**: `string[]`  
-**Default**: All enabled targets
+**Default**: all targets
 
-List of platforms to compile for. Valid values:
+List of platforms to compile for:
+
 - `claude-code`
 - `cursor`
 - `vscode`
 - `antigravity`
 - `codex`
+- `all` (meta-target that expands to all concrete targets)
 
 ```yaml
-targets: [claude-code, cursor]
+targets:
+  - claude-code
+  - cursor
 ```
 
-If omitted, the asset compiles to all targets enabled in `config.toml`.
+### `apply`
 
-### apply
+**Type**: `string`  
+**Default**: none
 
-**Type**: `string[]`  
-**Default**: None (applies globally)
-
-Glob patterns for when this policy should apply. Used by platforms that support conditional rules.
+Glob pattern used by adapters that support conditional rules (primarily policies).
 
 ```yaml
-apply: ["**/*.ts", "**/*.tsx", "**/*.js"]
+apply: "**/*.rs"
 ```
 
-Platform support:
-| Platform | Support |
-|----------|---------|
-| Claude Code | ❌ Ignored |
-| Cursor | ✅ Maps to `globs` field |
-| VS Code | ✅ Maps to `applyTo` field |
-| Antigravity | ⚠️ Limited support |
-| Codex | ❌ Ignored |
+Notes:
 
+- Skills do **not** support `apply` (Calvin errors if present in `SKILL.md` frontmatter).
+- Some targets ignore `apply`.
 
-### alwaysApply
+### `allowed-tools` (skill-only)
 
-**Type**: `boolean`  
-**Default**: `false`
+**Type**: `string[]` (YAML sequence)  
+**Default**: none
 
-Whether this policy should always be active, even without matching globs.
+Optional list of allowed tools for skills. Calvin validates this list and surfaces warnings for risky tools (e.g. `rm`, `sudo`, `curl`).
 
 ```yaml
-alwaysApply: true
+allowed-tools:
+  - git
+  - cat
 ```
 
-Used by Cursor adapter to set the `alwaysApply` field in rules.
+## Skill Example
 
+```markdown
+---
+description: Draft a conventional commit message from staged changes.
+kind: skill
+scope: user
+targets:
+  - claude-code
+  - codex
+allowed-tools:
+  - git
+  - cat
 ---
 
-## Full Example
+# Instructions
 
-```yaml
----
-# Required
-description: Generate comprehensive unit tests
-
-# Scope (where to deploy)
-scope: project             # project | user
-
-# Platform filter (which adapters to use)
-targets: [claude-code, cursor, antigravity]
-
-# Conditional application (for policies)
-apply: "**/*.ts"           # Single glob pattern (string, not array)
-
-# Optional: Always apply this rule
-alwaysApply: false
----
-
-# Generate Unit Tests
-
-Generate comprehensive unit tests for the specified file.
-
-## Requirements
-
-1. Use the project's existing test framework
-2. Follow existing test naming conventions
-3. Include edge cases and error handling tests
-4. Aim for high code coverage
-
-## Output
-
-Create test files in the appropriate `__tests__` or `*.test.ts` location.
+1. Run `git diff --cached --stat`
+2. Suggest a conventional commit message
+3. Consult `reference.md` if needed
 ```
-
-
----
-
-## Directory Structure Inference
-
-The directory path infers the asset `kind` if not explicitly set:
-
-| Directory | Inferred Kind |
-|-----------|---------------|
-| `.promptpack/actions/` | `action` |
-| `.promptpack/policies/` | `policy` |
-| `.promptpack/agents/` | `agent` |
-| `.promptpack/*/` (other) | `action` |
-
-Nested directories are supported:
-
-```
-.promptpack/
-├── actions/
-│   ├── testing/
-│   │   ├── generate-tests.md    # action
-│   │   └── run-tests.md         # action
-│   └── review/
-│       └── pr-review.md         # action
-└── policies/
-    ├── coding/
-    │   ├── style.md             # policy
-    │   └── patterns.md          # policy
-    └── security/
-        └── rules.md             # policy
-```
-
----
 
 ## Placeholder Variables
 
-In the body content, you can use placeholder variables that are **passed through** to the output:
+In the body content, you can include placeholders that are passed through to adapters:
 
 | Placeholder | Description |
-|-------------|-------------|
-| `$ARGUMENTS` | All arguments as a single string (for Action/Agent) |
+|---|---|
+| `$ARGUMENTS` | All arguments as a single string (Action/Agent) |
 | `$1` - `$9` | Positional arguments |
 
-These are **reserved** placeholders that are not processed by Calvin - they're passed through unchanged to the target platform. The platform's AI assistant will interpret them at runtime.
+These are passed through unchanged; the target platform interprets them at runtime.
 
-Example:
-
-```markdown
----
-description: Search codebase
----
-
-# Search Codebase
-
-Search for: $1
-
-All arguments: $ARGUMENTS
-```
-
-**Note**: Only Action and Agent kinds include `$ARGUMENTS` in their output. Policies do not.
-
-
----
-
-## Platform-Specific Behavior
+## Platform-Specific Mapping (High Level)
 
 ### Claude Code
 
-- Frontmatter is stripped
-- `$ARGUMENTS` placeholder preserved
-- Header/footer markers added
+- Source frontmatter is not used directly in outputs for actions/policies/agents (Calvin generates native files).
+- Skills compile to `.claude/skills/<id>/SKILL.md` (plus supplementals).
 
 ### Cursor
 
-- Frontmatter converted to Cursor format
-- `apply` → `globs`
-- `alwaysApply` preserved
-- `$ARGUMENTS` → `$ARGUMENTS`
+- Policies compile to `.cursor/rules/<id>/RULE.md`; `apply` is mapped to `globs`, and `alwaysApply` is derived.
+- Skills compile to `.claude/skills/<id>/SKILL.md` (Cursor reads Claude’s skills path).
 
 ### VS Code (Copilot)
 
-- `apply` → `applyTo` in header
-- All policies merged into single file by default
-- Can split with `split: true` config
+- Policies compile to `.github/copilot-instructions.md` and/or `.github/instructions/<id>.md`; `apply` maps to `applyTo`.
+- Skills are not supported and are skipped.
 
 ### Antigravity
 
-- Frontmatter converted to Antigravity format
-- Policies → `.agent/rules/`
-- Actions → `.agent/workflows/`
+- Policies and actions compile to `.agent/rules/` and `.agent/workflows/`.
+- Skills are not supported and are skipped.
 
 ### Codex
 
-- User-scope only (`~/.codex/prompts/`)
-- Arguments documented in output
-- `Usage: /prompts:id` header added
-
-### Platform transformation flow
-
-```mermaid
-graph TD
-    Input[Generic Frontmatter] --> P_Claude[Claude Code]
-    Input --> P_Cursor[Cursor]
-    Input --> P_VSCode[VS Code]
-    Input --> P_AG[Antigravity]
-    Input --> P_Codex[Codex]
-
-    P_Claude --> O_Claude[Stripped + Headers]
-    P_Cursor --> O_Cursor[Cursor Format<br/>apply->globs]
-    P_VSCode --> O_VSCode[Merged File<br/>Header: applyTo]
-    P_AG --> O_AG[Split by Kind<br/>.agent/rules & workflows]
-    P_Codex --> O_Codex[User Scope Only]
-
-    style Input fill:#f9f,stroke:#333
-    style O_Claude fill:#ccf,stroke:#333
-    style O_Cursor fill:#ccf,stroke:#333
-    style O_VSCode fill:#ccf,stroke:#333
-    style O_AG fill:#ccf,stroke:#333
-    style O_Codex fill:#ccf,stroke:#333
-```
-
----
+- Prompts compile to `.codex/prompts/` (project scope) or `~/.codex/prompts/` (user scope).
+- Skills compile to `.codex/skills/<id>/SKILL.md` (project scope) or `~/.codex/skills/<id>/SKILL.md` (user scope).
 
 ## Validation
 
+Calvin errors on invalid frontmatter, including:
 
-Calvin validates frontmatter during `deploy` and `check`:
+- missing frontmatter delimiters (`---`)
+- invalid YAML / invalid types (e.g., `allowed-tools` must be a list)
+- missing required `description`
+- invalid `kind`, `scope`, or `targets` values
+- skills using unsupported fields (e.g., `apply` in `SKILL.md`)
 
-```bash
-$ calvin deploy
+When YAML contains `:` characters inside a string value, quote the string:
 
-⚠ Warning: .promptpack/actions/test.md
-  Unknown frontmatter field 'targts'
-  Did you mean 'targets'?
+```yaml
+description: "My: Rule"
 ```
-
-Common validation errors:
-- Missing required `description` field
-- Unknown field names (with typo suggestions)
-- Invalid `target` or `targets` values
-- Invalid `kind` value
-
----
-
-## Migration from Other Formats
-
-### From Claude Code
-
-```markdown
-<!-- Old Claude format -->
-# My Command
-
-Content...
-```
-
-Becomes:
-
-```markdown
----
-description: My Command
----
-
-# My Command
-
-Content...
-```
-
-### From Cursor Rules
-
-```markdown
----
-description: Style Guide
-globs: ["**/*.ts"]
-alwaysApply: true
----
-
-Content...
-```
-
-Becomes:
-
-```markdown
----
-description: Style Guide
-apply: ["**/*.ts"]
-alwaysApply: true
----
-
-Content...
-```
-
----
 
 ## See Also
 
-- [Library API](/api/library) - Programmatic parsing
-- [Versioning](/api/versioning) - API versioning policy
+- [Skills](/guides/skills)
+- [Library API](/api/library)

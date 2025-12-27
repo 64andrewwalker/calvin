@@ -184,8 +184,8 @@ pub fn select_layers_interactive(
 fn layer_display_name(layer: &LayerSummary) -> String {
     let path = truncate_middle(&layer.original_path.display().to_string(), 40);
     format!(
-        "{:<8} {} ({} assets)",
-        layer.layer_type, path, layer.asset_count
+        "{:<8} {} ({} assets, {} skills)",
+        layer.layer_type, path, layer.asset_count, layer.skill_count
     )
 }
 
@@ -255,6 +255,7 @@ mod tests {
             original_path: PathBuf::from(format!("/path/to/{}", name)),
             resolved_path: PathBuf::from(format!("/path/to/{}", name)),
             asset_count,
+            skill_count: 0,
         }
     }
 
@@ -295,5 +296,6 @@ mod tests {
         let display = layer_display_name(&layer);
         assert!(display.contains("project"));
         assert!(display.contains("27 assets"));
+        assert!(display.contains("0 skills"));
     }
 }

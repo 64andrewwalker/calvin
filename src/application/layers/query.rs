@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::config::{default_user_layer_path, Config};
+use crate::domain::entities::AssetKind;
 use crate::domain::entities::LayerType;
 use crate::domain::ports::LayerLoader;
 use crate::domain::services::merge_layers;
@@ -13,6 +14,7 @@ pub struct LayerSummary {
     pub original_path: PathBuf,
     pub resolved_path: PathBuf,
     pub asset_count: usize,
+    pub skill_count: usize,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -110,11 +112,20 @@ impl LayerQueryUseCase {
                 .layers
                 .iter()
                 .map(|l| LayerSummary {
+                    skill_count: l
+                        .assets
+                        .iter()
+                        .filter(|a| a.kind() == AssetKind::Skill)
+                        .count(),
                     name: l.name.clone(),
                     layer_type: layer_type_str(l.layer_type).to_string(),
                     original_path: l.path.original().clone(),
                     resolved_path: l.path.resolved().clone(),
-                    asset_count: l.assets.len(),
+                    asset_count: l
+                        .assets
+                        .iter()
+                        .filter(|a| a.kind() != AssetKind::Skill)
+                        .count(),
                 })
                 .collect(),
             merged_asset_count: merge.assets.len(),

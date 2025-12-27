@@ -10,6 +10,8 @@ Calvin is a PromptOps compiler. It takes a `.promptpack/` directory of Markdown 
 
 **Multi-layer support**: Calvin merges assets from user layer (`~/.calvin/.promptpack`), team layers, and project layer.
 
+**Skills support**: Calvin supports directory-based Skills in `.promptpack/skills/<id>/` (entrypoint `SKILL.md` + supplemental files). Skills compile to Claude Code, Codex, and Cursor. See `docs/skills.md`.
+
 **Documentation**: <https://64andrewwalker.github.io/calvin/>
 
 ## Quick Start for Developers

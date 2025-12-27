@@ -37,11 +37,11 @@ pub fn merge_layers(layers: &[Layer]) -> MergeResult {
 
     for layer in layers {
         for asset in &layer.assets {
-            let id = asset.id().to_string();
-            let previous_source_layer = merged.get(&id).map(|e| e.source_layer.clone());
+            let key = asset_key(asset);
+            let previous_source_layer = merged.get(&key).map(|e| e.source_layer.clone());
             if let Some(from_layer) = previous_source_layer.clone() {
                 overrides.push(OverrideInfo {
-                    asset_id: id.clone(),
+                    asset_id: key.clone(),
                     from_layer,
                     by_layer: layer.name.clone(),
                 });
@@ -51,7 +51,7 @@ pub fn merge_layers(layers: &[Layer]) -> MergeResult {
             let source_file = source_layer_path.join(asset.source_path());
 
             merged.insert(
-                id.clone(),
+                key.clone(),
                 MergedAsset {
                     asset: asset.clone(),
                     source_layer: layer.name.clone(),
@@ -66,6 +66,15 @@ pub fn merge_layers(layers: &[Layer]) -> MergeResult {
     MergeResult {
         assets: merged,
         overrides,
+    }
+}
+
+fn asset_key(asset: &Asset) -> String {
+    use crate::domain::entities::AssetKind;
+
+    match asset.kind() {
+        AssetKind::Skill => format!("skill:{}", asset.id()),
+        _ => asset.id().to_string(),
     }
 }
 

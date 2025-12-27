@@ -51,9 +51,9 @@ mod layer_merge_order {
 
         // Both assets should be deployed (different IDs, no conflict)
         // User asset
-        let user_deployed = env.project_path(".cursor/rules/user-only.mdc");
+        let _user_deployed = env.project_path(".cursor/rules/user-only.mdc");
         // Project asset
-        let project_deployed = env.project_path(".cursor/rules/project-only.mdc");
+        let _project_deployed = env.project_path(".cursor/rules/project-only.mdc");
 
         // At least one should exist (depending on how IDs are resolved)
         let files = list_all_files(env.project_root.path());
@@ -158,8 +158,6 @@ mod layer_provenance {
 }
 
 /// CONTRACT LAYER-006: --no-user-layer excludes user layer
-///
-
 /// The --no-user-layer flag completely excludes user layer assets.
 mod no_user_layer_flag {
     use super::*;
@@ -177,8 +175,8 @@ mod no_user_layer_flag {
 
         // Project asset should be deployed
         // User asset should NOT be deployed
-        let files = list_all_files(env.project_root.path());
-        let cursor_files: Vec<_> = files
+        let _files = list_all_files(env.project_root.path());
+        let _cursor_files: Vec<_> = _files
             .iter()
             .filter(|f| f.contains(".cursor/rules"))
             .collect();
@@ -216,7 +214,7 @@ mod layer_migration_orphans {
         let result = env.run(&["deploy", "--yes"]);
 
         // Should NOT report orphan for the output file
-        let output = result.combined_output().to_lowercase();
+        let _output = result.combined_output().to_lowercase();
 
         // The file should still exist (now from user layer)
         // and should not be flagged as orphan

@@ -23,11 +23,13 @@ pub mod clean;
 pub mod compiler;
 pub mod deploy;
 pub mod diff;
+pub mod layer_ops;
 pub mod layers;
 mod lockfile_migration;
 pub mod pipeline;
 pub mod provenance;
 pub mod registry;
+pub(crate) mod skills;
 pub mod watch;
 
 pub use check::{CheckItem, CheckOptions, CheckResult, CheckStatus, CheckUseCase};

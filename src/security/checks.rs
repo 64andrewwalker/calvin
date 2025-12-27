@@ -18,6 +18,97 @@ use super::report::DoctorSink;
 use super::types::{CheckStatus, SecurityCheck};
 use super::{EXPECTED_PROMPT_COUNT, MCP_ALLOWLIST};
 
+fn check_skills_dir(skills_dir: &Path, platform: &str, sink: &mut impl DoctorSink) {
+    if !skills_dir.exists() {
+        sink.add_pass(platform, "skills", "OK");
+        return;
+    }
+
+    if !skills_dir.is_dir() {
+        sink.add_error(
+            platform,
+            "skills",
+            "Skills path exists but is not a directory",
+            Some("Remove the file and redeploy skills"),
+        );
+        return;
+    }
+
+    let mut skill_count = 0usize;
+    let mut missing = Vec::new();
+    let mut dangerous = Vec::new();
+
+    let entries = match std::fs::read_dir(skills_dir) {
+        Ok(e) => e,
+        Err(_) => {
+            sink.add_warning(
+                platform,
+                "skills",
+                "Cannot read skills directory",
+                Some("Check file permissions"),
+            );
+            return;
+        }
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+        let Some(id) = path.file_name().and_then(|n| n.to_str()) else {
+            continue;
+        };
+        if id.starts_with('.') {
+            continue;
+        }
+
+        skill_count += 1;
+        let skill_md = path.join("SKILL.md");
+        if !skill_md.exists() {
+            missing.push(id.to_string());
+            continue;
+        }
+
+        // Best-effort: parse allowed-tools from frontmatter.
+        if let Ok(content) = std::fs::read_to_string(&skill_md) {
+            if let Ok(extracted) = crate::parser::extract_frontmatter(&content, &skill_md) {
+                if let Ok(fm) = crate::parser::parse_frontmatter(&extracted.yaml, &skill_md) {
+                    for tool in fm.allowed_tools {
+                        if crate::domain::policies::is_dangerous_skill_tool(&tool) {
+                            dangerous.push((id.to_string(), tool));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if !missing.is_empty() {
+        sink.add_error(
+            platform,
+            "skills",
+            &format!("Missing SKILL.md in: {}", missing.join(", ")),
+            Some("Re-run `calvin deploy` or fix the skill folders"),
+        );
+        return;
+    }
+
+    sink.add_pass(platform, "skills", &format!("{} skills", skill_count));
+
+    for (id, tool) in dangerous {
+        sink.add_warning(
+            platform,
+            "allowed_tools",
+            &format!(
+                "Skill '{}' uses '{}' in allowed-tools (security warning)",
+                id, tool
+            ),
+            Some("Ensure this is intentional and safe"),
+        );
+    }
+}
+
 pub fn check_claude_code(
     root: &Path,
     mode: SecurityMode,
@@ -174,6 +265,9 @@ pub fn check_claude_code(
             Some("Run `calvin deploy` to generate security baseline"),
         );
     }
+
+    // Skills (project-scope)
+    check_skills_dir(&root.join(".claude/skills"), platform, sink);
 }
 
 pub fn check_cursor(root: &Path, mode: SecurityMode, config: &Config, sink: &mut impl DoctorSink) {
@@ -422,40 +516,49 @@ pub fn check_codex(root: &Path, _mode: SecurityMode, sink: &mut impl DoctorSink)
             format!("{} synced", count)
         };
         sink.add_pass(platform, "prompts", &msg);
-        return;
-    }
-
-    // User-scope prompts (most common for Codex CLI)
-    if let Some(home) = dirs::home_dir() {
-        let user_prompts = home.join(".codex/prompts");
-        if user_prompts.exists() {
-            let count = std::fs::read_dir(&user_prompts)
-                .map(|rd| {
-                    rd.filter_map(Result::ok)
-                        .filter(|e| e.path().extension().is_some_and(|ext| ext == "md"))
-                        .count()
-                })
-                .unwrap_or(0);
-            sink.add_pass(
-                platform,
-                "prompts",
-                &format!("User prompts installed ({} prompts)", count),
-            );
+    } else {
+        // User-scope prompts (most common for Codex CLI)
+        if let Some(home) = dirs::home_dir() {
+            let user_prompts = home.join(".codex/prompts");
+            if user_prompts.exists() {
+                let count = std::fs::read_dir(&user_prompts)
+                    .map(|rd| {
+                        rd.filter_map(Result::ok)
+                            .filter(|e| e.path().extension().is_some_and(|ext| ext == "md"))
+                            .count()
+                    })
+                    .unwrap_or(0);
+                sink.add_pass(
+                    platform,
+                    "prompts",
+                    &format!("User prompts installed ({} prompts)", count),
+                );
+            } else {
+                sink.add_warning(
+                    platform,
+                    "prompts",
+                    "No prompts directory found",
+                    Some("Run `calvin deploy --home --targets codex` to install prompts"),
+                );
+            }
         } else {
             sink.add_warning(
                 platform,
                 "prompts",
-                "No prompts directory found",
+                "Cannot determine home directory for Codex prompts",
                 Some("Run `calvin deploy --home --targets codex` to install prompts"),
             );
         }
+    }
+
+    // Skills (prefer project-scope, fall back to user-scope)
+    let project_skills = root.join(".codex/skills");
+    if project_skills.exists() {
+        check_skills_dir(&project_skills, platform, sink);
+    } else if let Some(home) = dirs::home_dir() {
+        check_skills_dir(&home.join(".codex/skills"), platform, sink);
     } else {
-        sink.add_warning(
-            platform,
-            "prompts",
-            "Cannot determine home directory for Codex prompts",
-            Some("Run `calvin deploy --home --targets codex` to install prompts"),
-        );
+        sink.add_pass(platform, "skills", "OK");
     }
 }
 

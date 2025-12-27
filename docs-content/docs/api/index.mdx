@@ -5,7 +5,7 @@ description: Calvin API documentation for CLI commands, library usage, and front
 
 # Calvin API Reference
 
-> Version: 0.4.0 | Last Updated: 2025-12-25
+> Version: 0.6.0 | Updated: 2025-12-27
 
 This section contains API documentation for Calvin.
 
@@ -59,12 +59,13 @@ calvin clean            # Remove deployed files (interactive)
 calvin clean --all -y   # Remove all deployments
 calvin check            # Validate configuration
 calvin check --all      # Validate all registered projects
+calvin check --all-layers # Check all resolved layers
 calvin watch            # Watch for changes
+calvin watch --watch-all-layers # Watch all layers (user/custom/project)
 calvin diff             # Preview changes
 calvin layers           # Show layer stack
 calvin provenance       # Show output file sources
 calvin projects         # List registered projects
-calvin migrate          # Migrate lockfile to new location
 calvin explain          # Show usage information
 calvin version          # Show version info
 ```
@@ -76,7 +77,7 @@ Calvin can be used as a Rust library:
 ```rust
 use calvin::presentation::factory::create_deploy_use_case;
 use calvin::application::DeployOptions;
-use calvin::Scope;
+use calvin::domain::value_objects::Scope;
 
 // Create use case with all dependencies wired up
 let use_case = create_deploy_use_case();
@@ -104,8 +105,11 @@ println!("Deployed {} files", result.written.len());
 │   └── pr-review.md
 ├── agents/              # Sub-agent definitions
 │   └── reviewer.md
-└── mcp/                 # MCP server configurations
-    └── github.toml
+└── skills/              # Directory-based skills (supported targets only)
+    └── draft-commit/
+        ├── SKILL.md
+        └── scripts/
+            └── validate.py
 ```
 
 ### Frontmatter Fields
@@ -113,9 +117,11 @@ println!("Deployed {} files", result.written.len());
 ```yaml
 ---
 description: Short description (required)
+kind: action | policy | agent | skill
 scope: project | user               # Deploy scope (default: project)
 targets: [claude-code, cursor]      # Platform filter (default: all)
 apply: "**/*.ts"                    # Glob pattern for rules (string)
+allowed-tools: ["git", "cat"]       # Skill-only (YAML list)
 ---
 ```
 

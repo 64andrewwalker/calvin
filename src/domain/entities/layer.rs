@@ -40,6 +40,8 @@ pub struct Layer {
     pub path: LayerPath,
     pub layer_type: LayerType,
     pub assets: Vec<Asset>,
+    /// Number of files skipped due to .calvinignore patterns
+    pub ignored_count: usize,
 }
 
 impl Layer {
@@ -49,11 +51,17 @@ impl Layer {
             path,
             layer_type,
             assets: Vec::new(),
+            ignored_count: 0,
         }
     }
 
     pub fn with_assets(mut self, assets: Vec<Asset>) -> Self {
         self.assets = assets;
+        self
+    }
+
+    pub fn with_ignored_count(mut self, count: usize) -> Self {
+        self.ignored_count = count;
         self
     }
 }

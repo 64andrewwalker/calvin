@@ -39,6 +39,8 @@ This document tracks the current state of Calvin's target platforms and their ou
 | Settings | `.claude/settings.json` | Project |
 | Settings Local | `.claude/settings.local.json` | Project (gitignored) |
 | Agents | `.claude/agents/<id>.md` | Project |
+| Skills | `.claude/skills/<id>/SKILL.md` | Project |
+| Skills | `~/.claude/skills/<id>/SKILL.md` | User |
 | Memory | `CLAUDE.md` | Project |
 
 ### Format: Commands
@@ -83,8 +85,12 @@ Arguments: $ARGUMENTS
 |------------|-------------|-------|
 | Rules | `.cursor/rules/<id>/RULE.md` | Project |
 | Commands | `.cursor/commands/<id>.md` | Project |
-| MCP Config | `.cursor/mcp.json` | Project |
-| MCP Config | `~/.cursor/mcp.json` | User |
+| MCP Config (manual; validated by `calvin check`) | `.cursor/mcp.json` | Project |
+| Skills | `.claude/skills/<id>/SKILL.md` | Project |
+| Skills | `~/.claude/skills/<id>/SKILL.md` | User |
+
+**Note**: Cursor skill support uses Claude Code’s skill paths (`.claude/skills/`).
+**Note**: Calvin does not currently generate `.cursor/mcp.json`; it only validates it (allowlist + JSON schema) when present.
 
 ### Format: Rules
 
@@ -144,6 +150,7 @@ applyTo: "**/*.py"
 
 - Instructions only affect Chat, not inline completions
 - `chat.useAgentsMdFile` setting must be enabled for AGENTS.md
+- Skills are not supported on VS Code + Copilot.
 
 ---
 
@@ -170,6 +177,8 @@ Antigravity is Google's **agent-first IDE**, launched November 18, 2025. It's no
 | Rules (global) | `~/.gemini/antigravity/global_rules/` | User |
 | Workflows (global) | `~/.gemini/antigravity/global_workflows/` | User |
 | Browser Allowlist | `~/.gemini/antigravity/browserAllowlist.txt` | User |
+
+**Note**: Antigravity does not support `SKILL.md` skills.
 
 ### Format: Workflows
 
@@ -212,7 +221,10 @@ npm install -g @openai/codex
 
 | Asset Type | Output Path | Scope |
 |------------|-------------|-------|
-| Prompts | `~/.codex/prompts/<id>.md` | User only |
+| Prompts | `.codex/prompts/<id>.md` | Project |
+| Prompts | `~/.codex/prompts/<id>.md` | User |
+| Skills | `.codex/skills/<id>/SKILL.md` | Project |
+| Skills | `~/.codex/skills/<id>/SKILL.md` | User |
 
 ### Format: Prompts
 
@@ -247,7 +259,7 @@ Arguments: $ARGUMENTS
 | User-scope commands | ✅ | ⚠️ | ❌ | ✅ | ✅ |
 | Policy/Rules | ✅ | ✅ | ✅ | ✅ | ❌ |
 | Settings/Deny lists | ✅ | ⚠️ | ❌ | ⚠️ | ❌ |
-| MCP configuration | ✅ | ✅ | ⚠️ | ❌ | ❌ |
+| MCP allowlist validation | ❌ | ✅ | ❌ | ❌ | ❌ |
 | Agents/Subagents | ✅ | ❌ | ⚠️ | ❌ | ❌ |
 
 Legend: ✅ Full support | ⚠️ Partial/experimental | ❌ Not supported
@@ -261,13 +273,15 @@ Calvin exposes Calvin + adapter versions via `calvin version`:
 ```bash
 $ calvin version
 
-Calvin v0.2.0
-Source Format: 1.0
-
-Adapters:
-  - ClaudeCode   v1
-  - Cursor       v1
-  - VSCode       v1
-  - Antigravity  v1
-  - Codex        v1
+╭─────────────────────╮
+│ Calvin v0.6.0       │
+│ Source Format: 1.0  │
+│                     │
+│ Adapters:           │
+│   - ClaudeCode   v1 │
+│   - Cursor       v1 │
+│   - VSCode       v1 │
+│   - Antigravity  v1 │
+│   - Codex        v1 │
+╰─────────────────────╯
 ```

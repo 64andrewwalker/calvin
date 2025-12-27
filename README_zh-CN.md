@@ -39,8 +39,12 @@
 │   └── pr-review.md
 ├── agents/
 │   └── reviewer.md            # → 编译为子智能体定义
+├── skills/
+│   └── draft-commit/
+│       ├── SKILL.md           # → 编译为 SKILL.md 技能目录（Claude/Codex/Cursor）
+│       └── scripts/validate.py
 └── mcp/
-    └── github.toml            # → 编译为 MCP 配置
+    └── github.toml            # → MCP 配置（规划中；当前只校验，不生成）
 ```
 
 然后运行：
@@ -54,17 +58,20 @@ Calvin 会生成平台特定的输出：
 ```
 .claude/commands/generate-tests.md
 .claude/settings.json              # 包含安全拒绝列表！
+.claude/skills/draft-commit/SKILL.md
 .cursor/rules/code-style/RULE.md
 .cursor/commands/generate-tests.md
 .github/copilot-instructions.md
 .agent/rules/code-style.md
 .agent/workflows/generate-tests.md
+.codex/skills/draft-commit/SKILL.md
 ```
 
 ## 特性
 
 - **📝 单一信息源**：在一处维护所有提示词
 - **🔄 多平台编译**：Claude Code、Cursor、VS Code、Antigravity、Codex
+- **🧠 Skills 支持**：面向 Claude Code、Codex、Cursor 的目录式技能
 - **🔒 默认安全**：自动生成拒绝列表，阻止危险的 MCP 服务器
 - **👀 监听模式**：文件变更时自动重新编译
 - **🔍 检查命令**：验证配置健康状态
@@ -205,17 +212,18 @@ calvin deploy --remote user@host:/path/to/project
 
 ## 项目状态
 
-**版本**：v0.3.0  
+**版本**：v0.6.0  
 **阶段**：功能完整，架构 v2 已部署
 
 最近更新：
 
 - ✅ 整洁架构重构（domain/application/infrastructure 层）
-- ✅ 600+ 测试通过，75%+ 覆盖率
+- ✅ 1000+ 测试通过，75%+ 覆盖率（见 CI 徽章）
 - ✅ 跨平台 CI（Ubuntu、Windows、macOS）
 - ✅ 基于 rsync 加速的 SSH 远程同步
 - ✅ 用户作用域安装（`--home` 标志）
 - ✅ 安全健康检查（`check` 命令）
+- ✅ Skills 支持（`.promptpack/skills/<id>/SKILL.md`）
 
 详细路线图请参阅 [docs/architecture/TODO.md](docs/architecture/TODO.md)。
 

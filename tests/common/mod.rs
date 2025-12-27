@@ -6,12 +6,17 @@
 //! - Assertion macros: `assert_deployed!`, `assert_output_contains!`, etc.
 //! - Fixtures: Reusable test content constants
 
+#![allow(dead_code)]
+#![allow(unused_imports)]
+
 pub mod assertions;
 pub mod env;
 pub mod fixtures;
+pub mod skills;
 pub mod windows;
 
 pub use assertions::*;
 pub use env::*;
 pub use fixtures::*;
+pub use skills::*;
 pub use windows::*;

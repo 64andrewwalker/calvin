@@ -3,6 +3,7 @@
 //! Handles extraction and parsing of YAML frontmatter from Markdown files.
 
 use std::fs;
+use std::path::Component;
 use std::path::Path;
 
 use crate::docs;
@@ -125,6 +126,18 @@ fn parse_directory_recursive(
         let path = entry.path();
 
         if path.is_dir() {
+            // Skip the skills directory - skills are directory-based assets and are loaded separately.
+            // This prevents parsing skill supplementals (which often have no frontmatter) as prompt assets.
+            if let Ok(rel) = path.strip_prefix(root) {
+                if rel
+                    .components()
+                    .next()
+                    .is_some_and(|c| c == Component::Normal(std::ffi::OsStr::new("skills")))
+                {
+                    continue;
+                }
+            }
+
             // Skip hidden directories
             if !path
                 .file_name()
@@ -207,6 +220,7 @@ pub fn derive_id(path: &Path) -> String {
 mod tests {
     use super::*;
     use std::fs;
+    use std::path::PathBuf;
     use tempfile::tempdir;
 
     // === TDD Cycle 2: Frontmatter Extraction ===
@@ -352,6 +366,48 @@ description: [invalid
 
         let err = parse_directory(&promptpack).expect_err("should fail on invalid file");
         assert!(err.to_string().contains("bad.md"));
+    }
+
+    #[test]
+    fn test_parse_directory_skips_skills_directory() {
+        let dir = tempdir().unwrap();
+        let promptpack = dir.path().join(".promptpack");
+        fs::create_dir_all(promptpack.join("policies")).unwrap();
+        fs::create_dir_all(promptpack.join("skills/my-skill/scripts")).unwrap();
+
+        fs::write(
+            promptpack.join("policies/ok.md"),
+            r#"---
+description: OK
+---
+content
+"#,
+        )
+        .unwrap();
+
+        // Skill supplemental without frontmatter would normally fail parsing if not skipped.
+        fs::write(
+            promptpack.join("skills/my-skill/reference.md"),
+            "# Reference\n\nNo frontmatter.",
+        )
+        .unwrap();
+
+        // SKILL.md exists but should also be skipped by parse_directory (loaded via skills loader).
+        fs::write(
+            promptpack.join("skills/my-skill/SKILL.md"),
+            r#"---
+description: A skill
+---
+
+# Instructions
+"#,
+        )
+        .unwrap();
+
+        let assets = parse_directory(&promptpack).unwrap();
+        assert_eq!(assets.len(), 1);
+        assert_eq!(assets[0].id, "ok");
+        assert_eq!(assets[0].source_path, PathBuf::from("policies/ok.md"));
     }
 
     // === TDD Cycle: Full Parse Flow ===

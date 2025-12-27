@@ -1,9 +1,29 @@
 # Calvin - Implementation Checklist
 
-> **Status**: ALL PHASES COMPLETE ✅ 🎉
+> **Status**: Core phases complete; outstanding items tracked below
 > **Started**: 2025-12-17  
-> **Completed**: 2025-12-17
-> **Tests**: 164 passing (142 unit + 13 CLI + 9 integration)
+> **Completed**: 2025-12-17  
+> **Tests**: 1253+ passing (as of 2025-12-27; `cargo test --all-features -- --list | rg -c ': test'`)
+
+---
+
+## Audits & Maintenance (2025-12-27)
+
+- [x] `[0-DISC] Documentation-Code Synchronization Audit` → `docs/sync-audit-report.md`
+- [x] `[4-TEST] Test Variant Generation` → `docs/test-variants-rationale.md`
+- [x] `[M-MAINT] Codebase Cleanup & Declutter` → `docs/reports/cleanup-report-2025-12-27.md`
+
+---
+
+## Architecture Redesign (Skills Complexity Reduction)
+
+- [x] `[1-PLAN] Architecture Redesign` → `docs/architecture-redesign.md`
+- [x] P0: Deduplicate skill compilation across adapters (shared `infrastructure/adapters/skills.rs`)
+- [x] P0: Centralize dangerous `allowed-tools` policy (single source of truth for tool list)
+- [x] P1: Deduplicate skill directory ownership logic (Deploy + Clean share `application/skills.rs`)
+- [x] P1: Add `Target::supports_skills()` and replace ad-hoc target matching
+- [x] P2: Deduplicate test helpers (`write_project_skill`) across integration tests
+- [ ] P3 (optional): Reduce `yaml_has_key()` complexity by tracking raw key presence or making `Frontmatter.kind` optional
 
 ---
 
@@ -20,8 +40,8 @@
   - [x] `anyhow`, `thiserror` - Error handling
   - [x] `which` - Tool detection for remote sync
 - [x] Configure release profile (TD-17: lto, strip, opt-level=z)
-- [ ] Configure GitHub Actions CI
-- [ ] Set up cross-compilation targets
+- [x] Configure GitHub Actions CI
+- [x] Set up cross-compilation targets
 
 ---
 
@@ -205,6 +225,8 @@
 
 - [ ] Unit tests (>80% coverage) - Currently 57%
 - [x] Add variant tests for SyncEngine & Scope Refactor (26 variants)
+- [x] Add variant tests for skills deploy warnings (8 variants) - See `docs/test-variants-rationale.md`
+- [x] M-MAINT: Codebase cleanup & declutter (2025-12-27) - See `docs/reports/cleanup-report-2025-12-27.md`
 - [x] Snapshot tests with `insta` crate (6 snapshots)
 - [x] Golden test suite (9 tests, reference .promptpack → expected output)
 - [x] **Escaping tests**: Ensure JSON with quotes doesn't corrupt (3 tests)

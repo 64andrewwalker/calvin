@@ -13,6 +13,7 @@
 
 use std::path::PathBuf;
 
+use super::skills;
 use crate::domain::entities::{Asset, AssetKind, OutputFile};
 use crate::domain::ports::target_adapter::{
     AdapterDiagnostic, AdapterError, DiagnosticSeverity, TargetAdapter,
@@ -35,6 +36,13 @@ impl CodexAdapter {
         }
     }
 
+    fn skills_dir(&self, scope: Scope) -> PathBuf {
+        match scope {
+            Scope::User => PathBuf::from("~/.codex/skills"),
+            Scope::Project => PathBuf::from(".codex/skills"),
+        }
+    }
+
     /// Generate YAML frontmatter for Codex prompts
     fn generate_frontmatter(&self, asset: &Asset) -> String {
         let mut fm = String::from("---\n");
@@ -48,10 +56,23 @@ impl CodexAdapter {
             AssetKind::Policy => {
                 // Policy prompts don't need arguments
             }
+            AssetKind::Skill => {
+                // Skills use SKILL.md format, not Codex prompts frontmatter.
+            }
         }
 
         fm.push_str("---\n");
         fm
+    }
+
+    fn compile_skill(&self, asset: &Asset) -> Result<Vec<OutputFile>, AdapterError> {
+        let footer = self.footer(&asset.source_path_normalized());
+        skills::compile_skill_outputs(
+            asset,
+            self.skills_dir(asset.scope()),
+            Target::Codex,
+            &footer,
+        )
     }
 }
 
@@ -67,6 +88,11 @@ impl TargetAdapter for CodexAdapter {
     }
 
     fn compile(&self, asset: &Asset) -> Result<Vec<OutputFile>, AdapterError> {
+        // Skills are compiled to `.codex/skills/<id>/SKILL.md` (implemented separately).
+        if asset.kind() == AssetKind::Skill {
+            return self.compile_skill(asset);
+        }
+
         let mut outputs = Vec::new();
 
         let prompts_dir = self.prompts_dir(asset.scope());
@@ -88,6 +114,7 @@ impl TargetAdapter for CodexAdapter {
             AssetKind::Policy => {
                 format!("{}\n{}\n\n{}", frontmatter, asset.content().trim(), footer)
             }
+            AssetKind::Skill => String::new(), // unreachable (guarded above)
         };
 
         outputs.push(OutputFile::new(path, content, self.target()));
@@ -97,6 +124,14 @@ impl TargetAdapter for CodexAdapter {
 
     fn validate(&self, output: &OutputFile) -> Vec<AdapterDiagnostic> {
         let mut diagnostics = Vec::new();
+
+        if output
+            .path()
+            .file_name()
+            .is_some_and(|n| n == std::ffi::OsStr::new("SKILL.md"))
+        {
+            diagnostics.extend(skills::validate_skill_allowed_tools(output));
+        }
 
         // Check for named placeholders without documentation
         let content = output.content();
@@ -149,6 +184,7 @@ impl TargetAdapter for CodexAdapter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
 
     fn create_action_asset(id: &str, description: &str, content: &str) -> Asset {
         Asset::new(id, format!("actions/{}.md", id), description, content)
@@ -158,6 +194,14 @@ mod tests {
     fn create_policy_asset(id: &str, description: &str, content: &str) -> Asset {
         Asset::new(id, format!("policies/{}.md", id), description, content)
             .with_kind(AssetKind::Policy)
+    }
+
+    fn create_skill_asset(id: &str, description: &str, content: &str) -> Asset {
+        let mut supplementals: HashMap<PathBuf, String> = HashMap::new();
+        supplementals.insert(PathBuf::from("reference.md"), "# Ref".to_string());
+        Asset::new(id, format!("skills/{}/SKILL.md", id), description, content)
+            .with_kind(AssetKind::Skill)
+            .with_supplementals(supplementals)
     }
 
     // === TDD: Compile Tests ===
@@ -302,5 +346,19 @@ mod tests {
     fn adapter_version_is_one() {
         let adapter = CodexAdapter::new();
         assert_eq!(adapter.version(), 1);
+    }
+
+    // === TDD: Skills ===
+
+    #[test]
+    fn test_codex_compile_skill_path() {
+        let adapter = CodexAdapter::new();
+        let asset = create_skill_asset("my-skill", "My skill", "# Instructions");
+
+        let outputs = adapter.compile(&asset).unwrap();
+
+        assert!(outputs
+            .iter()
+            .any(|o| o.path() == &PathBuf::from(".codex/skills/my-skill/SKILL.md")));
     }
 }

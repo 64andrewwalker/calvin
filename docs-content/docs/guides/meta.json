@@ -3,10 +3,15 @@
     "description": "Best practices and troubleshooting",
     "pages": [
         "index",
-        "configuration",
-        "multi-layer",
-        "clean-command",
+        "---Core Concepts---",
         "scope-guide",
+        "configuration",
+        "---Advanced Features---",
+        "multi-layer",
+        "skills",
+        "calvinignore",
+        "clean-command",
+        "---Internals---",
         "pitfall-mitigations",
         "scope-policy-consistency",
         "test-variants-rationale"

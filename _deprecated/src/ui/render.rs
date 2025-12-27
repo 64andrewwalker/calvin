@@ -1,8 +1,12 @@
+//! Deprecated UI render utilities
+//!
+//! Moved from `src/ui/render.rs` as part of a cleanup pass.
+//! Kept for one release cycle before permanent deletion.
+
 use std::io::{self, Write};
 
 use crossterm::{cursor, terminal, QueueableCommand};
 
-#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct TerminalState {
     pub width: u16,
@@ -12,7 +16,6 @@ pub struct TerminalState {
     buffer: Vec<u8>,
 }
 
-#[allow(dead_code)]
 impl TerminalState {
     pub fn new(width: u16, height: u16) -> Self {
         Self {

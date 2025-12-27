@@ -98,6 +98,12 @@ mod empty_array_disable {
 
         let result = env.run(&["deploy", "--yes"]);
 
+        assert!(
+            result.success,
+            "Deploy should succeed with empty targets.\nOutput: {}",
+            result.combined_output()
+        );
+
         // Deploy should succeed but with 0 files written
         // Check that no target directories were created
         let has_cursor = env.project_path(".cursor").exists();
@@ -127,7 +133,7 @@ mod empty_array_disable {
         let result = env.run(&["check", "--json"]);
 
         // The output should show 0 targets or indicate empty targets
-        let output = result.combined_output();
+        let _output = result.combined_output();
 
         // Should not have deployed to any targets
         let files = list_all_files(env.project_root.path());

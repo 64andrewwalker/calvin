@@ -6,6 +6,13 @@
   ES module imports for static assets. Images are served from /public/docs/images/.
 */}
 
+import featureSync from './docs/images/feature-sync.webp';
+import featureAdapters from './docs/images/feature-adapters.webp';
+import featureSecurity from './docs/images/feature-security.webp';
+import featureLockfile from './docs/images/feature-lockfile.webp';
+import featureWatch from './docs/images/feature-watch.webp';
+import featureScope from './docs/images/feature-scope.webp';
+
 <Hero 
   title="Calvin" 
   subtitle="The universal PromptPack compiler. Write prompts once, deploy everywhere — Claude Code, Cursor, VS Code, Antigravity, and Codex."
@@ -27,32 +34,32 @@
 
 <Features>
   <Feature 
-    image="/docs/images/feature-sync.webp"
+    image={featureSync}
     title="Write Once, Deploy Everywhere" 
     description="Single source of truth for all your AI coding assistant configurations. No more copy-pasting between tools."
   />
   <Feature 
-    image="/docs/images/feature-adapters.webp"
+    image={featureAdapters}
     title="5 Platform Adapters" 
     description="Automatic conversion to Claude Code, Cursor, VS Code (Copilot), Antigravity, and Codex native formats."
   />
   <Feature 
-    image="/docs/images/feature-security.webp"
+    image={featureSecurity}
     title="Built-in Security" 
     description="Audit mode, deny lists, and permission controls to keep your codebase safe from AI mishaps."
   />
   <Feature 
-    image="/docs/images/feature-lockfile.webp"
+    image={featureLockfile}
     title="Lockfile Tracking" 
     description="Track deployed files, detect conflicts, and clean up orphaned configurations automatically."
   />
   <Feature 
-    image="/docs/images/feature-watch.webp"
+    image={featureWatch}
     title="Watch Mode" 
     description="Automatic re-deployment when source files change. Perfect for iterating on prompts."
   />
   <Feature 
-    image="/docs/images/feature-scope.webp"
+    image={featureScope}
     title="Scope Control" 
     description="Deploy to project directories or user home. Team-shared configs or personal preferences — your choice."
   />
@@ -72,6 +79,9 @@
 
   # Initialize in your project
   calvin init
+
+  # Validate configuration
+  calvin check
 
   # Deploy to all platforms
   calvin deploy
@@ -134,8 +144,12 @@
   ├── actions/             # Slash commands and workflows
   │   ├── generate-tests.md
   │   └── pr-review.md
-  └── agents/              # Sub-agent definitions
-      └── reviewer.md
+  ├── agents/              # Sub-agent definitions
+  │   └── reviewer.md
+  └── skills/              # Directory-based skills (SKILL.md + files)
+      └── draft-commit/
+          ├── SKILL.md
+          └── reference.md
   ```
 </Section>
 

@@ -193,6 +193,7 @@ pub struct TestEnvBuilder {
     create_project_promptpack: bool,
     create_user_layer: bool,
     init_git: bool,
+    calvinignore: Option<String>,
 }
 
 impl TestEnvBuilder {
@@ -210,7 +211,14 @@ impl TestEnvBuilder {
             create_project_promptpack: true,
             create_user_layer: false,
             init_git: true,
+            calvinignore: None,
         }
+    }
+
+    /// Set .calvinignore content for the project layer
+    pub fn with_calvinignore(mut self, content: &str) -> Self {
+        self.calvinignore = Some(content.to_string());
+        self
     }
 
     /// Add an asset to the project's .promptpack directory
@@ -330,6 +338,13 @@ impl TestEnvBuilder {
             std::fs::write(&asset_path, content).expect("Failed to write asset");
         }
 
+        // Write .calvinignore if specified
+        if let Some(calvinignore) = &self.calvinignore {
+            let calvinignore_path = project_root.path().join(".promptpack/.calvinignore");
+            std::fs::write(&calvinignore_path, calvinignore)
+                .expect("Failed to write .calvinignore");
+        }
+
         // Create user layer if needed
         if self.create_user_layer || !self.user_layer_assets.is_empty() {
             let user_promptpack = home_dir.path().join(".calvin/.promptpack");
@@ -393,12 +408,10 @@ impl TestEnvBuilder {
         }
 
         // Use assert_cmd's cargo_bin approach
-        let cargo_bin = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("target")
             .join("debug")
-            .join("calvin");
-
-        cargo_bin
+            .join("calvin")
     }
 }
 

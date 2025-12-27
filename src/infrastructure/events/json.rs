@@ -21,7 +21,6 @@ impl JsonEventSink {
     }
 
     /// Create a JSON event sink writing to a custom writer (for testing)
-    #[allow(dead_code)]
     pub fn with_writer<W: Write + Send + 'static>(writer: W) -> Self {
         Self {
             writer: Mutex::new(Box::new(writer)),

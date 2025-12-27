@@ -179,7 +179,12 @@ impl FileSystem for RemoteFs {
     }
 
     fn remove(&self, path: &Path) -> FsResult<()> {
-        self.run_command(&format!("rm -f {}", Self::quote_path(path)), None)?;
+        let p = Self::quote_path(path);
+        if self.run_command(&format!("rm -f {}", p), None).is_ok() {
+            return Ok(());
+        }
+        // Best-effort: allow removing empty directories without introducing `rm -rf`.
+        self.run_command(&format!("rmdir {}", p), None)?;
         Ok(())
     }
 

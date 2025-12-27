@@ -59,6 +59,11 @@ impl TargetAdapter for VSCodeAdapter {
     }
 
     fn compile(&self, asset: &Asset) -> Result<Vec<OutputFile>, AdapterError> {
+        // Skills are not supported on VS Code / Copilot.
+        if asset.kind() == AssetKind::Skill {
+            return Ok(Vec::new());
+        }
+
         let mut outputs = Vec::new();
 
         // All assets generate individual .instructions.md files
@@ -111,7 +116,9 @@ impl TargetAdapter for VSCodeAdapter {
         // Only generate AGENTS.md for project-scope deployments
         // AGENTS.md is a project-level index file that should be in the project root
         // For home scope deployments, we skip it to avoid creating ~/AGENTS.md
-        let has_project_scope_assets = assets.iter().any(|a| a.scope() == Scope::Project);
+        let has_project_scope_assets = assets
+            .iter()
+            .any(|a| a.scope() == Scope::Project && a.kind() != AssetKind::Skill);
 
         if has_project_scope_assets {
             let project_assets: Vec<_> = assets
@@ -177,6 +184,7 @@ fn generate_agents_md(assets: &[Asset]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
     use std::path::PathBuf;
 
     fn create_policy_asset(id: &str, description: &str, content: &str) -> Asset {
@@ -187,6 +195,13 @@ mod tests {
     fn create_action_asset(id: &str, description: &str, content: &str) -> Asset {
         Asset::new(id, format!("actions/{}.md", id), description, content)
             .with_kind(AssetKind::Action)
+    }
+
+    fn create_skill_asset(id: &str, description: &str, content: &str) -> Asset {
+        let supplementals: HashMap<PathBuf, String> = HashMap::new();
+        Asset::new(id, format!("skills/{}/SKILL.md", id), description, content)
+            .with_kind(AssetKind::Skill)
+            .with_supplementals(supplementals)
     }
 
     // === TDD: Compile Tests ===
@@ -231,6 +246,15 @@ mod tests {
             outputs[0].path(),
             &PathBuf::from(".github/instructions/gen-tests.instructions.md")
         );
+    }
+
+    #[test]
+    fn test_vscode_compile_skill_returns_empty() {
+        let adapter = VSCodeAdapter::new();
+        let asset = create_skill_asset("my-skill", "My skill", "# Instructions");
+
+        let outputs = adapter.compile(&asset).unwrap();
+        assert!(outputs.is_empty());
     }
 
     #[test]

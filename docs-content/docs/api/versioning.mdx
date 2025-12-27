@@ -1,160 +1,38 @@
 ---
 title: API Versioning Policy
-description: Calvin's dual-layer versioning strategy for source formats and adapter outputs
+description: Current versioning behavior for Calvin source format and adapter outputs
 ---
 
 # API Versioning Policy
 
-> Version: 1.0 | Last Updated: 2024-12-17
+> Updated: 2025-12-27
 
-## Overview
+Calvin follows **Semantic Versioning** for the CLI and crate. There are two versioning concerns:
 
-Calvin uses a **dual-layer versioning strategy**:
+1. **Source format version**: the `.promptpack/` schema (frontmatter + directory conventions)
+2. **Adapter output version**: per-platform output formats (Claude/Cursor/VS Code/Antigravity/Codex)
 
-1. **Source Format Version** - The `.promptpack/` specification
-2. **Adapter Output Version** - Per-platform output format
+## Source Format Version
 
-## Source Format Versioning
-
-### Declaration
-
-Every `.promptpack/` directory should include a `config.toml` with version:
-
-```toml
-[format]
-version = "1.0"
-```
-
-### Compatibility Matrix
-
-| Calvin Version | Source Format Supported |
-|---------------|------------------------|
-| 1.x.x | 1.0     |
-| 2.x.x | 1.x, 2.0 |
-
-### Version Rules
-
-- **Major version bump**: Breaking changes (new required fields, removed features)
-- **Minor version bump**: New optional features, backwards compatible
-
-### Migration
-
-When source format is newer than Calvin supports:
+The current source format version is **1.0**.
 
 ```bash
-$ calvin deploy
-✗ ERROR: Source format v2.0 requires Calvin 2.x
-  Your version: 1.5.0
-  Upgrade: brew upgrade calvin
-```
-
-When source format is deprecated:
-
-```bash
-$ calvin deploy
-⚠ WARNING: Source format v0.9 is deprecated
-  Run: calvin migrate --format 1.0
-```
-
-## Adapter Versioning
-
-Each adapter maintains its own version independent of Calvin's version.
-
-### Version Declaration
-
-```rust
-impl TargetAdapter for CursorAdapter {
-    fn output_format_version(&self) -> SemVer { SemVer::new(1, 0, 0) }
-    fn min_ide_version(&self) -> Option<SemVer> { Some(SemVer::new(0, 40, 0)) }
-    fn max_tested_version(&self) -> Option<SemVer> { Some(SemVer::new(0, 45, 0)) }
-}
-```
-
-### Adapter Status Levels
-
-| Status | Meaning |
-|--------|---------|
-| **stable** | Production-ready, breaking changes follow deprecation policy |
-| **beta** | Feature-complete, API may change |
-| **experimental** | Incomplete, expect breaking changes |
-
-### Current Adapter Status (as of December 2025)
-
-| Adapter | Version | Status | Target IDE Version |
-|---------|---------|--------|-------------------|
-| Claude Code | 1.0 | stable | CLI v2.0.x (Sonnet 4.5) |
-| Cursor | 1.0 | stable | v2.2.x |
-| VS Code | 1.0 | stable | v1.95+ (Copilot Chat) |
-| Antigravity | 1.0 | beta | v1.11.x (Gemini 3 Pro) |
-| Codex | 1.0 | experimental | CLI v0.72.x (GPT-5) |
-
-**IDE Version Notes (Dec 2025)**:
-- **Claude Code 2.0.70**: MCP wildcard permissions, memory optimization
-- **Cursor 2.2**: Debug mode, Plan mode, Agent Review
-- **Antigravity 1.11.17**: Agent-first IDE, multi-agent async collaboration
-- **Codex 0.72.0**: CLI agent with gpt-5-codex model
-
-## CLI Versioning
-
-Calvin CLI follows [Semantic Versioning 2.0.0](https://semver.org/).
-
-| Component | Triggers Major | Triggers Minor | Triggers Patch |
-|-----------|---------------|----------------|----------------|
-| Source format | Required field added | Optional field added | - |
-| CLI interface | Command renamed/removed | New command added | Flag fix |
-| Adapter output | Breaking format change | New file type | Bug fix |
-
-## Deprecation Policy
-
-### Timeline
-
-```mermaid
-graph LR
-    v1[v1.0] --> v1_1[v1.1]
-    v1_1 --> v1_2[v1.2]
-    v1_2 --> v2[v2.0]
-
-    subgraph "N-2 Window"
-    v1_2 -- "Deprecates" --> v1
-    end
-    
-    subgraph "Removal"
-    v2 -- "Removes" --> v1
-    end
-    
-    style v1 fill:#ffcccc,stroke:#333
-    style v1_2 fill:#ffffcc,stroke:#333
-    style v2 fill:#ccffcc,stroke:#333
-```
-
-
-**Rule**: N-2 version support (current - 2 minor versions)
-
-### Warning Levels
-
-```bash
-# 1. Future deprecation notice
-ℹ INFO: claude-code adapter v1 will be deprecated in Calvin 2.0
-
-# 2. Deprecation warning
-⚠ DEPRECATED: cursor adapter v0 is deprecated
-  Migrate: calvin migrate --adapter cursor
-
-# 3. Removal error
-✗ ERROR: antigravity adapter v0 has been removed
-  Upgrade your .promptpack/ format or downgrade Calvin
-```
-
-## Checking Versions
-
-```bash
-$ calvin --version
-calvin 0.3.0
-
 $ calvin version
-Calvin v0.3.0
+Calvin v0.6.0
 Source Format: 1.0
+```
 
+### Current Behavior (Honest State)
+
+- Source format version is currently **fixed to 1.0** in the CLI output.
+- A `[format]` section in `config.toml` is **reserved for future use**, but Calvin does not currently enforce a user-declared format version.
+
+## Adapter Output Versions
+
+`calvin version` also reports adapter output versions (currently `v1` for all adapters):
+
+```bash
+$ calvin version
 Adapters:
   - ClaudeCode   v1
   - Cursor       v1
@@ -163,18 +41,13 @@ Adapters:
   - Codex        v1
 ```
 
-## Migration Commands
+### Current Behavior (Honest State)
 
-```bash
-# Migrate source format
-calvin migrate --format 1.0
+- Adapter versions are informational (Calvin does not currently negotiate/auto-detect IDE versions).
+- IDE version detection and richer adapter version metadata are planned and tracked in `TODO.md` (TD-18).
 
-# Migrate specific adapter output
-calvin migrate --adapter cursor
+## Migration
 
-# Dry run
-calvin migrate --dry-run
+Calvin includes a hidden/debug `calvin migrate` command. Today it is used for **lockfile location migration** (legacy `.promptpack/.calvin.lock` → `./calvin.lock`).
 
-# Force migration (dangerous)
-calvin migrate --force
-```
+Other migration dimensions (format migration, adapter migration) are reserved for future work.

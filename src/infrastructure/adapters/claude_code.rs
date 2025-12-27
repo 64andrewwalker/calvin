@@ -9,7 +9,8 @@
 
 use std::path::PathBuf;
 
-use crate::domain::entities::{Asset, OutputFile};
+use super::skills;
+use crate::domain::entities::{Asset, AssetKind, OutputFile};
 use crate::domain::ports::target_adapter::{
     AdapterDiagnostic, AdapterError, DiagnosticSeverity, TargetAdapter,
 };
@@ -30,6 +31,14 @@ impl ClaudeCodeAdapter {
             Scope::Project => PathBuf::from(".claude/commands"),
         }
     }
+
+    /// Get the skills directory based on scope
+    fn skills_dir(&self, scope: Scope) -> PathBuf {
+        match scope {
+            Scope::User => PathBuf::from("~/.claude/skills"),
+            Scope::Project => PathBuf::from(".claude/skills"),
+        }
+    }
 }
 
 impl Default for ClaudeCodeAdapter {
@@ -44,6 +53,16 @@ impl TargetAdapter for ClaudeCodeAdapter {
     }
 
     fn compile(&self, asset: &Asset) -> Result<Vec<OutputFile>, AdapterError> {
+        if asset.kind() == AssetKind::Skill {
+            let footer = self.footer(&asset.source_path_normalized());
+            return skills::compile_skill_outputs(
+                asset,
+                self.skills_dir(asset.scope()),
+                Target::ClaudeCode,
+                &footer,
+            );
+        }
+
         let mut outputs = Vec::new();
 
         // Generate command file for all asset types
@@ -80,6 +99,15 @@ impl TargetAdapter for ClaudeCodeAdapter {
 
     fn validate(&self, output: &OutputFile) -> Vec<AdapterDiagnostic> {
         let mut diagnostics = Vec::new();
+
+        // Skill: warn on dangerous tools (best-effort; do not fail compilation).
+        if output
+            .path()
+            .file_name()
+            .is_some_and(|n| n == std::ffi::OsStr::new("SKILL.md"))
+        {
+            diagnostics.extend(skills::validate_skill_allowed_tools(output));
+        }
 
         if output.content().trim().is_empty() {
             diagnostics.push(AdapterDiagnostic {
@@ -132,6 +160,7 @@ impl TargetAdapter for ClaudeCodeAdapter {
 mod tests {
     use super::*;
     use crate::domain::entities::AssetKind;
+    use std::collections::HashMap;
 
     fn create_action_asset(id: &str, description: &str, content: &str) -> Asset {
         Asset::new(id, format!("actions/{}.md", id), description, content)
@@ -141,6 +170,19 @@ mod tests {
     fn create_policy_asset(id: &str, description: &str, content: &str) -> Asset {
         Asset::new(id, format!("policies/{}.md", id), description, content)
             .with_kind(AssetKind::Policy)
+    }
+
+    fn create_skill_asset(id: &str, description: &str, content: &str) -> Asset {
+        let mut supplementals: HashMap<PathBuf, String> = HashMap::new();
+        supplementals.insert(PathBuf::from("reference.md"), "# Ref".to_string());
+        supplementals.insert(
+            PathBuf::from("scripts/validate.py"),
+            "print('ok')\n".to_string(),
+        );
+
+        Asset::new(id, format!("skills/{}/SKILL.md", id), description, content)
+            .with_kind(AssetKind::Skill)
+            .with_supplementals(supplementals)
     }
 
     // === TDD: Compile Tests ===
@@ -219,6 +261,91 @@ mod tests {
             outputs[0].path(),
             &PathBuf::from("~/.claude/commands/test.md")
         );
+    }
+
+    // === TDD: Skills ===
+
+    #[test]
+    fn test_claude_code_compile_skill_path() {
+        let adapter = ClaudeCodeAdapter::new();
+        let asset = create_skill_asset("my-skill", "My skill", "# Instructions");
+
+        let outputs = adapter.compile(&asset).unwrap();
+
+        assert!(outputs
+            .iter()
+            .any(|o| o.path() == &PathBuf::from(".claude/skills/my-skill/SKILL.md")));
+    }
+
+    #[test]
+    fn test_claude_code_compile_skill_supplementals() {
+        let adapter = ClaudeCodeAdapter::new();
+        let asset = create_skill_asset("my-skill", "My skill", "# Instructions");
+
+        let outputs = adapter.compile(&asset).unwrap();
+
+        assert!(outputs
+            .iter()
+            .any(|o| o.path() == &PathBuf::from(".claude/skills/my-skill/reference.md")));
+        assert!(outputs.iter().any(|o| {
+            o.path() == &PathBuf::from(".claude/skills/my-skill/scripts/validate.py")
+        }));
+    }
+
+    #[test]
+    fn test_claude_code_skill_frontmatter() {
+        let adapter = ClaudeCodeAdapter::new();
+        let asset = create_skill_asset("my-skill", "My skill", "# Instructions")
+            .with_allowed_tools(vec!["git".to_string(), "cat".to_string()]);
+
+        let outputs = adapter.compile(&asset).unwrap();
+        let skill = outputs
+            .iter()
+            .find(|o| o.path() == &PathBuf::from(".claude/skills/my-skill/SKILL.md"))
+            .unwrap();
+
+        assert!(skill.content().starts_with("---\n"));
+        assert!(skill.content().contains("name: my-skill"));
+        assert!(skill.content().contains("description: My skill"));
+        assert!(skill.content().contains("allowed-tools:"));
+        assert!(skill.content().contains("- git"));
+        assert!(skill.content().contains("- cat"));
+    }
+
+    #[test]
+    fn test_skill_user_scope_uses_home_path() {
+        let adapter = ClaudeCodeAdapter::new();
+        let asset =
+            create_skill_asset("my-skill", "My skill", "# Instructions").with_scope(Scope::User);
+
+        let outputs = adapter.compile(&asset).unwrap();
+
+        assert!(outputs
+            .iter()
+            .any(|o| { o.path() == &PathBuf::from("~/.claude/skills/my-skill/SKILL.md") }));
+    }
+
+    #[test]
+    fn test_skill_dangerous_tool_warning() {
+        let adapter = ClaudeCodeAdapter::new();
+        let asset = create_skill_asset("my-skill", "My skill", "# Instructions")
+            .with_allowed_tools(vec!["rm".to_string()]);
+
+        let outputs = adapter.compile(&asset).unwrap();
+        let skill = outputs
+            .iter()
+            .find(|o| o.path() == &PathBuf::from(".claude/skills/my-skill/SKILL.md"))
+            .unwrap();
+
+        let diags = adapter.validate(skill);
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.severity == DiagnosticSeverity::Warning),
+            "expected warning diagnostics, got: {:?}",
+            diags
+        );
+        assert!(diags.iter().any(|d| d.message.contains("rm")));
     }
 
     // === TDD: Validate Tests ===

@@ -27,6 +27,14 @@ impl AssetRepository for MockAssetRepository {
         Ok(self.assets.clone())
     }
 
+    fn load_all_with_ignore(
+        &self,
+        _source: &Path,
+        _ignore: &crate::domain::value_objects::IgnorePatterns,
+    ) -> anyhow::Result<(Vec<Asset>, usize)> {
+        Ok((self.assets.clone(), 0))
+    }
+
     fn load_by_path(&self, _path: &Path) -> anyhow::Result<Asset> {
         self.assets
             .first()
@@ -158,6 +166,23 @@ fn create_use_case() -> DeployUseCase<MockAssetRepository, MockLockfileRepositor
     DeployUseCase::new(asset_repo, lockfile_repo, file_system, adapters)
 }
 
+fn create_use_case_with_assets(
+    assets: Vec<Asset>,
+) -> DeployUseCase<MockAssetRepository, MockLockfileRepository, MockFileSystem> {
+    let asset_repo = MockAssetRepository { assets };
+    let lockfile_repo = MockLockfileRepository {
+        lockfile: RefCell::new(Lockfile::new()),
+    };
+    let file_system = MockFileSystem {
+        files: RefCell::new(HashMap::new()),
+    };
+    let adapters: Vec<Box<dyn TargetAdapter>> = vec![Box::new(MockAdapter {
+        target: Target::ClaudeCode,
+    })];
+
+    DeployUseCase::new(asset_repo, lockfile_repo, file_system, adapters)
+}
+
 #[test]
 fn deploy_registers_project_in_registry() {
     struct TestRegistryRepo {
@@ -236,6 +261,60 @@ fn deploy_dry_run_does_not_write_files() {
     assert!(result.is_success());
     // In dry run, files are collected but not actually written
     assert!(!result.written.is_empty() || result.output_count > 0);
+}
+
+#[test]
+fn deploy_warns_when_skill_targets_unsupported_platform() {
+    let skill = Asset::new(
+        "draft-commit",
+        "skills/draft-commit/SKILL.md",
+        "Draft commit message",
+        "# Instructions",
+    )
+    .with_kind(crate::domain::entities::AssetKind::Skill)
+    .with_targets(vec![Target::ClaudeCode, Target::VSCode]);
+
+    let use_case = create_use_case_with_assets(vec![skill]);
+    let options = DeployOptions::new(".promptpack").with_targets(vec![Target::ClaudeCode]);
+
+    let result = use_case.execute(&options);
+
+    assert!(result.is_success());
+    assert!(
+        result
+            .warnings
+            .iter()
+            .any(|w| w.contains("skills are not supported") && w.contains("VS Code")),
+        "expected warning, got: {:?}",
+        result.warnings
+    );
+}
+
+#[test]
+fn deploy_errors_when_skill_has_no_supported_targets() {
+    let skill = Asset::new(
+        "only-unsupported",
+        "skills/only-unsupported/SKILL.md",
+        "Unsupported skill",
+        "# Instructions",
+    )
+    .with_kind(crate::domain::entities::AssetKind::Skill)
+    .with_targets(vec![Target::VSCode, Target::Antigravity]);
+
+    let use_case = create_use_case_with_assets(vec![skill]);
+    let options = DeployOptions::new(".promptpack").with_targets(vec![Target::ClaudeCode]);
+
+    let result = use_case.execute(&options);
+
+    assert!(!result.is_success());
+    assert!(
+        result
+            .errors
+            .iter()
+            .any(|e| e.contains("has no supported targets")),
+        "expected error, got: {:?}",
+        result.errors
+    );
 }
 
 #[test]

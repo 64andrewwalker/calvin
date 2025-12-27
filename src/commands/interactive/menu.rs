@@ -242,6 +242,8 @@ pub fn interactive_existing_project(
             false,
             false,
             false,
+            false, // show_ignored
+            false, // debug_ignore
             false,
             verbose,
             color,

@@ -1,189 +1,82 @@
 ---
 title: Test Variants Rationale
-description: Rationale and coverage for test variants and edge cases
+description: Edge-case coverage added for skills support and deploy/check behavior
 ---
 
 # Test Variants Rationale
 
-> **Updated**: 2025-12-24
+This document explains the edge-case test variants added for skills support (deploy warnings + skill directory loading).
 
-This document explains test variants and the edge cases they cover.
+## Scope
 
-> **Note**: The original `SyncEngine` has been replaced by `DeployUseCase`, but the test coverage principles still apply.
+These variants focus on two areas introduced around skills:
 
-## Variant Test Statistics
+- Surfacing adapter diagnostics for generated `SKILL.md` outputs during `calvin deploy`
+- Emitting a global warning when deploy targets include platforms that do not support skills (VS Code, Antigravity)
+- Loading skill directories and handling supplemental files safely (hidden files/dirs, empty files, binary detection)
 
-| Category | New Tests |
-|----------|-----------|
-| Input Boundaries | 6 |
-| State Variants | 3 |
-| Conflict Scenarios | 2 |
-| Dry Run Verification | 2 |
-| Callback Verification | 1 |
-| Lockfile Path Verification | 2 |
-| **Total** | **16** |
+## Added Variant Coverage
 
-## Input Boundary Tests
+### `deploy_warns_on_dangerous_allowed_tools_during_deploy`
 
-### `engine_sync_with_empty_outputs`
-- **Scenario:** Empty output list
-- **Coverage:** Boundary condition handling, ensuring empty list doesn't cause errors
-- **Expected:** Returns empty result successfully
+- `deploy_warns_on_dangerous_allowed_tools_during_deploy__with_no_allowed_tools`: input boundary (no `allowed-tools`) → no false-positive warning.
+- `deploy_warns_on_dangerous_allowed_tools_during_deploy__with_multiple_dangerous_tools`: input boundary (multiple dangerous tools) → multiple warnings emitted.
+- `deploy_warns_on_dangerous_allowed_tools_during_deploy__when_skill_not_deployed_to_target`: state variation (skill not compiled for selected deploy target) → no deploy-time warning.
 
-### `engine_sync_with_empty_content`
-- **Scenario:** File content is empty string
-- **Coverage:** Empty content handling, zero-byte file writing
-- **Expected:** Creates empty file
+### `deploy_warns_when_deploy_targets_include_platforms_without_skill_support`
 
-### `engine_sync_with_unicode_content`
-- **Scenario:** Content with Chinese, Japanese, emoji, special characters
-- **Coverage:** UTF-8 encoding correctness
-- **Expected:** Unicode content fully preserved
+- `deploy_warns_when_deploy_targets_include_platforms_without_skill_support__without_skills`: state variation (no skills exist) → no spurious global warning.
+- `deploy_warns_when_deploy_targets_include_platforms_without_skill_support__with_skill_targets_supported_only`: boundary (skill targets restricted to supported platforms) → no spurious global warning even with `--targets all`.
+- `deploy_warns_when_deploy_targets_include_platforms_without_skill_support__with_single_unsupported_target`: off-by-one (single unsupported target selected) → warning includes only that platform.
+- `deploy_warns_when_deploy_targets_include_platforms_without_skill_support__with_duplicate_deploy_targets`: type/collection edge (duplicates) → warning does not repeat platforms.
+- `deploy_warns_when_deploy_targets_include_platforms_without_skill_support__with_no_deploy_targets`: uninitialized/disabled state (config disables all targets) → no warning.
 
-### `engine_sync_with_large_content`
-- **Scenario:** ~1MB large file
-- **Coverage:** Large file handling, memory efficiency
-- **Expected:** Correctly writes and hashes
+### `test_load_skill_directory_valid`
 
-### `engine_sync_with_special_path_characters`
-- **Scenario:** Path contains spaces, hyphens, underscores
-- **Coverage:** Path encoding, special character escaping
-- **Expected:** Correctly creates directories and files
+- `test_load_skill_directory_valid__with_empty_supplemental_file`: input boundary (empty file) → accepted and preserved as an empty string.
+- `test_load_skill_directory_valid__skips_hidden_files`: error-injection/security (hidden binary) → skipped before binary detection, load remains successful.
+- `test_load_skill_directory_valid__skips_hidden_directories`: state variation (hidden directory present) → entire hidden subtree skipped.
 
-### `engine_sync_with_deeply_nested_path`
-- **Scenario:** 8 levels of nested directories
-- **Coverage:** Recursive directory creation
-- **Expected:** Creates all intermediate directories
+### `test_load_skill_directory_binary_supplemental_rejected`
 
-## State Variant Tests
+- `test_load_skill_directory_binary_supplemental_rejected__with_nul_in_text`: boundary/type edge (UTF-8 text containing `NUL`) → rejected as binary, with path included in error.
 
-### `engine_sync_with_preexisting_lockfile`
-- **Scenario:** Existing old version lockfile
-- **Coverage:** Lockfile compatibility, incremental updates
-- **Expected:** Correctly merges old and new entries
+### `generate_skill_md_includes_frontmatter_body_footer`
 
-### `engine_sync_multiple_files_same_directory`
-- **Scenario:** Multiple files written to same directory
-- **Coverage:** Concurrent directory access, batch writing
-- **Expected:** All files correctly written
+- `generate_skill_md_includes_frontmatter_body_footer__with_colon_in_description`: input boundary (colon in scalar) → ensures generated SKILL.md frontmatter is valid YAML (quoted when needed).
+- `generate_skill_md_includes_frontmatter_body_footer__with_allowed_tool_containing_colon_space`: input boundary (colon+space inside tool name) → ensures list items serialize as scalars, not YAML mappings.
 
-### `engine_sync_multiple_files_different_directories`
-- **Scenario:** Multiple files written to different directories
-- **Coverage:** Multi-directory creation, path isolation
-- **Expected:** Each directory correctly independent
+### `compile_skill_outputs_rejects_parent_dir_supplemental_paths`
 
-## Conflict Scenario Tests
+- `compile_skill_outputs_rejects_parent_dir_supplemental_paths__with_absolute_path`: error-injection/security (absolute path) → ensures adapters reject path traversal for supplementals.
+- `compile_skill_outputs_rejects_parent_dir_supplemental_paths__with_windows_rooted_path`: platform edge (Windows rooted path without drive letter) → prevents `Path::join()` from ignoring the base skill dir.
+- `compile_skill_outputs_rejects_parent_dir_supplemental_paths__with_windows_drive_path`: platform edge (Windows drive path) → prevents drive/prefix escape.
 
-### `engine_sync_skip_mode_leaves_conflicts_unchanged`
-- **Scenario:** Conflict handling when user selects Skip
-- **Coverage:** Skip option correctly executes
-- **Expected:** User modified content preserved
+### `is_dangerous_skill_tool_flags_rm`
 
-### `engine_sync_non_interactive_skips_conflicts_silently`
-- **Scenario:** Non-interactive mode encounters conflict
-- **Coverage:** Default conflict handling strategy
-- **Expected:** Silently skips, no error
+- `is_dangerous_skill_tool_flags_rm__with_args`: type/coercion edge (`"rm -rf"` tokenization) → still flagged as dangerous.
 
-## Dry Run Verification Tests
+### `skill_root_from_path_returns_none_outside_skills`
 
-### `engine_dry_run_does_not_create_files`
-- **Scenario:** Dry run mode file creation
-- **Coverage:** Dry run isolation
-- **Expected:** Reports writes but doesn't actually create
+- `skill_root_from_path_returns_none_outside_skills__when_path_is_skills_dir`: boundary (path is the `skills/` directory itself) → does not misclassify as a skill root.
 
-### `engine_dry_run_does_not_update_lockfile`
-- **Scenario:** Dry run mode lockfile update
-- **Coverage:** Complete dry run isolation
-- **Expected:** Lockfile not created/modified
+### `target_supports_skills`
 
-## Callback Verification Tests
+- `target_supports_skills__all_is_false`: boundary/meta-target (`Target::All`) → requires expansion before classification.
 
-### `engine_sync_callback_receives_correct_events`
-- **Scenario:** Verify event callback order
-- **Coverage:** Event flow completeness
-- **Expected:** Each file receives ItemStart and ItemWritten
+## Anti-Overfitting Measures
 
-## Lockfile Path Verification Tests
+- Tests assert stable substrings (e.g., platform names and warning key phrases) rather than full CLI formatting.
+- Variants use different target selections to exercise behavior without relying on ordering beyond what is contractually meaningful.
 
-### `engine_local_uses_project_lockfile`
-- **Scenario:** Local deploy lockfile path
-- **Coverage:** Path calculation correctness
-- **Expected:** `./calvin.lock` (project root)
+## Property-Based Test Candidates
 
-### `engine_remote_uses_source_lockfile`
-- **Scenario:** Remote deploy lockfile path
-- **Coverage:** Remote mode local lockfile
-- **Expected:** `./calvin.lock` (project root)
+- For any subset of dangerous tools in `allowed-tools`, deploy should warn once per dangerous tool and never warn for safe tools.
+- For any deploy target set and any skill effective target set, the global "Skills skipped for" warning should appear iff the intersection is non-empty.
 
-## Overfitting Prevention Measures
+## Mutation Testing Recommendations
 
-1. **Multiple input types:** Unicode, empty content, large files
-2. **Boundary values:** Empty lists, deep nesting, special characters
-3. **State isolation:** Using TempDir and MockFileSystem for isolation
-4. **Behavior verification:** Not just checking results, also verifying side effects (lockfile, events)
-
-## Potential Future Extensions
-
-- Property-based testing (using proptest)
-- Concurrent access testing
-- Disk full/permission denied scenarios
-- Network failure simulation (remote)
-
-
-## ScopePolicy Variant Tests
-
-### `apply__empty_input_returns_empty`
-- **Scenario:** Input is empty list
-- **Coverage:** Basic boundary condition
-- **Expected:** Returns empty list
-
-### `apply__project_only_on_user_only_input__returns_empty`
-- **Scenario:** Input contains only Scope::User assets, policy is ProjectOnly
-- **Coverage:** Filter logic correctness
-- **Expected:** Returns empty list
-
-## Lockfile Variant Tests
-
-### `key__absolute_path__uses_namespace`
-- **Scenario:** Absolute path input
-- **Coverage:** Path namespace isolation, preventing absolute path conflicts
-- **Expected:** Generates key with namespace prefix
-
-### `key__parent_traversal__is_preserved_in_key`
-- **Scenario:** Path contains `..`
-- **Coverage:** Key generation stability
-- **Expected:** Preserves `..` without resolution (used only as string ID)
-
-### `key__empty_path__handled`
-- **Scenario:** Empty path string
-- **Coverage:** Boundary value
-- **Expected:** Generates key with prefix only
-
-## Pipeline Variant Tests
-
-### `pipeline__compile_incremental_no_changes_after_initial__returns_empty`
-- **Scenario:** Incremental compile with no changes
-- **Coverage:** Idempotency and cache hits
-- **Expected:** Returns complete asset list (idempotent)
-
-### `pipeline__error_on_nonexistent_source`
-- **Scenario:** Source directory doesn't exist
-- **Coverage:** Error propagation
-- **Expected:** Returns error
-
-## Security Variant Tests (Validation)
-
-### `safety__rejects_dotdot_at_start`
-- **Scenario:** Path starts with `..`
-- **Coverage:** Path traversal defense
-- **Expected:** Returns error
-
-### `safety__rejects_absolute_paths_outside_root`
-- **Scenario:** Absolute path points outside project
-- **Coverage:** Unauthorized access defense
-- **Expected:** Returns error
-
-### `safety__allows_tilde_slash`
-- **Scenario:** Path starting with `~/`
-- **Coverage:** User directory privilege allowance
-- **Expected:** Allowed to pass
+- Use `cargo-mutants` to validate that tests catch:
+  - Removing the unsupported-target filter (VS Code / Antigravity) in the global warning.
+  - Removing deduplication of deploy targets (duplicate target variant should fail).
+  - Skipping adapter validation during deploy (dangerous-tool deploy variants should fail).

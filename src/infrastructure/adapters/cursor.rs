@@ -12,6 +12,7 @@
 
 use std::path::PathBuf;
 
+use super::skills;
 use crate::domain::entities::{Asset, AssetKind, OutputFile};
 use crate::domain::ports::target_adapter::{
     AdapterDiagnostic, AdapterError, DiagnosticSeverity, TargetAdapter,
@@ -31,6 +32,14 @@ impl CursorAdapter {
         match scope {
             Scope::User => PathBuf::from("~/.cursor/rules"),
             Scope::Project => PathBuf::from(".cursor/rules"),
+        }
+    }
+
+    fn skills_dir(&self, scope: Scope) -> PathBuf {
+        // Cursor reads skills from Claude Code's skill paths.
+        match scope {
+            Scope::User => PathBuf::from("~/.claude/skills"),
+            Scope::Project => PathBuf::from(".claude/skills"),
         }
     }
 
@@ -55,6 +64,16 @@ impl CursorAdapter {
 
         fm.push_str("---\n");
         fm
+    }
+
+    fn compile_skill(&self, asset: &Asset) -> Result<Vec<OutputFile>, AdapterError> {
+        let footer = self.footer(&asset.source_path_normalized());
+        skills::compile_skill_outputs(
+            asset,
+            self.skills_dir(asset.scope()),
+            Target::Cursor,
+            &footer,
+        )
     }
 }
 
@@ -90,6 +109,9 @@ impl TargetAdapter for CursorAdapter {
                 // Cursor reads Claude's commands from ~/.claude/commands/
                 // No separate output needed
             }
+            AssetKind::Skill => {
+                outputs.extend(self.compile_skill(asset)?);
+            }
         }
 
         Ok(outputs)
@@ -105,8 +127,22 @@ impl TargetAdapter for CursorAdapter {
             });
         }
 
-        // Cursor rules should have frontmatter
-        if !output.content().starts_with("---") {
+        if output
+            .path()
+            .file_name()
+            .is_some_and(|n| n == std::ffi::OsStr::new("SKILL.md"))
+        {
+            diagnostics.extend(skills::validate_skill_allowed_tools(output));
+        }
+
+        // Cursor rules should have frontmatter, but skills/supplementals should not be forced
+        // into rule semantics.
+        if output
+            .path()
+            .file_name()
+            .is_some_and(|n| n == std::ffi::OsStr::new("RULE.md"))
+            && !output.content().starts_with("---")
+        {
             diagnostics.push(AdapterDiagnostic {
                 severity: DiagnosticSeverity::Warning,
                 message: "Cursor rule missing frontmatter".to_string(),
@@ -120,6 +156,7 @@ impl TargetAdapter for CursorAdapter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
 
     fn create_policy_asset(id: &str, description: &str, content: &str) -> Asset {
         Asset::new(id, format!("policies/{}.md", id), description, content)
@@ -129,6 +166,14 @@ mod tests {
     fn create_action_asset(id: &str, description: &str, content: &str) -> Asset {
         Asset::new(id, format!("actions/{}.md", id), description, content)
             .with_kind(AssetKind::Action)
+    }
+
+    fn create_skill_asset(id: &str, description: &str, content: &str) -> Asset {
+        let mut supplementals: HashMap<PathBuf, String> = HashMap::new();
+        supplementals.insert(PathBuf::from("reference.md"), "# Ref".to_string());
+        Asset::new(id, format!("skills/{}/SKILL.md", id), description, content)
+            .with_kind(AssetKind::Skill)
+            .with_supplementals(supplementals)
     }
 
     // === TDD: Compile Tests ===
@@ -205,6 +250,21 @@ mod tests {
             outputs[0].path(),
             &PathBuf::from("~/.cursor/rules/global/RULE.md")
         );
+    }
+
+    // === TDD: Skills ===
+
+    #[test]
+    fn test_cursor_compile_skill_uses_claude_path() {
+        let adapter = CursorAdapter::new();
+        let asset = create_skill_asset("my-skill", "My skill", "# Instructions");
+
+        let outputs = adapter.compile(&asset).unwrap();
+
+        assert!(outputs
+            .iter()
+            .any(|o| o.path() == &PathBuf::from(".claude/skills/my-skill/SKILL.md")));
+        assert!(outputs.iter().all(|o| o.target() == Target::Cursor));
     }
 
     // === TDD: Validate Tests ===

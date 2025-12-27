@@ -62,7 +62,7 @@ pub trait FileSystem {
     /// Check if file exists
     fn exists(&self, path: &Path) -> bool;
 
-    /// Remove a file
+    /// Remove a file (or an empty directory)
     fn remove(&self, path: &Path) -> FsResult<()>;
 
     /// Create directory and parents
