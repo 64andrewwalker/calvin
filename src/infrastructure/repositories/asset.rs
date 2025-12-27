@@ -4,7 +4,7 @@
 
 use crate::domain::entities::{Asset, AssetKind};
 use crate::domain::ports::AssetRepository;
-use crate::domain::value_objects::{Scope, Target};
+use crate::domain::value_objects::{IgnorePatterns, Scope, Target};
 use anyhow::Result;
 use std::collections::HashMap;
 use std::path::Path;
@@ -14,6 +14,27 @@ use std::path::Path;
 /// Parses `.md` files with YAML frontmatter from a PromptPack directory.
 /// Uses the existing parser for now - will be refactored later.
 pub struct FsAssetRepository;
+
+/// Context for optional ignore pattern filtering.
+/// Bundles the ignore patterns with the promptpack root path for relative path matching.
+struct IgnoreContext<'a> {
+    patterns: &'a IgnorePatterns,
+    promptpack_root: &'a Path,
+}
+
+impl<'a> IgnoreContext<'a> {
+    fn new(patterns: &'a IgnorePatterns, promptpack_root: &'a Path) -> Self {
+        Self {
+            patterns,
+            promptpack_root,
+        }
+    }
+
+    fn is_ignored(&self, path: &Path, is_dir: bool) -> bool {
+        let rel_path = path.strip_prefix(self.promptpack_root).unwrap_or(path);
+        self.patterns.is_ignored(rel_path, is_dir)
+    }
+}
 
 impl FsAssetRepository {
     /// Create a new repository
@@ -79,10 +100,54 @@ impl FsAssetRepository {
         asset
     }
 
-    fn load_skills(source: &Path) -> Result<Vec<Asset>> {
+    /// Load all assets from a directory, optionally filtering by ignore patterns.
+    ///
+    /// Returns a tuple of (assets, ignored_count).
+    pub fn load_all_with_ignore(
+        &self,
+        source: &Path,
+        ignore: &IgnorePatterns,
+    ) -> Result<(Vec<Asset>, usize)> {
+        let ctx = IgnoreContext::new(ignore, source);
+        let mut ignored_count = 0;
+
+        // Load regular assets using existing parser
+        let all_prompt_assets = crate::parser::parse_directory(source)?;
+
+        // Filter by ignore patterns
+        let filtered_assets: Vec<Asset> = all_prompt_assets
+            .into_iter()
+            .filter(|pa| {
+                if ignore.is_ignored(&pa.source_path, false) {
+                    ignored_count += 1;
+                    false
+                } else {
+                    true
+                }
+            })
+            .map(Self::convert_prompt_asset)
+            .collect();
+
+        // Load skills with ignore filtering
+        let (skills, skills_ignored) = Self::load_skills_internal(source, Some(&ctx))?;
+        ignored_count += skills_ignored;
+
+        let mut assets = filtered_assets;
+        assets.extend(skills);
+
+        Ok((assets, ignored_count))
+    }
+
+    /// Load skills from the skills/ directory.
+    ///
+    /// `ctx` is optional: if provided, applies ignore pattern filtering.
+    fn load_skills_internal(
+        source: &Path,
+        ctx: Option<&IgnoreContext>,
+    ) -> Result<(Vec<Asset>, usize)> {
         let skills_root = source.join("skills");
         if !skills_root.exists() {
-            return Ok(Vec::new());
+            return Ok((Vec::new(), 0));
         }
 
         if !skills_root.is_dir() {
@@ -93,6 +158,7 @@ impl FsAssetRepository {
         }
 
         let mut skills = Vec::new();
+        let mut ignored_count = 0;
 
         for entry in std::fs::read_dir(&skills_root)? {
             let entry = entry?;
@@ -111,20 +177,34 @@ impl FsAssetRepository {
                 continue;
             }
 
+            // Check if this skill directory is ignored
+            if let Some(c) = ctx {
+                if c.is_ignored(&path, true) {
+                    ignored_count += 1;
+                    continue;
+                }
+            }
+
             let id = entry.file_name().to_string_lossy().to_string();
             let skill_md_path = path.join("SKILL.md");
             if !skill_md_path.is_file() {
                 anyhow::bail!("Skill directory '{}' missing SKILL.md", id);
             }
 
-            skills.push(Self::load_skill_dir(source, &path, &id)?);
+            skills.push(Self::load_skill_dir_internal(source, &path, &id, ctx)?);
         }
 
         skills.sort_by(|a, b| a.id().cmp(b.id()));
-        Ok(skills)
+        Ok((skills, ignored_count))
     }
 
-    fn load_skill_dir(source_root: &Path, skill_dir: &Path, id: &str) -> Result<Asset> {
+    /// Load a single skill directory.
+    fn load_skill_dir_internal(
+        source_root: &Path,
+        skill_dir: &Path,
+        id: &str,
+        ctx: Option<&IgnoreContext>,
+    ) -> Result<Asset> {
         let skill_md_path = skill_dir.join("SKILL.md");
         let raw = std::fs::read_to_string(&skill_md_path)?;
 
@@ -160,21 +240,26 @@ impl FsAssetRepository {
             crate::models::PromptAsset::new(id, rel_source_path, frontmatter, extracted.body);
         let mut asset = Asset::from(prompt_asset);
 
-        let supplementals = Self::load_skill_supplementals(skill_dir)?;
+        let supplementals = Self::load_skill_supplementals_internal(skill_dir, ctx)?;
         asset = asset.with_supplementals(supplementals);
 
         Ok(asset.with_kind(AssetKind::Skill))
     }
 
-    fn load_skill_supplementals(skill_dir: &Path) -> Result<HashMap<std::path::PathBuf, String>> {
+    /// Load skill supplementals from a skill directory.
+    fn load_skill_supplementals_internal(
+        skill_dir: &Path,
+        ctx: Option<&IgnoreContext>,
+    ) -> Result<HashMap<std::path::PathBuf, String>> {
         let mut out = HashMap::new();
-        Self::load_skill_supplementals_recursive(skill_dir, skill_dir, &mut out)?;
+        Self::load_skill_supplementals_recursive(skill_dir, skill_dir, ctx, &mut out)?;
         Ok(out)
     }
 
     fn load_skill_supplementals_recursive(
         skill_root: &Path,
         current: &Path,
+        ctx: Option<&IgnoreContext>,
         out: &mut HashMap<std::path::PathBuf, String>,
     ) -> Result<()> {
         for entry in std::fs::read_dir(current)? {
@@ -199,7 +284,15 @@ impl FsAssetRepository {
                 {
                     continue;
                 }
-                Self::load_skill_supplementals_recursive(skill_root, &path, out)?;
+
+                // Check if directory is ignored
+                if let Some(c) = ctx {
+                    if c.is_ignored(&path, true) {
+                        continue;
+                    }
+                }
+
+                Self::load_skill_supplementals_recursive(skill_root, &path, ctx, out)?;
                 continue;
             }
 
@@ -218,6 +311,13 @@ impl FsAssetRepository {
                 .is_some_and(|n| n.starts_with('.'))
             {
                 continue;
+            }
+
+            // Check if file is ignored
+            if let Some(c) = ctx {
+                if c.is_ignored(&path, false) {
+                    continue;
+                }
             }
 
             let rel = path.strip_prefix(skill_root).unwrap_or(&path).to_path_buf();
@@ -247,8 +347,9 @@ impl AssetRepository for FsAssetRepository {
             .map(Self::convert_prompt_asset)
             .collect();
 
-        // Load skills (directory-based assets)
-        assets.extend(Self::load_skills(source)?);
+        // Load skills (directory-based assets) without ignore filtering
+        let (skills, _) = Self::load_skills_internal(source, None)?;
+        assets.extend(skills);
 
         Ok(assets)
     }
@@ -271,7 +372,7 @@ impl AssetRepository for FsAssetRepository {
                         .parent()
                         .and_then(|p| p.parent())
                         .unwrap_or_else(|| Path::new("."));
-                    return Self::load_skill_dir(source_root, skill_dir, id);
+                    return Self::load_skill_dir_internal(source_root, skill_dir, id, None);
                 }
             }
         }
@@ -560,5 +661,122 @@ Body
         let err = repo.load_all(dir.path()).unwrap_err();
         assert!(err.to_string().contains("Binary files are not supported"));
         assert!(err.to_string().contains("notes.md"));
+    }
+
+    // ============== .calvinignore tests ==============
+
+    #[test]
+    fn load_all_with_ignore_filters_files() {
+        let dir = tempdir().unwrap();
+        create_test_asset(
+            dir.path(),
+            "draft",
+            r#"---
+description: Draft
+scope: project
+---
+# Draft
+"#,
+        );
+        create_test_asset(
+            dir.path(),
+            "final",
+            r#"---
+description: Final
+scope: project
+---
+# Final
+"#,
+        );
+
+        std::fs::write(dir.path().join(".calvinignore"), "draft.md\n").unwrap();
+
+        let ignore = IgnorePatterns::load(dir.path()).unwrap();
+        let repo = FsAssetRepository::new();
+        let (assets, ignored) = repo.load_all_with_ignore(dir.path(), &ignore).unwrap();
+
+        assert_eq!(assets.len(), 1);
+        assert_eq!(assets[0].id(), "final");
+        assert_eq!(ignored, 1);
+    }
+
+    #[test]
+    fn load_all_with_ignore_filters_skills() {
+        let dir = tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("skills/experimental")).unwrap();
+        std::fs::create_dir_all(dir.path().join("skills/stable")).unwrap();
+
+        std::fs::write(
+            dir.path().join("skills/experimental/SKILL.md"),
+            r#"---
+description: Experimental
+scope: project
+---
+# Experimental
+"#,
+        )
+        .unwrap();
+        std::fs::write(
+            dir.path().join("skills/stable/SKILL.md"),
+            r#"---
+description: Stable
+scope: project
+---
+# Stable
+"#,
+        )
+        .unwrap();
+
+        std::fs::write(dir.path().join(".calvinignore"), "skills/experimental/\n").unwrap();
+
+        let ignore = IgnorePatterns::load(dir.path()).unwrap();
+        let repo = FsAssetRepository::new();
+        let (assets, ignored) = repo.load_all_with_ignore(dir.path(), &ignore).unwrap();
+
+        assert_eq!(assets.len(), 1);
+        assert_eq!(assets[0].id(), "stable");
+        assert_eq!(ignored, 1);
+    }
+
+    #[test]
+    fn load_all_with_ignore_filters_skill_supplementals() {
+        let dir = tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("skills/my-skill")).unwrap();
+
+        std::fs::write(
+            dir.path().join("skills/my-skill/SKILL.md"),
+            r#"---
+description: My skill
+scope: project
+---
+# My Skill
+"#,
+        )
+        .unwrap();
+        std::fs::write(
+            dir.path().join("skills/my-skill/reference.md"),
+            "# Reference\n",
+        )
+        .unwrap();
+        std::fs::write(dir.path().join("skills/my-skill/notes.txt"), "Some notes\n").unwrap();
+
+        std::fs::write(
+            dir.path().join(".calvinignore"),
+            "skills/my-skill/notes.txt\n",
+        )
+        .unwrap();
+
+        let ignore = IgnorePatterns::load(dir.path()).unwrap();
+        let repo = FsAssetRepository::new();
+        let (assets, _) = repo.load_all_with_ignore(dir.path(), &ignore).unwrap();
+
+        assert_eq!(assets.len(), 1);
+        let skill = &assets[0];
+        assert!(skill
+            .supplementals()
+            .contains_key(&std::path::PathBuf::from("reference.md")));
+        assert!(!skill
+            .supplementals()
+            .contains_key(&std::path::PathBuf::from("notes.txt")));
     }
 }
