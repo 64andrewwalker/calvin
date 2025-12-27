@@ -407,25 +407,25 @@ fn atomic_write(path: &Path, content: &[u8]) -> Result<()> {
 
 ## TD-15: Lockfile for Change Detection
 
-**Decision**: Track generated file hashes in `.calvin.lock`
+**Decision**: Track generated file hashes in `calvin.lock` (project) / `~/.calvin/calvin.lock` (home)
 
 **Status**: Required (P4 pitfall mitigation)
 
 **Problem**: User edits generated file → Calvin watch overwrites their changes
 
-**Lockfile Location Strategy**: Source-based (lockfile lives in source directory)
+**Lockfile Location Strategy**: Project-root (with legacy migration) + global home lockfile
 
 | Deploy Target | Lockfile Location |
 |---------------|-------------------|
-| Project | `<project>/.promptpack/.calvin.lock` |
-| Home | `<source>/.calvin.lock` |
-| Remote | `<source>/.calvin.lock` |
+| Project | `<project>/calvin.lock` (auto-migrated from legacy `<source>/.calvin.lock`) |
+| Home | `~/.calvin/calvin.lock` |
+| Remote | `<project>/calvin.lock` |
 
 **Rationale**: 
 - Enables version control (git commit)
 - Team members can share deployment state
 - Each project tracks its own deployments independently
-- Follows npm/cargo convention
+- Decouples lockfile from multi-layer `--source` / layer stack
 
 **Format**:
 ```toml

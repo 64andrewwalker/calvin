@@ -1,13 +1,14 @@
 # Test Variants Rationale
 
-This document explains the edge-case test variants added for the skills deploy warning logic.
+This document explains the edge-case test variants added for skills support (deploy warnings + skill directory loading).
 
 ## Scope
 
-These variants focus on the deploy-time behavior introduced around skills:
+These variants focus on two areas introduced around skills:
 
 - Surfacing adapter diagnostics for generated `SKILL.md` outputs during `calvin deploy`
 - Emitting a global warning when deploy targets include platforms that do not support skills (VS Code, Antigravity)
+- Loading skill directories and handling supplemental files safely (hidden files/dirs, empty files, binary detection)
 
 ## Added Variant Coverage
 
@@ -25,6 +26,16 @@ These variants focus on the deploy-time behavior introduced around skills:
 - `deploy_warns_when_deploy_targets_include_platforms_without_skill_support__with_duplicate_deploy_targets`: type/collection edge (duplicates) → warning does not repeat platforms.
 - `deploy_warns_when_deploy_targets_include_platforms_without_skill_support__with_no_deploy_targets`: uninitialized/disabled state (config disables all targets) → no warning.
 
+### `test_load_skill_directory_valid`
+
+- `test_load_skill_directory_valid__with_empty_supplemental_file`: input boundary (empty file) → accepted and preserved as an empty string.
+- `test_load_skill_directory_valid__skips_hidden_files`: error-injection/security (hidden binary) → skipped before binary detection, load remains successful.
+- `test_load_skill_directory_valid__skips_hidden_directories`: state variation (hidden directory present) → entire hidden subtree skipped.
+
+### `test_load_skill_directory_binary_supplemental_rejected`
+
+- `test_load_skill_directory_binary_supplemental_rejected__with_nul_in_text`: boundary/type edge (UTF-8 text containing `NUL`) → rejected as binary, with path included in error.
+
 ## Anti-Overfitting Measures
 
 - Tests assert stable substrings (e.g., platform names and warning key phrases) rather than full CLI formatting.
@@ -41,4 +52,3 @@ These variants focus on the deploy-time behavior introduced around skills:
   - Removing the unsupported-target filter (VS Code / Antigravity) in the global warning.
   - Removing deduplication of deploy targets (duplicate target variant should fail).
   - Skipping adapter validation during deploy (dangerous-tool deploy variants should fail).
-

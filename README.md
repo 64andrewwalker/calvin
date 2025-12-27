@@ -39,8 +39,12 @@ Write once, compile everywhere.
 │   └── pr-review.md
 ├── agents/
 │   └── reviewer.md            # → Compiles to sub-agent definitions
+├── skills/
+│   └── draft-commit/
+│       ├── SKILL.md           # → Compiles to SKILL.md folders (Claude/Codex/Cursor)
+│       └── scripts/validate.py
 └── mcp/
-    └── github.toml            # → Compiles to MCP configs
+    └── github.toml            # → MCP configs (planned; currently validated, not generated)
 ```
 
 Then run:
@@ -54,17 +58,20 @@ And Calvin generates platform-specific outputs:
 ```
 .claude/commands/generate-tests.md
 .claude/settings.json              # With security deny-lists!
+.claude/skills/draft-commit/SKILL.md
 .cursor/rules/code-style/RULE.md
 .cursor/commands/generate-tests.md
 .github/copilot-instructions.md
 .agent/rules/code-style.md
 .agent/workflows/generate-tests.md
+.codex/skills/draft-commit/SKILL.md
 ```
 
 ## Features
 
 - **📝 Single Source of Truth**: Maintain prompts in one place
 - **🔄 Multi-Platform Compilation**: Claude Code, Cursor, VS Code, Antigravity, Codex
+- **🧠 Skills Support**: Directory-based skills for Claude Code, Codex, Cursor
 - **🔒 Security by Default**: Auto-generates deny lists, blocks risky MCP servers
 - **👀 Watch Mode**: Auto-recompile on file changes
 - **🔍 Check Command**: Validate your configuration health
@@ -205,17 +212,18 @@ calvin deploy --remote user@host:/path/to/project
 
 ## Project Status
 
-**Version**: v0.3.0  
+**Version**: v0.6.0  
 **Stage**: Feature complete, architecture v2 deployed
 
 Recent additions:
 
 - ✅ Clean Architecture refactoring (domain/application/infrastructure layers)
-- ✅ 600+ tests passing with 75%+ coverage
+- ✅ 1000+ tests passing with 75%+ coverage (see CI badge)
 - ✅ Cross-platform CI (Ubuntu, Windows, macOS)
 - ✅ SSH remote sync with rsync acceleration
 - ✅ User-scope installations (`--home` flag)
 - ✅ Security health checks (`check` command)
+- ✅ Skills support (`.promptpack/skills/<id>/SKILL.md`)
 
 See [docs/architecture/TODO.md](docs/architecture/TODO.md) for detailed roadmap.
 

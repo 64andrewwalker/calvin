@@ -418,6 +418,98 @@ Do the thing.
     }
 
     #[test]
+    #[allow(non_snake_case)]
+    fn test_load_skill_directory_valid__with_empty_supplemental_file() {
+        let dir = tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("skills/my-skill")).unwrap();
+        std::fs::write(
+            dir.path().join("skills/my-skill/SKILL.md"),
+            r#"---
+description: My skill
+---
+Body
+"#,
+        )
+        .unwrap();
+        std::fs::write(dir.path().join("skills/my-skill/empty.md"), "").unwrap();
+
+        let repo = FsAssetRepository::new();
+        let assets = repo.load_all(dir.path()).unwrap();
+
+        assert_eq!(assets.len(), 1);
+        assert!(assets[0]
+            .supplementals()
+            .contains_key(&std::path::PathBuf::from("empty.md")));
+        assert_eq!(
+            assets[0]
+                .supplementals()
+                .get(&std::path::PathBuf::from("empty.md"))
+                .unwrap(),
+            ""
+        );
+    }
+
+    #[test]
+    #[allow(non_snake_case)]
+    fn test_load_skill_directory_valid__skips_hidden_files() {
+        let dir = tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("skills/my-skill")).unwrap();
+        std::fs::write(
+            dir.path().join("skills/my-skill/SKILL.md"),
+            r#"---
+description: My skill
+---
+Body
+"#,
+        )
+        .unwrap();
+        std::fs::write(dir.path().join("skills/my-skill/.hidden.bin"), b"\0\x01").unwrap();
+
+        let repo = FsAssetRepository::new();
+        let assets = repo.load_all(dir.path()).unwrap();
+
+        assert_eq!(assets.len(), 1);
+        assert!(
+            !assets[0]
+                .supplementals()
+                .contains_key(&std::path::PathBuf::from(".hidden.bin")),
+            "expected hidden files to be skipped"
+        );
+    }
+
+    #[test]
+    #[allow(non_snake_case)]
+    fn test_load_skill_directory_valid__skips_hidden_directories() {
+        let dir = tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("skills/my-skill/.private")).unwrap();
+        std::fs::write(
+            dir.path().join("skills/my-skill/SKILL.md"),
+            r#"---
+description: My skill
+---
+Body
+"#,
+        )
+        .unwrap();
+        std::fs::write(
+            dir.path().join("skills/my-skill/.private/secret.md"),
+            "secret",
+        )
+        .unwrap();
+
+        let repo = FsAssetRepository::new();
+        let assets = repo.load_all(dir.path()).unwrap();
+
+        assert_eq!(assets.len(), 1);
+        assert!(
+            !assets[0]
+                .supplementals()
+                .contains_key(&std::path::PathBuf::from(".private/secret.md")),
+            "expected hidden directories to be skipped"
+        );
+    }
+
+    #[test]
     fn test_load_skill_directory_missing_skill_md_errors() {
         let dir = tempdir().unwrap();
         std::fs::create_dir_all(dir.path().join("skills/my-skill")).unwrap();
@@ -446,5 +538,27 @@ Body
         let repo = FsAssetRepository::new();
         let err = repo.load_all(dir.path()).unwrap_err();
         assert!(err.to_string().contains("Binary files are not supported"));
+    }
+
+    #[test]
+    #[allow(non_snake_case)]
+    fn test_load_skill_directory_binary_supplemental_rejected__with_nul_in_text() {
+        let dir = tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("skills/my-skill")).unwrap();
+        std::fs::write(
+            dir.path().join("skills/my-skill/SKILL.md"),
+            r#"---
+description: My skill
+---
+Body
+"#,
+        )
+        .unwrap();
+        std::fs::write(dir.path().join("skills/my-skill/notes.md"), b"hello\0world").unwrap();
+
+        let repo = FsAssetRepository::new();
+        let err = repo.load_all(dir.path()).unwrap_err();
+        assert!(err.to_string().contains("Binary files are not supported"));
+        assert!(err.to_string().contains("notes.md"));
     }
 }

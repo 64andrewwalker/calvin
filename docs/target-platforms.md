@@ -85,12 +85,12 @@ Arguments: $ARGUMENTS
 |------------|-------------|-------|
 | Rules | `.cursor/rules/<id>/RULE.md` | Project |
 | Commands | `.cursor/commands/<id>.md` | Project |
-| MCP Config | `.cursor/mcp.json` | Project |
-| MCP Config | `~/.cursor/mcp.json` | User |
+| MCP Config (manual; validated by `calvin check`) | `.cursor/mcp.json` | Project |
 | Skills | `.claude/skills/<id>/SKILL.md` | Project |
 | Skills | `~/.claude/skills/<id>/SKILL.md` | User |
 
 **Note**: Cursor skill support uses Claude Code’s skill paths (`.claude/skills/`).
+**Note**: Calvin does not currently generate `.cursor/mcp.json`; it only validates it (allowlist + JSON schema) when present.
 
 ### Format: Rules
 
@@ -259,7 +259,7 @@ Arguments: $ARGUMENTS
 | User-scope commands | ✅ | ⚠️ | ❌ | ✅ | ✅ |
 | Policy/Rules | ✅ | ✅ | ✅ | ✅ | ❌ |
 | Settings/Deny lists | ✅ | ⚠️ | ❌ | ⚠️ | ❌ |
-| MCP configuration | ✅ | ✅ | ⚠️ | ❌ | ❌ |
+| MCP allowlist validation | ❌ | ✅ | ❌ | ❌ | ❌ |
 | Agents/Subagents | ✅ | ❌ | ⚠️ | ❌ | ❌ |
 
 Legend: ✅ Full support | ⚠️ Partial/experimental | ❌ Not supported
@@ -273,13 +273,15 @@ Calvin exposes Calvin + adapter versions via `calvin version`:
 ```bash
 $ calvin version
 
-Calvin v0.2.0
-Source Format: 1.0
-
-Adapters:
-  - ClaudeCode   v1
-  - Cursor       v1
-  - VSCode       v1
-  - Antigravity  v1
-  - Codex        v1
+╭─────────────────────╮
+│ Calvin v0.6.0       │
+│ Source Format: 1.0  │
+│                     │
+│ Adapters:           │
+│   - ClaudeCode   v1 │
+│   - Cursor       v1 │
+│   - VSCode       v1 │
+│   - Antigravity  v1 │
+│   - Codex        v1 │
+╰─────────────────────╯
 ```

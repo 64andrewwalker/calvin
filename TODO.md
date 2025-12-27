@@ -1,9 +1,17 @@
 # Calvin - Implementation Checklist
 
-> **Status**: ALL PHASES COMPLETE ✅ 🎉
+> **Status**: Core phases complete; outstanding items tracked below
 > **Started**: 2025-12-17  
-> **Completed**: 2025-12-17
-> **Tests**: 164 passing (142 unit + 13 CLI + 9 integration)
+> **Completed**: 2025-12-17  
+> **Tests**: 1253+ passing (as of 2025-12-27; `cargo test --all-features -- --list | rg -c ': test'`)
+
+---
+
+## Audits & Maintenance (2025-12-27)
+
+- [x] `[0-DISC] Documentation-Code Synchronization Audit` → `docs/sync-audit-report.md`
+- [x] `[4-TEST] Test Variant Generation` → `docs/test-variants-rationale.md`
+- [x] `[M-MAINT] Codebase Cleanup & Declutter` → `docs/reports/cleanup-report-2025-12-27.md`
 
 ---
 
@@ -20,8 +28,8 @@
   - [x] `anyhow`, `thiserror` - Error handling
   - [x] `which` - Tool detection for remote sync
 - [x] Configure release profile (TD-17: lto, strip, opt-level=z)
-- [ ] Configure GitHub Actions CI
-- [ ] Set up cross-compilation targets
+- [x] Configure GitHub Actions CI
+- [x] Set up cross-compilation targets
 
 ---
 
