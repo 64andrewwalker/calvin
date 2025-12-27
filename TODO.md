@@ -205,6 +205,7 @@
 
 - [ ] Unit tests (>80% coverage) - Currently 57%
 - [x] Add variant tests for SyncEngine & Scope Refactor (26 variants)
+- [x] Add variant tests for skills deploy warnings (8 variants) - See `docs/test-variants-rationale.md`
 - [x] Snapshot tests with `insta` crate (6 snapshots)
 - [x] Golden test suite (9 tests, reference .promptpack → expected output)
 - [x] **Escaping tests**: Ensure JSON with quotes doesn't corrupt (3 tests)
