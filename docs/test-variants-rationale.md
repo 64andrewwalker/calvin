@@ -39,6 +39,8 @@ These variants focus on two areas introduced around skills:
 ### `compile_skill_outputs_rejects_parent_dir_supplemental_paths`
 
 - `compile_skill_outputs_rejects_parent_dir_supplemental_paths__with_absolute_path`: error-injection/security (absolute path) → ensures adapters reject path traversal for supplementals.
+- `compile_skill_outputs_rejects_parent_dir_supplemental_paths__with_windows_rooted_path`: platform edge (Windows rooted path without drive letter) → prevents `Path::join()` from ignoring the base skill dir.
+- `compile_skill_outputs_rejects_parent_dir_supplemental_paths__with_windows_drive_path`: platform edge (Windows drive path) → prevents drive/prefix escape.
 
 ### `is_dangerous_skill_tool_flags_rm`
 

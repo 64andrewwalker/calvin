@@ -1,7 +1,11 @@
 ---
 name: skill-template
 description: Template for production-grade DocEngineering skills
-allowed-tools: "Read, Grep, Write, Bash(python:*)"
+allowed-tools:
+  - Read
+  - Grep
+  - Write
+  - "Bash(python:*)"
 ---
 
 # Skill Template

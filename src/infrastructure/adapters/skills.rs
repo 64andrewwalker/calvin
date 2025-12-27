@@ -47,12 +47,10 @@ pub(crate) fn compile_skill_outputs(
     ));
 
     for (rel_path, content) in asset.supplementals() {
-        let is_escaping = rel_path.components().any(|c| {
-            matches!(
-                c,
-                Component::ParentDir | Component::RootDir | Component::Prefix(_)
-            )
-        });
+        let is_escaping = rel_path.has_root()
+            || rel_path
+                .components()
+                .any(|c| matches!(c, Component::ParentDir | Component::Prefix(_)));
 
         if is_escaping {
             return Err(AdapterError::CompilationFailed {
@@ -187,6 +185,53 @@ mod tests {
     fn compile_skill_outputs_rejects_parent_dir_supplemental_paths__with_absolute_path() {
         let mut supplementals: HashMap<PathBuf, String> = HashMap::new();
         supplementals.insert(PathBuf::from("/etc/passwd"), "nope".to_string());
+
+        let asset =
+            create_skill_asset("bad-skill", "Bad", "Body").with_supplementals(supplementals);
+        let footer = "<!-- footer -->";
+
+        let err = compile_skill_outputs(
+            &asset,
+            PathBuf::from(".claude/skills"),
+            Target::ClaudeCode,
+            footer,
+        )
+        .unwrap_err();
+
+        assert!(matches!(err, AdapterError::CompilationFailed { .. }));
+    }
+
+    #[test]
+    #[cfg(windows)]
+    #[allow(non_snake_case)] // naming convention: `<original_test_name>__<variant_type>`
+    fn compile_skill_outputs_rejects_parent_dir_supplemental_paths__with_windows_rooted_path() {
+        let mut supplementals: HashMap<PathBuf, String> = HashMap::new();
+        supplementals.insert(PathBuf::from(r"\etc\passwd"), "nope".to_string());
+
+        let asset =
+            create_skill_asset("bad-skill", "Bad", "Body").with_supplementals(supplementals);
+        let footer = "<!-- footer -->";
+
+        let err = compile_skill_outputs(
+            &asset,
+            PathBuf::from(".claude/skills"),
+            Target::ClaudeCode,
+            footer,
+        )
+        .unwrap_err();
+
+        assert!(matches!(err, AdapterError::CompilationFailed { .. }));
+    }
+
+    #[test]
+    #[cfg(windows)]
+    #[allow(non_snake_case)] // naming convention: `<original_test_name>__<variant_type>`
+    fn compile_skill_outputs_rejects_parent_dir_supplemental_paths__with_windows_drive_path() {
+        let mut supplementals: HashMap<PathBuf, String> = HashMap::new();
+        supplementals.insert(
+            PathBuf::from(r"C:\Windows\system32\drivers\etc\hosts"),
+            "nope".to_string(),
+        );
 
         let asset =
             create_skill_asset("bad-skill", "Bad", "Body").with_supplementals(supplementals);
