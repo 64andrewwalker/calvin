@@ -786,12 +786,11 @@ CONTRACT-APP-006: Skill override (project > user) emits warning
 
 **Tests First**:
 
-- [x] `test_deploy_skill_creates_directory` - Creates `.claude/skills/<id>/`
-- [x] `test_deploy_skill_multiple_files` - SKILL.md + supplementals in output
-- [x] `test_lockfile_tracks_skill_files` - Each file has lockfile entry
-- [x] `test_orphan_removes_old_skill_files` - Detects removed supplementals
-- [x] `test_orphan_removes_empty_skill_dir` - Cleans up empty directories
-- [x] `test_watch_skill_directory_change` - Triggers redeploy
+- [x] `deploy_writes_skill_files_and_tracks_each_file_in_lockfile` (`tests/cli_deploy_skills.rs`) - SKILL.md + supplementals written; each file tracked in lockfile
+- [x] `deploy_cleanup_removes_orphaned_skill_files_and_empty_directories` (`tests/cli_deploy_skills.rs`) - Removed supplementals are deleted; empty subdirectories pruned
+- [x] `deploy_cleanup_removes_empty_skill_directory_when_skill_is_removed` (`tests/cli_deploy_skills.rs`) - Removed skills are cleaned up fully
+- [x] `skill_directory_changes_are_considered_relevant` (`src/application/watch/use_case.rs`) - Skill directory changes are treated as relevant watch events
+- [x] `deploy_warns_when_skill_is_overridden_by_higher_priority_layer` (`tests/cli_deploy_skills.rs`) - Override warning emitted (project > user)
 
 **Implementation**:
 
@@ -805,7 +804,7 @@ CONTRACT-APP-006: Skill override (project > user) emits warning
 - `src/application/deploy/use_case.rs`
 - `src/domain/services/orphan_detector.rs`
 - `src/application/watch/cache.rs`
-- `src/infrastructure/layer/merger.rs` (if exists)
+- `src/domain/services/layer_merger.rs`
 
 #### 3.3 Acceptance Criteria
 
@@ -825,10 +824,10 @@ Phase 3 complete when:
 
 **Tests First**:
 
-- [x] `test_layers_output_shows_skill_count` - Skills column in output
-- [x] `test_deploy_verbose_shows_skill_structure` - Tree view of skill files
-- [x] `test_check_validates_skills` - Skill validation in check command
-- [x] `test_deploy_warns_unsupported_platforms` - Warning message shown
+- [x] `layers_output_shows_skill_count` (`tests/cli_skills.rs`) - Skills count is surfaced in `calvin layers`
+- [x] `deploy_verbose_shows_skill_structure` (`tests/cli_skills.rs`) - `calvin deploy -v` prints a skill file tree
+- [x] `check_validates_skills_and_warns_on_dangerous_tools` (`tests/cli_skills.rs`) - `calvin check` validates skills and surfaces warnings
+- [x] `deploy_warns_when_skill_targets_unsupported_platforms` (`tests/cli_skills.rs`) - Unsupported skill targets produce deploy warnings
 
 **Implementation**:
 
