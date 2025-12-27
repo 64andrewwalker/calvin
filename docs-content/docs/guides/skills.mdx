@@ -13,6 +13,19 @@ Calvin supports **Skills** as a directory-based asset type under `.promptpack/sk
 Skills are supported on **Claude Code**, **Cursor**, and **Codex** only. Calvin skips skills for **VS Code** and **Antigravity** (and surfaces a warning during deploy/check when applicable).
 </Callout>
 
+## When to Use Skills
+
+| Asset Type | Use Case | Example |
+|------------|----------|---------|
+| **Policy** | Rules that apply to AI behavior | Code style, security guidelines |
+| **Action** | Slash commands, one-shot workflows | `/generate-tests`, `/pr-review` |
+| **Skill** | Multi-file capability with scripts/references | Commit drafting with git integration |
+
+Choose **Skills** when you need:
+- **Supporting files**: reference docs, scripts, or examples alongside instructions
+- **Tool restrictions**: explicit `allowed-tools` for security
+- **Encapsulated capability**: a complete, reusable unit of functionality
+
 ## Layout
 
 ```text
@@ -88,3 +101,9 @@ Skills follow Calvin’s layer precedence rules (project > additional layers > u
 - `calvin deploy -v`: shows skill structure (skill + supplemental files).
 - `calvin layers`: shows per-layer counts for both assets and skills.
 - `calvin check`: validates deployed skill folders and warns on dangerous `allowed-tools`.
+
+## See Also
+
+- [Multi-Layer PromptPacks](/guides/multi-layer) — Share skills across projects
+- [Frontmatter Spec](/api/frontmatter) — Complete frontmatter reference
+- [Configuration](/guides/configuration) — Configure target platforms

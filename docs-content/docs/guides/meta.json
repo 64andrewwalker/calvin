@@ -3,11 +3,14 @@
     "description": "Best practices and troubleshooting",
     "pages": [
         "index",
+        "---Core Concepts---",
+        "scope-guide",
         "configuration",
+        "---Advanced Features---",
         "multi-layer",
         "skills",
         "clean-command",
-        "scope-guide",
+        "---Internals---",
         "pitfall-mitigations",
         "scope-policy-consistency",
         "test-variants-rationale"

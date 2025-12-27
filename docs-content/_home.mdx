@@ -56,6 +56,16 @@
     title="Scope Control" 
     description="Deploy to project directories or user home. Team-shared configs or personal preferences — your choice."
   />
+  <Feature 
+    image="/docs/images/feature-layers.webp"
+    title="Multi-Layer Support" 
+    description="Personal defaults, team standards, and project overrides that merge with clear priority rules."
+  />
+  <Feature 
+    image="/docs/images/feature-skills.webp"
+    title="Skills" 
+    description="Directory-based capabilities with scripts, reference docs, and tool restrictions for Claude Code, Cursor, and Codex."
+  />
 </Features>
 
 <Section>
@@ -72,6 +82,9 @@
 
   # Initialize in your project
   calvin init
+
+  # Validate configuration
+  calvin check
 
   # Deploy to all platforms
   calvin deploy
@@ -134,8 +147,12 @@
   ├── actions/             # Slash commands and workflows
   │   ├── generate-tests.md
   │   └── pr-review.md
-  └── agents/              # Sub-agent definitions
-      └── reviewer.md
+  ├── agents/              # Sub-agent definitions
+  │   └── reviewer.md
+  └── skills/              # Directory-based skills (SKILL.md + files)
+      └── draft-commit/
+          ├── SKILL.md
+          └── reference.md
   ```
 </Section>
 

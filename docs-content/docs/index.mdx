@@ -19,11 +19,15 @@ Calvin solves the fragmentation problem in AI-assisted development. Instead of m
 ## Quick Start
 
 ```bash
-# Install Calvin
-brew install 64andrewwalker/tap/calvin
+# Install Calvin (choose one)
+brew install 64andrewwalker/tap/calvin  # macOS/Linux
+cargo install calvin                     # via Rust toolchain
 
 # Initialize a new project
 calvin init
+
+# Check configuration
+calvin check
 
 # Deploy to all enabled targets
 calvin deploy
@@ -31,6 +35,8 @@ calvin deploy
 # Watch for changes
 calvin watch
 ```
+
+**Next Steps**: Read the [Scope Guide](/guides/scope-guide) to understand deployment targets, then explore [Skills](/guides/skills) for advanced capabilities.
 
 ## Supported Platforms
 
@@ -62,11 +68,13 @@ calvin watch
 - **🔄 Universal Compilation** — One source, multiple targets
 - **🔒 Security First** — Built-in deny lists and audit commands  
 - **📦 Lockfile Support** — Track changes and detect conflicts
+- **🧩 Multi-Layer** — Personal, team, and project layers with override semantics
 - **🧠 Skills Support** — Directory-based `SKILL.md` assets (Claude Code, Cursor, Codex)
 - **👁️ Watch Mode** — Auto-deploy on file changes
 - **🏠 Scope Control** — Deploy to project or user directories
 
-## Links
+## Getting Help
 
 - [GitHub Repository](https://github.com/64andrewwalker/calvin)
 - [Issue Tracker](https://github.com/64andrewwalker/calvin/issues)
+- [Discussions](https://github.com/64andrewwalker/calvin/discussions)

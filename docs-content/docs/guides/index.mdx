@@ -9,22 +9,27 @@ This section contains best practices, troubleshooting guides, and advanced usage
 
 ## Available Guides
 
+### Core Concepts
+
 | Guide | Description |
 |-------|-------------|
+| [Scope and Deploy Target](/guides/scope-guide) | Understanding deployment scopes and targets |
 | [Configuration](/guides/configuration) | Environment variables and config.toml settings |
+
+### Advanced Features
+
+| Guide | Description |
+|-------|-------------|
+| [Multi-Layer PromptPacks](/guides/multi-layer) | Share assets across projects with layered configurations |
 | [Skills](/guides/skills) | Directory-based `SKILL.md` assets (Claude Code, Cursor, Codex) |
 | [Clean Command](/guides/clean-command) | Remove deployed files safely and efficiently |
-| [Scope and Deploy Target](/guides/scope-guide) | Understanding deployment scopes and targets |
-| [Pitfall Mitigations](/guides/pitfall-mitigations) | Critical architectural decisions to prevent issues |
-| [Scope Policy Consistency](/guides/scope-policy-consistency) | Analysis of scope policy handling |
-| [Test Variants Rationale](/guides/test-variants-rationale) | Rationale and coverage for test variants |
 
 ## Quick Tips
 
 ### Choosing the Right Scope
 
-- Use `target: project` for team-shared rules and project-specific configurations
-- Use `target: user` for personal preferences and global workflows
+- Use `scope: project` for team-shared rules and project-specific configurations
+- Use `scope: user` for personal preferences and global workflows
 
 ### Common Workflows
 
