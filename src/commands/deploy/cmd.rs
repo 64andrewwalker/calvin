@@ -382,6 +382,39 @@ pub fn cmd_deploy_with_explicit_target(
         }
     }
 
+    // Choose a "primary" source layer to display in the header when the project layer
+    // is disabled or missing (e.g. global-layers-only projects).
+    let source_for_display = if json || is_remote_target {
+        source.to_path_buf()
+    } else if use_project_layer && project_layer_path.is_dir() {
+        // Preserve user-provided `--source` value (often `.promptpack`) when the project
+        // layer is actually present, so we don't unexpectedly switch to an absolute path.
+        source.to_path_buf()
+    } else {
+        use calvin::domain::services::LayerResolver;
+
+        let mut resolver = LayerResolver::new(project_root.clone())
+            .with_project_layer_path(project_layer_path.clone())
+            // For display purposes, omit the project layer when it's not used.
+            .with_disable_project_layer(true)
+            .with_additional_layers(if use_additional_layers {
+                additional_layers.clone()
+            } else {
+                Vec::new()
+            })
+            .with_remote_mode(false);
+
+        if let Some(user_layer_path) = user_layer_path.clone() {
+            resolver = resolver.with_user_layer_path(user_layer_path);
+        }
+
+        resolver
+            .resolve()
+            .ok()
+            .and_then(|r| r.layers.last().map(|l| l.path.original().to_path_buf()))
+            .unwrap_or_else(|| source.to_path_buf())
+    };
+
     // Render header
     if !json {
         let action = if dry_run {
@@ -410,7 +443,7 @@ pub fn cmd_deploy_with_explicit_target(
             "{}",
             render_deploy_header(
                 action,
-                source,
+                &source_for_display,
                 target_display.as_deref(),
                 remote_display,
                 &modes,
@@ -425,7 +458,7 @@ pub fn cmd_deploy_with_explicit_target(
         println!(
             "{} Scanning {}...",
             Icon::Progress.colored(ui.color, ui.unicode),
-            source.display()
+            source_for_display.display()
         );
     }
 
