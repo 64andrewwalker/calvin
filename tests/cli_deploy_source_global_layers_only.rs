@@ -23,7 +23,8 @@ fn deploy_header_uses_user_layer_as_source_when_project_promptpack_missing() {
         result.combined_output()
     );
 
-    let user_layer = env.home_path(".calvin/.promptpack");
+    // Build this path using segments (not forward slashes) for Windows compatibility.
+    let user_layer = env.home_path(".calvin").join(".promptpack");
     assert!(
         result
             .stdout
