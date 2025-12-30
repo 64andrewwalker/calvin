@@ -68,7 +68,7 @@ src/
 
 | Document | When to Read |
 |----------|--------------|
-| `docs/architecture/overview.md` | Understanding design goals |
+| `docs/architecture.md` | Understanding design goals |
 | `docs/architecture/layers.md` | Understanding layer responsibilities |
 | `docs/architecture/directory.md` | Finding where code lives |
 | `docs/api/frontmatter.md` | Working with source file format |
@@ -195,3 +195,35 @@ If stuck, check:
 2. `docs/archive/` for historical context
 3. `docs/guides/pitfall-mitigations.md` for known issues
 4. Existing tests for usage examples
+
+<skills_system priority="1">
+
+## Available Skills
+
+<!-- SKILLS_TABLE_START -->
+<usage>
+When users ask you to perform tasks, check if any of the available skills below can help complete the task more effectively. Skills provide specialized capabilities and domain knowledge.
+
+How to use skills:
+- Invoke: Bash("openskills read <skill-name>")
+- The skill content will load with detailed instructions on how to complete the task
+- Base directory provided in output for resolving bundled resources (references/, scripts/, assets/)
+
+Usage notes:
+- Only use skills listed in <available_skills> below
+- Do not invoke a skill that is already loaded in your context
+- Each skill invocation is stateless
+</usage>
+
+<available_skills>
+
+<skill>
+<name>self-critique</name>
+<description>Progressive self-questioning for agents before claiming work is complete.</description>
+<location>project</location>
+</skill>
+
+</available_skills>
+<!-- SKILLS_TABLE_END -->
+
+</skills_system>

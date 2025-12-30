@@ -200,7 +200,7 @@ calvin deploy --remote user@host:/path/to/project
 
 ### Architecture (for Contributors)
 
-- **[Architecture Overview](docs/architecture/overview.md)**: System design and goals
+- **[Architecture Overview](docs/architecture.md)**: System design and goals
 - **[Layered Architecture](docs/architecture/layers.md)**: Four-layer clean architecture
 - **[Directory Structure](docs/architecture/directory.md)**: Codebase organization
 - **[Tech Decisions](docs/tech-decisions.md)**: Technology choices and rationale
@@ -225,7 +225,7 @@ Recent additions:
 - ✅ Security health checks (`check` command)
 - ✅ Skills support (`.promptpack/skills/<id>/SKILL.md`)
 
-See [docs/architecture/TODO.md](docs/architecture/TODO.md) for detailed roadmap.
+See [docs/architecture/todo.md](docs/architecture/todo.md) for detailed roadmap.
 
 ## Philosophy
 

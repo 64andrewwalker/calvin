@@ -9,9 +9,9 @@
 
 ## Audits & Maintenance (2025-12-27)
 
-- [x] `[0-DISC] Documentation-Code Synchronization Audit` → `docs/sync-audit-report.md`
-- [x] `[4-TEST] Test Variant Generation` → `docs/test-variants-rationale.md`
-- [x] `[M-MAINT] Codebase Cleanup & Declutter` → `docs/reports/cleanup-report-2025-12-27.md`
+- [x] `[0-DISC] Documentation-Code Synchronization Audit` → `docs/reports/archive/sync-audit-report.md`
+- [x] `[4-TEST] Test Variant Generation` → `docs/testing/test-variants-rationale.md`
+- [x] `[M-MAINT] Codebase Cleanup & Declutter` → `docs/reports/archive/cleanup-report-2025-12-27.md`
 
 ---
 
@@ -225,7 +225,7 @@
 
 - [ ] Unit tests (>80% coverage) - Currently 57%
 - [x] Add variant tests for SyncEngine & Scope Refactor (26 variants)
-- [x] Add variant tests for skills deploy warnings (8 variants) - See `docs/test-variants-rationale.md`
+- [x] Add variant tests for skills deploy warnings (8 variants) - See `docs/testing/test-variants-rationale.md`
 - [x] M-MAINT: Codebase cleanup & declutter (2025-12-27) - See `docs/reports/cleanup-report-2025-12-27.md`
 - [x] Snapshot tests with `insta` crate (6 snapshots)
 - [x] Golden test suite (9 tests, reference .promptpack → expected output)
