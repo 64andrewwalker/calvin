@@ -1,4 +1,7 @@
 //! Integration tests for deploying skills (PRD Phase 3)
+//!
+//! Variant tests use double underscore naming convention per docs/testing/test-variants-rationale.md
+#![allow(non_snake_case)]
 
 mod common;
 
@@ -319,5 +322,266 @@ targets: [codex]
         !env.project_path(".codex/skills/binary-cleanup/assets")
             .exists(),
         "empty assets directory should be removed"
+    );
+}
+
+// === Binary Skill Test Variants ===
+
+/// Input boundary: binary file with minimal content (just NUL bytes)
+#[test]
+fn deploy_writes_binary_skill_assets__with_single_byte_binary() {
+    let env = TestEnv::builder().build();
+
+    write_project_skill(
+        &env,
+        "min-binary",
+        r#"---
+description: Skill with minimal binary
+kind: skill
+targets: [codex]
+---
+# Instructions
+"#,
+        &[],
+    );
+
+    // Single NUL byte is the minimum binary content
+    env.write_project_binary(".promptpack/skills/min-binary/assets/tiny.bin", &[0x00]);
+
+    let result = env.run(&["deploy", "--yes", "--targets", "codex"]);
+    assert!(
+        result.success,
+        "deploy failed:\n{}",
+        result.combined_output()
+    );
+
+    let binary_path = env.project_path(".codex/skills/min-binary/assets/tiny.bin");
+    assert!(binary_path.exists(), "minimal binary should be deployed");
+
+    let deployed = std::fs::read(&binary_path).unwrap();
+    assert_eq!(deployed, vec![0x00], "single NUL byte should be preserved");
+}
+
+/// Input boundary: multiple binary files in same skill
+#[test]
+fn deploy_writes_binary_skill_assets__with_multiple_binary_files() {
+    let env = TestEnv::builder().build();
+
+    write_project_skill(
+        &env,
+        "multi-binary",
+        r#"---
+description: Skill with multiple binaries
+kind: skill
+targets: [codex]
+---
+# Instructions
+"#,
+        &[("text-file.md", "# Text\n")],
+    );
+
+    // Multiple binary files with different content
+    env.write_project_binary(
+        ".promptpack/skills/multi-binary/assets/image.png",
+        &[0x89, 0x50, 0x4E, 0x47, 0x00], // PNG magic + NUL
+    );
+    env.write_project_binary(
+        ".promptpack/skills/multi-binary/assets/data.bin",
+        &[0x00, 0x01, 0x02, 0x03],
+    );
+
+    let result = env.run(&["deploy", "--yes", "--targets", "codex"]);
+    assert!(
+        result.success,
+        "deploy failed:\n{}",
+        result.combined_output()
+    );
+
+    // Verify all files deployed
+    assert!(env
+        .project_path(".codex/skills/multi-binary/assets/image.png")
+        .exists());
+    assert!(env
+        .project_path(".codex/skills/multi-binary/assets/data.bin")
+        .exists());
+    assert!(env
+        .project_path(".codex/skills/multi-binary/text-file.md")
+        .exists());
+
+    // Verify lockfile tracks both binaries
+    let lockfile = env.read_lockfile();
+    assert!(
+        lockfile.contains("image.png"),
+        "lockfile should track image.png"
+    );
+    assert!(
+        lockfile.contains("data.bin"),
+        "lockfile should track data.bin"
+    );
+}
+
+/// State variation: binary files in deeply nested directories
+#[test]
+fn deploy_writes_binary_skill_assets__with_nested_binary_paths() {
+    let env = TestEnv::builder().build();
+
+    write_project_skill(
+        &env,
+        "nested-binary",
+        r#"---
+description: Skill with nested binary paths
+kind: skill
+targets: [codex]
+---
+# Instructions
+"#,
+        &[],
+    );
+
+    // Binary in deeply nested path
+    env.write_project_binary(
+        ".promptpack/skills/nested-binary/assets/images/icons/logo.png",
+        &[0x89, 0x50, 0x00], // PNG with NUL
+    );
+
+    let result = env.run(&["deploy", "--yes", "--targets", "codex"]);
+    assert!(
+        result.success,
+        "deploy failed:\n{}",
+        result.combined_output()
+    );
+
+    // Verify nested path is created
+    let nested_path = env.project_path(".codex/skills/nested-binary/assets/images/icons/logo.png");
+    assert!(
+        nested_path.exists(),
+        "nested binary should be deployed at {:?}",
+        nested_path
+    );
+}
+
+/// State variation: skill with only binary files (no text supplementals)
+#[test]
+fn deploy_writes_binary_skill_assets__with_only_binary_no_text() {
+    let env = TestEnv::builder().build();
+
+    write_project_skill(
+        &env,
+        "binary-only",
+        r#"---
+description: Skill with only binary assets
+kind: skill
+targets: [codex]
+---
+# Instructions
+"#,
+        &[], // No text supplementals
+    );
+
+    // Only binary supplementals
+    env.write_project_binary(
+        ".promptpack/skills/binary-only/data/model.bin",
+        &[0x00, 0xFF, 0x00, 0xFF],
+    );
+
+    let result = env.run(&["deploy", "--yes", "--targets", "codex"]);
+    assert!(
+        result.success,
+        "deploy failed:\n{}",
+        result.combined_output()
+    );
+
+    // SKILL.md should exist
+    assert_deployed!(&env, ".codex/skills/binary-only/SKILL.md");
+    // Binary should exist
+    assert!(env
+        .project_path(".codex/skills/binary-only/data/model.bin")
+        .exists());
+}
+
+/// State variation: replacing binary file with new content
+#[test]
+fn deploy_updates_binary_skill_assets__when_content_changes() {
+    let env = TestEnv::builder().build();
+
+    write_project_skill(
+        &env,
+        "update-binary",
+        r#"---
+description: Skill to test binary update
+kind: skill
+targets: [codex]
+---
+# Instructions
+"#,
+        &[],
+    );
+
+    // Initial binary
+    let initial_content = [0x00, 0x01, 0x02];
+    env.write_project_binary(
+        ".promptpack/skills/update-binary/data.bin",
+        &initial_content,
+    );
+
+    let result = env.run(&["deploy", "--yes", "--targets", "codex"]);
+    assert!(result.success, "initial deploy failed");
+
+    // Update binary with different content
+    let updated_content = [0xFF, 0xFE, 0xFD, 0xFC, 0x00];
+    env.write_project_binary(
+        ".promptpack/skills/update-binary/data.bin",
+        &updated_content,
+    );
+
+    let result = env.run(&["deploy", "--yes", "--targets", "codex"]);
+    assert!(result.success, "update deploy failed");
+
+    // Verify new content
+    let deployed = std::fs::read(env.project_path(".codex/skills/update-binary/data.bin")).unwrap();
+    assert_eq!(
+        deployed.as_slice(),
+        &updated_content[..],
+        "binary content should be updated"
+    );
+}
+
+/// Off-by-one boundary: binary file at NUL detection threshold
+#[test]
+fn deploy_writes_binary_skill_assets__with_nul_at_end_of_text() {
+    let env = TestEnv::builder().build();
+
+    write_project_skill(
+        &env,
+        "nul-threshold",
+        r#"---
+description: Skill with text+nul file
+kind: skill
+targets: [codex]
+---
+# Instructions
+"#,
+        &[],
+    );
+
+    // Valid UTF-8 text followed by a NUL byte (detected as binary)
+    let content_with_nul = b"This is valid UTF-8 text.\x00";
+    env.write_project_binary(
+        ".promptpack/skills/nul-threshold/data.txt",
+        content_with_nul,
+    );
+
+    let result = env.run(&["deploy", "--yes", "--targets", "codex"]);
+    assert!(
+        result.success,
+        "deploy failed:\n{}",
+        result.combined_output()
+    );
+
+    // Should be treated as binary (due to NUL)
+    let lockfile = env.read_lockfile();
+    assert!(
+        lockfile.contains("is_binary = true"),
+        "file with NUL should be tracked as binary:\n{lockfile}"
     );
 }

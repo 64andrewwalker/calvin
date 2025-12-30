@@ -69,9 +69,27 @@ These variants focus on two areas introduced around skills:
 - For any subset of dangerous tools in `allowed-tools`, deploy should warn once per dangerous tool and never warn for safe tools.
 - For any deploy target set and any skill effective target set, the global "Skills skipped for" warning should appear iff the intersection is non-empty.
 
+## Binary Skill Asset Variants (2025-12-30)
+
+These variants cover the binary skill asset feature.
+
+### `deploy_writes_binary_skill_assets_and_tracks_in_lockfile`
+
+- `deploy_writes_binary_skill_assets__with_single_byte_binary`: input boundary (minimal 1-byte binary) → deployed and tracked correctly.
+- `deploy_writes_binary_skill_assets__with_multiple_binary_files`: collection edge (multiple binaries in one skill) → all tracked in lockfile.
+- `deploy_writes_binary_skill_assets__with_nested_binary_paths`: state variation (deeply nested directories) → nested paths created correctly.
+- `deploy_writes_binary_skill_assets__with_only_binary_no_text`: state variation (no text supplementals) → SKILL.md + binary only.
+- `deploy_writes_binary_skill_assets__with_nul_at_end_of_text`: off-by-one boundary (UTF-8 text with trailing NUL) → detected as binary.
+
+### `deploy_updates_binary_skill_assets__when_content_changes`
+
+- Tests that binary content is updated on redeploy, not left stale.
+
 ## Mutation Testing Recommendations
 
 - Use `cargo-mutants` to validate that tests catch:
   - Removing the unsupported-target filter (VS Code / Antigravity) in the global warning.
   - Removing deduplication of deploy targets (duplicate target variant should fail).
   - Skipping adapter validation during deploy (dangerous-tool deploy variants should fail).
+  - Skipping binary NUL-byte detection (binary variants should fail).
+  - Skipping `is_binary` flag in lockfile (binary lockfile variant should fail).
