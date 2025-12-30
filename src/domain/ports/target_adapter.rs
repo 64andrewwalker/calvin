@@ -3,7 +3,7 @@
 //! This port defines how domain entities (Assets) are transformed into
 //! platform-specific output files (OutputFiles).
 
-use crate::domain::entities::{Asset, OutputFile};
+use crate::domain::entities::{Asset, BinaryOutputFile, OutputFile};
 use crate::domain::value_objects::Target;
 use std::fmt;
 
@@ -83,6 +83,15 @@ pub trait TargetAdapter: Send + Sync {
     ///
     /// Returns empty Vec if this asset type is not supported by the target.
     fn compile(&self, asset: &Asset) -> Result<Vec<OutputFile>, AdapterError>;
+
+    /// Compile binary outputs for an asset (skills only).
+    ///
+    /// Returns binary files (images, PDFs, etc.) from skill supplementals.
+    /// Default implementation returns empty vec for non-skill adapters.
+    fn compile_binary(&self, asset: &Asset) -> Result<Vec<BinaryOutputFile>, AdapterError> {
+        let _ = asset; // Mark as intentionally unused
+        Ok(Vec::new())
+    }
 
     /// Validate generated output against platform best practices
     fn validate(&self, output: &OutputFile) -> Vec<AdapterDiagnostic>;
@@ -230,6 +239,15 @@ mod tests {
         let assets = vec![];
 
         let outputs = adapter.post_compile(&assets).unwrap();
+        assert!(outputs.is_empty());
+    }
+
+    #[test]
+    fn compile_binary_default_returns_empty() {
+        let adapter = MockAdapter::new(Target::ClaudeCode);
+        let asset = Asset::new("test", "test.md", "Test asset", "# Content");
+
+        let outputs = adapter.compile_binary(&asset).unwrap();
         assert!(outputs.is_empty());
     }
 }

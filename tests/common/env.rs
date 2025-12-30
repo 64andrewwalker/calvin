@@ -142,6 +142,15 @@ impl TestEnv {
         std::fs::write(&full_path, content).expect("Failed to write file");
     }
 
+    /// Write a binary file to the project directory
+    pub fn write_project_binary(&self, relative_path: &str, content: &[u8]) {
+        let full_path = self.project_path(relative_path);
+        if let Some(parent) = full_path.parent() {
+            std::fs::create_dir_all(parent).expect("Failed to create directories");
+        }
+        std::fs::write(&full_path, content).expect("Failed to write binary file");
+    }
+
     /// Write a file to the home directory
     pub fn write_home_file(&self, relative_path: &str, content: &str) {
         let full_path = self.home_path(relative_path);

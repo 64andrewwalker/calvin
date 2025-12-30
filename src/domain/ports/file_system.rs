@@ -59,6 +59,9 @@ pub trait FileSystem {
     /// Write content to file atomically
     fn write(&self, path: &Path, content: &str) -> FsResult<()>;
 
+    /// Write binary content to file atomically
+    fn write_binary(&self, path: &Path, content: &[u8]) -> FsResult<()>;
+
     /// Check if file exists
     fn exists(&self, path: &Path) -> bool;
 

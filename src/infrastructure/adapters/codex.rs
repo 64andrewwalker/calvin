@@ -14,7 +14,7 @@
 use std::path::PathBuf;
 
 use super::skills;
-use crate::domain::entities::{Asset, AssetKind, OutputFile};
+use crate::domain::entities::{Asset, AssetKind, BinaryOutputFile, OutputFile};
 use crate::domain::ports::target_adapter::{
     AdapterDiagnostic, AdapterError, DiagnosticSeverity, TargetAdapter,
 };
@@ -67,12 +67,14 @@ impl CodexAdapter {
 
     fn compile_skill(&self, asset: &Asset) -> Result<Vec<OutputFile>, AdapterError> {
         let footer = self.footer(&asset.source_path_normalized());
-        skills::compile_skill_outputs(
+        let result = skills::compile_skill_outputs(
             asset,
             self.skills_dir(asset.scope()),
             Target::Codex,
             &footer,
-        )
+        )?;
+        // For now, return only text outputs. Binary outputs will be handled separately.
+        Ok(result.outputs)
     }
 }
 
@@ -178,6 +180,22 @@ impl TargetAdapter for CodexAdapter {
     ) -> Result<Vec<OutputFile>, AdapterError> {
         // Codex doesn't have project-level security config
         Ok(Vec::new())
+    }
+
+    fn compile_binary(&self, asset: &Asset) -> Result<Vec<BinaryOutputFile>, AdapterError> {
+        if asset.kind() != AssetKind::Skill {
+            return Ok(vec![]);
+        }
+
+        let footer = self.footer(&asset.source_path_normalized());
+        let result = skills::compile_skill_outputs(
+            asset,
+            self.skills_dir(asset.scope()),
+            Target::Codex,
+            &footer,
+        )?;
+
+        Ok(result.binary_outputs)
     }
 }
 
@@ -360,5 +378,46 @@ mod tests {
         assert!(outputs
             .iter()
             .any(|o| o.path() == &PathBuf::from(".codex/skills/my-skill/SKILL.md")));
+    }
+
+    // === TDD: Binary Outputs ===
+
+    #[test]
+    fn test_codex_compile_binary_returns_skill_binaries() {
+        let adapter = CodexAdapter::new();
+
+        let mut binary_supplementals: HashMap<PathBuf, Vec<u8>> = HashMap::new();
+        binary_supplementals.insert(
+            PathBuf::from("assets/diagram.pdf"),
+            vec![0x25, 0x50, 0x44, 0x46], // PDF magic
+        );
+
+        let asset = Asset::new(
+            "my-skill",
+            "skills/my-skill/SKILL.md",
+            "My skill",
+            "# Skill",
+        )
+        .with_kind(AssetKind::Skill)
+        .with_binary_supplementals(binary_supplementals);
+
+        let outputs = adapter.compile_binary(&asset).unwrap();
+
+        assert_eq!(outputs.len(), 1);
+        assert_eq!(
+            outputs[0].path(),
+            &PathBuf::from(".codex/skills/my-skill/assets/diagram.pdf")
+        );
+        assert_eq!(outputs[0].content(), &[0x25, 0x50, 0x44, 0x46]);
+    }
+
+    #[test]
+    fn test_codex_compile_binary_empty_for_non_skill() {
+        let adapter = CodexAdapter::new();
+        let asset = create_action_asset("test", "desc", "content");
+
+        let outputs = adapter.compile_binary(&asset).unwrap();
+
+        assert!(outputs.is_empty());
     }
 }

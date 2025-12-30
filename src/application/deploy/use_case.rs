@@ -20,7 +20,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use crate::domain::entities::{Asset, Lockfile, OutputFile};
+use crate::domain::entities::{Asset, BinaryOutputFile, Lockfile, OutputFile};
 use crate::domain::ports::{
     AssetRepository, ConflictChoice, ConflictContext, ConflictResolver, DeployEvent,
     DeployEventSink, FileSystem, ForceResolver, FsResult, LockfileRepository, NoopEventSink,
@@ -334,7 +334,7 @@ where
         });
 
         // Step 2: Compile assets
-        let (outputs, provenance_by_output_path) = match self.compile_assets(
+        let (outputs, binary_outputs, provenance_by_output_path) = match self.compile_assets(
             &assets,
             &options.targets,
             &layered_assets.merged_assets_by_id,
@@ -406,11 +406,12 @@ where
             }
         };
 
-        // Step 5: Detect orphans
+        // Step 5: Detect orphans (including binary outputs)
         let orphans = if options.clean_orphans {
-            self.detect_orphans(
+            self.detect_orphans_with_binaries(
                 &lockfile,
                 &outputs,
+                &binary_outputs,
                 options.scope,
                 &options.project_root,
                 options.remote_mode,
@@ -428,6 +429,13 @@ where
                 &options.project_root,
                 options.remote_mode,
             );
+            // Step 6.1: Write binary outputs
+            self.write_binary_outputs(
+                &binary_outputs,
+                &mut result,
+                &options.project_root,
+                options.remote_mode,
+            );
             self.delete_orphans_with_events(
                 &orphans,
                 &mut result,
@@ -435,9 +443,10 @@ where
                 &options.project_root,
                 options.remote_mode,
             );
-            if let Some(warning) = self.update_lockfile(
+            if let Some(warning) = self.update_lockfile_with_binaries(
                 &lockfile_path,
                 &resolved_plan,
+                &binary_outputs,
                 &result,
                 options.scope,
                 Some(&provenance_by_output_path),
@@ -457,6 +466,9 @@ where
             // Dry run - just collect what would happen
             for file in resolved_plan.to_write() {
                 result.written.push(file.path.clone());
+            }
+            for binary_file in &binary_outputs {
+                result.written.push(binary_file.path().clone());
             }
             for orphan in &orphans.orphans {
                 result.deleted.push(PathBuf::from(&orphan.path));
@@ -548,6 +560,11 @@ where
             ));
         }
 
+        // Collect warnings from individual assets (e.g., skipped binary files)
+        for asset in &assets {
+            warnings.extend(asset.warnings().iter().cloned());
+        }
+
         Ok(LayeredAssets {
             assets,
             merged_assets_by_id: merge_result.assets,
@@ -576,6 +593,9 @@ where
     }
 
     /// Compile assets for target platforms
+    ///
+    /// Returns (text_outputs, binary_outputs, provenance_map)
+    #[allow(clippy::type_complexity)]
     fn compile_assets(
         &self,
         assets: &[Asset],
@@ -584,6 +604,7 @@ where
     ) -> Result<
         (
             Vec<OutputFile>,
+            Vec<BinaryOutputFile>,
             std::collections::HashMap<PathBuf, crate::domain::entities::OutputProvenance>,
         ),
         String,
@@ -601,6 +622,7 @@ where
         }
 
         let mut outputs = Vec::new();
+        let mut binary_outputs: Vec<BinaryOutputFile> = Vec::new();
         let mut provenance_by_output_path: std::collections::HashMap<PathBuf, OutputProvenance> =
             std::collections::HashMap::new();
 
@@ -670,6 +692,21 @@ where
                     }
                 }
 
+                // Compile binary outputs for skills
+                match adapter.compile_binary(asset) {
+                    Ok(adapter_binary_outputs) => {
+                        binary_outputs.extend(adapter_binary_outputs);
+                    }
+                    Err(e) => {
+                        return Err(format!(
+                            "Adapter {} binary compile failed on {}: {}",
+                            adapter.target().display_name(),
+                            asset.id(),
+                            e
+                        ));
+                    }
+                }
+
                 // Special handling for Cursor: add commands if Claude Code is not selected
                 if adapter.target() == Target::Cursor
                     && cursor_needs_commands
@@ -701,7 +738,7 @@ where
             }
         }
 
-        Ok((outputs, provenance_by_output_path))
+        Ok((outputs, binary_outputs, provenance_by_output_path))
     }
 
     /// Plan the sync operation
@@ -901,7 +938,21 @@ where
         project_root: &Path,
         remote_mode: bool,
     ) -> OrphanDetectionResult {
-        let mut result = OrphanDetector::detect(lockfile, outputs, scope);
+        self.detect_orphans_with_binaries(lockfile, outputs, &[], scope, project_root, remote_mode)
+    }
+
+    /// Detect orphan files including binary outputs
+    fn detect_orphans_with_binaries(
+        &self,
+        lockfile: &Lockfile,
+        outputs: &[OutputFile],
+        binary_outputs: &[BinaryOutputFile],
+        scope: Scope,
+        project_root: &Path,
+        remote_mode: bool,
+    ) -> OrphanDetectionResult {
+        let mut result =
+            OrphanDetector::detect_with_binaries(lockfile, outputs, binary_outputs, scope);
 
         // Check status of each orphan (exists, has_signature)
         for orphan in &mut result.orphans {
@@ -910,7 +961,16 @@ where
             orphan.exists = self.file_system.exists(&resolved);
 
             if orphan.exists {
-                if let Ok(content) = self.file_system.read(&resolved) {
+                // Check if this was a binary file in the lockfile
+                let lockfile_key = Lockfile::make_key(scope, &orphan.path);
+                let is_lockfile_binary = lockfile
+                    .get(&lockfile_key)
+                    .is_some_and(|entry| entry.is_binary());
+
+                if is_lockfile_binary {
+                    // Binary files tracked in lockfile are safe to delete
+                    orphan.has_signature = true;
+                } else if let Ok(content) = self.file_system.read(&resolved) {
                     orphan.has_signature = has_calvin_signature(&content);
                     if !orphan.has_signature {
                         orphan.has_signature = self.is_part_of_calvin_skill(&resolved);
@@ -1043,6 +1103,48 @@ where
         }
     }
 
+    /// Write binary outputs to disk
+    fn write_binary_outputs(
+        &self,
+        binary_outputs: &[BinaryOutputFile],
+        result: &mut DeployResult,
+        project_root: &Path,
+        remote_mode: bool,
+    ) {
+        for binary_file in binary_outputs {
+            let resolved_path = self.resolve_fs_path(project_root, binary_file.path(), remote_mode);
+
+            // Ensure parent directory exists
+            if let Some(parent) = resolved_path.parent() {
+                if let Err(e) = self.file_system.create_dir_all(parent) {
+                    result.errors.push(format!(
+                        "Failed to create directory for {}: {}",
+                        binary_file.path().display(),
+                        e
+                    ));
+                    continue;
+                }
+            }
+
+            // Write binary content
+            match self
+                .file_system
+                .write_binary(&resolved_path, binary_file.content())
+            {
+                Ok(_) => {
+                    result.written.push(binary_file.path().clone());
+                }
+                Err(e) => {
+                    result.errors.push(format!(
+                        "Failed to write binary file {}: {}",
+                        binary_file.path().display(),
+                        e
+                    ));
+                }
+            }
+        }
+    }
+
     /// Delete orphan files
     /// Delete orphan files with event reporting
     fn delete_orphans_with_events(
@@ -1167,6 +1269,29 @@ where
             &std::collections::HashMap<PathBuf, crate::domain::entities::OutputProvenance>,
         >,
     ) -> Option<String> {
+        self.update_lockfile_with_binaries(
+            path,
+            plan,
+            &[],
+            result,
+            scope,
+            provenance_by_output_path,
+        )
+    }
+
+    /// Update lockfile including binary outputs
+    fn update_lockfile_with_binaries(
+        &self,
+        path: &Path,
+        plan: &SyncPlan,
+        binary_outputs: &[BinaryOutputFile],
+        result: &DeployResult,
+        scope: Scope,
+        provenance_by_output_path: Option<
+            &std::collections::HashMap<PathBuf, crate::domain::entities::OutputProvenance>,
+        >,
+    ) -> Option<String> {
+        use crate::domain::entities::LockfileEntry;
         use sha2::{Digest, Sha256};
         use std::collections::HashSet;
 
@@ -1209,6 +1334,15 @@ where
                     Some(provenance) => lockfile.set_with_provenance(&key, &hash, provenance),
                     None => lockfile.set(&key, &hash),
                 }
+            }
+        }
+
+        // Update entries for binary files
+        for binary_file in binary_outputs {
+            if written_set.contains(binary_file.path()) {
+                let key = Lockfile::make_key(scope, &binary_file.path().display().to_string());
+                let entry = LockfileEntry::new(binary_file.content_hash()).with_binary(true);
+                lockfile.set_entry(&key, entry);
             }
         }
 

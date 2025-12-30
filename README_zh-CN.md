@@ -200,7 +200,7 @@ calvin deploy --remote user@host:/path/to/project
 
 ### 架构（贡献者）
 
-- **[架构概览](docs/architecture/overview.md)**：系统设计和目标
+- **[架构概览](docs/architecture.md)**：系统设计和目标
 - **[分层架构](docs/architecture/layers.md)**：四层整洁架构
 - **[目录结构](docs/architecture/directory.md)**：代码库组织
 - **[技术决策](docs/tech-decisions.md)**：技术选择及理由
@@ -225,7 +225,7 @@ calvin deploy --remote user@host:/path/to/project
 - ✅ 安全健康检查（`check` 命令）
 - ✅ Skills 支持（`.promptpack/skills/<id>/SKILL.md`）
 
-详细路线图请参阅 [docs/architecture/TODO.md](docs/architecture/TODO.md)。
+详细路线图请参阅 [docs/architecture/todo.md](docs/architecture/todo.md)。
 
 ## 设计哲学
 

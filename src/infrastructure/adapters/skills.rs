@@ -4,7 +4,7 @@
 
 use std::path::{Component, PathBuf};
 
-use crate::domain::entities::{Asset, OutputFile};
+use crate::domain::entities::{Asset, BinaryOutputFile, OutputFile};
 use crate::domain::ports::target_adapter::{AdapterDiagnostic, AdapterError, DiagnosticSeverity};
 use crate::domain::value_objects::Target;
 
@@ -43,13 +43,23 @@ pub(crate) fn generate_skill_md(asset: &Asset, footer: &str) -> Result<String, A
     Ok(out)
 }
 
+/// Result of compiling skill outputs, containing both text and binary outputs.
+#[derive(Debug)]
+pub(crate) struct SkillCompileResult {
+    /// Text outputs (SKILL.md and text supplementals)
+    pub outputs: Vec<OutputFile>,
+    /// Binary outputs (images, PDFs, etc.)
+    pub binary_outputs: Vec<BinaryOutputFile>,
+}
+
 pub(crate) fn compile_skill_outputs(
     asset: &Asset,
     skills_dir: PathBuf,
     target: Target,
     footer: &str,
-) -> Result<Vec<OutputFile>, AdapterError> {
+) -> Result<SkillCompileResult, AdapterError> {
     let mut outputs = Vec::new();
+    let mut binary_outputs = Vec::new();
 
     let skill_dir = skills_dir.join(asset.id());
 
@@ -59,6 +69,7 @@ pub(crate) fn compile_skill_outputs(
         target,
     ));
 
+    // Handle text supplementals
     for (rel_path, content) in asset.supplementals() {
         let is_escaping = rel_path.has_root()
             || rel_path
@@ -82,7 +93,34 @@ pub(crate) fn compile_skill_outputs(
         ));
     }
 
-    Ok(outputs)
+    // Handle binary supplementals
+    for (rel_path, content) in asset.binary_supplementals() {
+        let is_escaping = rel_path.has_root()
+            || rel_path
+                .components()
+                .any(|c| matches!(c, Component::ParentDir | Component::Prefix(_)));
+
+        if is_escaping {
+            return Err(AdapterError::CompilationFailed {
+                message: format!(
+                    "Invalid binary supplemental path for skill '{}': {}",
+                    asset.id(),
+                    rel_path.display()
+                ),
+            });
+        }
+
+        binary_outputs.push(BinaryOutputFile::new(
+            skill_dir.join(rel_path),
+            content.clone(),
+            target,
+        ));
+    }
+
+    Ok(SkillCompileResult {
+        outputs,
+        binary_outputs,
+    })
 }
 
 pub(crate) fn validate_skill_allowed_tools(output: &OutputFile) -> Vec<AdapterDiagnostic> {
@@ -199,7 +237,7 @@ mod tests {
             create_skill_asset("my-skill", "My skill", "Body").with_supplementals(supplementals);
         let footer = "<!-- footer -->";
 
-        let outputs = compile_skill_outputs(
+        let result = compile_skill_outputs(
             &asset,
             PathBuf::from(".codex/skills"),
             Target::Codex,
@@ -207,6 +245,7 @@ mod tests {
         )
         .unwrap();
 
+        let outputs = result.outputs;
         assert_eq!(outputs.len(), 3);
         assert!(outputs
             .iter()

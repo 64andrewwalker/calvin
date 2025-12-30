@@ -521,5 +521,5 @@ Debug/placeholder commands (no stable API yet): `calvin parse`, `calvin migrate`
 ## See Also
 
 - [Configuration](configuration.md) - Configuration file reference
-- [JSON Output](json-output.md) - JSON output format and event protocol
+- [JSON Output](api/json-output.md) - JSON output format and event protocol
 - [Architecture](architecture.md) - System design overview

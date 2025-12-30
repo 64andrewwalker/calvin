@@ -76,10 +76,33 @@ allowed-tools:
 
 To keep skills safe and portable, Calvin enforces:
 
-- **Text-only**: binary files are rejected (null-byte heuristic)
-- **Valid UTF-8**: invalid encodings are rejected
+- **Valid UTF-8 for text files**: text files with invalid encodings are rejected
 - **No symlinks**: symlinks inside skill directories are rejected
 - **Hidden files/dirs are skipped**: any `.`-prefixed path is ignored
+- **Path safety**: supplemental paths cannot escape the skill directory (no `../` traversal)
+
+### Binary asset support
+
+Binary files (images, PDFs, fonts, etc.) in skill directories are automatically detected and deployed:
+
+```text
+.promptpack/skills/my-skill/
+├── SKILL.md
+├── references/
+│   └── guide.md          # Text file
+└── assets/
+    ├── logo.png          # Binary file - deployed
+    └── diagram.pdf       # Binary file - deployed
+```
+
+Calvin uses a **null-byte heuristic** to detect binary files. When a binary file is found:
+
+1. The file is stored separately from text supplementals
+2. A warning is displayed: `Skill 'my-skill': binary file 'assets/logo.png' will be deployed (45.2 KB)`
+3. The file is deployed byte-for-byte to the target directory
+4. The lockfile tracks the file with `is_binary = true`
+
+Binary files are fully supported for orphan detection and cleanup (`--cleanup`).
 
 ## Output paths
 

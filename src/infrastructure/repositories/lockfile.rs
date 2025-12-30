@@ -51,6 +51,14 @@ struct TomlFileEntry {
     source_file: Option<String>,
     #[serde(default)]
     overrides: Option<String>,
+    /// Whether this is a binary file (defaults to false for backwards compatibility)
+    #[serde(default, skip_serializing_if = "is_false")]
+    is_binary: bool,
+}
+
+/// Helper for serde skip_serializing_if
+fn is_false(b: &bool) -> bool {
+    !*b
 }
 
 /// TOML representation of the lockfile
@@ -97,7 +105,8 @@ impl LockfileRepository for TomlLockfileRepository {
                     entry.source_asset,
                     entry.source_file.map(|p| parse_lockfile_path(&p)),
                     entry.overrides,
-                ),
+                )
+                .with_binary(entry.is_binary),
             );
         }
 
@@ -116,6 +125,7 @@ impl LockfileRepository for TomlLockfileRepository {
                     source_asset: entry.source_asset().map(|s| s.to_string()),
                     source_file: entry.source_file().map(normalize_lockfile_path),
                     overrides: entry.overrides().map(|s| s.to_string()),
+                    is_binary: entry.is_binary(),
                 },
             );
         }

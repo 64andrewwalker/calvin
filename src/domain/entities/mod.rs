@@ -15,5 +15,5 @@ pub use asset::{Asset, AssetKind};
 pub use layer::{Layer, LayerPath, LayerType};
 pub(crate) use lockfile::{normalize_lockfile_path, parse_lockfile_path};
 pub use lockfile::{Lockfile, LockfileEntry, OutputProvenance};
-pub use output_file::OutputFile;
+pub use output_file::{BinaryOutputFile, OutputFile};
 pub use registry::{ProjectEntry, Registry};

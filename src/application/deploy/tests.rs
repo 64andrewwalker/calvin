@@ -1,7 +1,7 @@
 //! Deploy Use Case Tests
 
 use super::*;
-use crate::domain::entities::{Asset, Lockfile, OutputFile};
+use crate::domain::entities::{Asset, BinaryOutputFile, Lockfile, OutputFile};
 use crate::domain::ports::target_adapter::{AdapterDiagnostic, AdapterError};
 use crate::domain::ports::{
     AssetRepository, ConflictChoice, ConflictContext, ConflictResolver, DeployEvent,
@@ -115,6 +115,15 @@ impl FileSystem for MockFileSystem {
             .ok_or(crate::domain::ports::file_system::FsError::NotFound(
                 path.to_path_buf(),
             ))
+    }
+
+    fn write_binary(&self, path: &Path, content: &[u8]) -> FsResult<()> {
+        // For testing, store binary content as lossy UTF-8
+        self.files.borrow_mut().insert(
+            path.to_path_buf(),
+            String::from_utf8_lossy(content).to_string(),
+        );
+        Ok(())
     }
 
     fn expand_home(&self, path: &Path) -> PathBuf {
@@ -502,4 +511,205 @@ fn deploy_options_builders_work() {
     assert!(options.dry_run);
     assert!(options.interactive);
     assert!(options.clean_orphans);
+}
+
+// Tests for binary output writing
+
+/// Mock adapter that returns both text and binary outputs for skills
+struct MockAdapterWithBinary {
+    target: Target,
+}
+
+impl TargetAdapter for MockAdapterWithBinary {
+    fn target(&self) -> Target {
+        self.target
+    }
+
+    fn compile(&self, asset: &Asset) -> Result<Vec<OutputFile>, AdapterError> {
+        Ok(vec![OutputFile::new(
+            format!(".claude/skills/{}/SKILL.md", asset.id()),
+            asset.content().to_string(),
+            self.target,
+        )])
+    }
+
+    fn compile_binary(&self, asset: &Asset) -> Result<Vec<BinaryOutputFile>, AdapterError> {
+        // Simulate binary outputs for skills with binary supplementals
+        let binary_supplementals = asset.binary_supplementals();
+        let mut outputs = Vec::new();
+        for (rel_path, content) in binary_supplementals {
+            let output_path = PathBuf::from(format!(
+                ".claude/skills/{}/{}",
+                asset.id(),
+                rel_path.display()
+            ));
+            outputs.push(BinaryOutputFile::new(
+                output_path,
+                content.clone(),
+                self.target,
+            ));
+        }
+        Ok(outputs)
+    }
+
+    fn validate(&self, _output: &OutputFile) -> Vec<AdapterDiagnostic> {
+        vec![]
+    }
+}
+
+#[test]
+fn deploy_writes_binary_outputs() {
+    use std::collections::HashMap as StdHashMap;
+
+    // Create a skill asset with a binary supplemental
+    let binary_content = vec![0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]; // PNG header
+    let mut binary_supplementals = StdHashMap::new();
+    binary_supplementals.insert(PathBuf::from("assets/image.png"), binary_content.clone());
+
+    let skill = Asset::new(
+        "test-skill",
+        "skills/test-skill/SKILL.md",
+        "Test skill",
+        "# Test skill content",
+    )
+    .with_kind(crate::domain::entities::AssetKind::Skill)
+    .with_binary_supplementals(binary_supplementals);
+
+    // Create use case with the binary adapter
+    let asset_repo = MockAssetRepository {
+        assets: vec![skill],
+    };
+    let lockfile_repo = MockLockfileRepository {
+        lockfile: RefCell::new(Lockfile::new()),
+    };
+    let file_system = MockFileSystem {
+        files: RefCell::new(HashMap::new()),
+    };
+    let adapters: Vec<Box<dyn TargetAdapter>> = vec![Box::new(MockAdapterWithBinary {
+        target: Target::ClaudeCode,
+    })];
+
+    let use_case = DeployUseCase::new(asset_repo, lockfile_repo, file_system, adapters);
+    let options = DeployOptions::new(".promptpack").with_targets(vec![Target::ClaudeCode]);
+
+    let result = use_case.execute(&options);
+
+    assert!(
+        result.is_success(),
+        "Deploy should succeed: {:?}",
+        result.errors
+    );
+
+    // Verify the binary file path is in the written list
+    let binary_path = PathBuf::from(".claude/skills/test-skill/assets/image.png");
+    assert!(
+        result.written.contains(&binary_path),
+        "Binary file should be in written list. Written: {:?}",
+        result.written
+    );
+}
+
+#[test]
+fn deploy_dry_run_includes_binary_outputs_in_written_list() {
+    use std::collections::HashMap as StdHashMap;
+
+    // Create a skill asset with a binary supplemental
+    let binary_content = vec![0x89, 0x50, 0x4E, 0x47];
+    let mut binary_supplementals = StdHashMap::new();
+    binary_supplementals.insert(PathBuf::from("data/file.bin"), binary_content);
+
+    let skill = Asset::new(
+        "dry-run-skill",
+        "skills/dry-run-skill/SKILL.md",
+        "Dry run skill",
+        "# Dry run content",
+    )
+    .with_kind(crate::domain::entities::AssetKind::Skill)
+    .with_binary_supplementals(binary_supplementals);
+
+    let asset_repo = MockAssetRepository {
+        assets: vec![skill],
+    };
+    let lockfile_repo = MockLockfileRepository {
+        lockfile: RefCell::new(Lockfile::new()),
+    };
+    let file_system = MockFileSystem {
+        files: RefCell::new(HashMap::new()),
+    };
+    let adapters: Vec<Box<dyn TargetAdapter>> = vec![Box::new(MockAdapterWithBinary {
+        target: Target::ClaudeCode,
+    })];
+
+    let use_case = DeployUseCase::new(asset_repo, lockfile_repo, file_system, adapters);
+    let options = DeployOptions::new(".promptpack")
+        .with_targets(vec![Target::ClaudeCode])
+        .with_dry_run(true);
+
+    let result = use_case.execute(&options);
+
+    assert!(result.is_success());
+
+    // In dry run, binary files should still appear in the written list
+    let binary_path = PathBuf::from(".claude/skills/dry-run-skill/data/file.bin");
+    assert!(
+        result.written.contains(&binary_path),
+        "Binary file should be in dry run written list. Written: {:?}",
+        result.written
+    );
+}
+
+#[test]
+fn deploy_tracks_binary_files_in_lockfile_with_is_binary_flag() {
+    use std::collections::HashMap as StdHashMap;
+
+    // Create a skill asset with a binary supplemental
+    let binary_content = vec![0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]; // PNG header
+    let mut binary_supplementals = StdHashMap::new();
+    binary_supplementals.insert(PathBuf::from("assets/image.png"), binary_content);
+
+    let skill = Asset::new(
+        "lockfile-skill",
+        "skills/lockfile-skill/SKILL.md",
+        "Lockfile test skill",
+        "# Lockfile test content",
+    )
+    .with_kind(crate::domain::entities::AssetKind::Skill)
+    .with_binary_supplementals(binary_supplementals);
+
+    let asset_repo = MockAssetRepository {
+        assets: vec![skill],
+    };
+    let file_system = MockFileSystem {
+        files: RefCell::new(HashMap::new()),
+    };
+    let adapters: Vec<Box<dyn TargetAdapter>> = vec![Box::new(MockAdapterWithBinary {
+        target: Target::ClaudeCode,
+    })];
+
+    // Create use case - note we need to wrap lockfile_repo specially to access it after
+    let use_case = DeployUseCase::new(
+        asset_repo,
+        MockLockfileRepository {
+            lockfile: RefCell::new(Lockfile::new()),
+        },
+        file_system,
+        adapters,
+    );
+    let options = DeployOptions::new(".promptpack").with_targets(vec![Target::ClaudeCode]);
+
+    let result = use_case.execute(&options);
+
+    assert!(
+        result.is_success(),
+        "Deploy should succeed: {:?}",
+        result.errors
+    );
+
+    // The binary file should be in the written list
+    let binary_path = PathBuf::from(".claude/skills/lockfile-skill/assets/image.png");
+    assert!(
+        result.written.contains(&binary_path),
+        "Binary file should be written. Written: {:?}",
+        result.written
+    );
 }

@@ -57,6 +57,11 @@ impl RemoteFs {
 
     /// Run a command on the remote host via SSH
     fn run_command(&self, command: &str, input: Option<&str>) -> FsResult<String> {
+        self.run_command_bytes(command, input.map(|s| s.as_bytes()))
+    }
+
+    /// Run a command on the remote host via SSH with binary input
+    fn run_command_bytes(&self, command: &str, input: Option<&[u8]>) -> FsResult<String> {
         use std::io::Write;
         use std::process::{Command, Stdio};
 
@@ -74,7 +79,7 @@ impl RemoteFs {
 
         if let Some(inp) = input {
             if let Some(mut stdin) = child.stdin.take() {
-                stdin.write_all(inp.as_bytes())?;
+                stdin.write_all(inp)?;
             }
         }
 
@@ -169,6 +174,22 @@ impl FileSystem for RemoteFs {
 
         // Write to temp file then atomically rename
         self.run_command(&format!("cat > {}", tmp), Some(content))?;
+        self.run_command(&format!("mv -f {} {}", tmp, p), None)?;
+        Ok(())
+    }
+
+    fn write_binary(&self, path: &Path, content: &[u8]) -> FsResult<()> {
+        let p = Self::quote_path(path);
+        let tmp = format!("{}.tmp", p);
+
+        // Ensure parent directory exists
+        if let Some(parent) = path.parent() {
+            self.create_dir_all(parent)?;
+        }
+
+        // Write binary content to temp file via stdin, then atomically rename
+        // SSH passes stdin through as binary, so this works for any content
+        self.run_command_bytes(&format!("cat > {}", tmp), Some(content))?;
         self.run_command(&format!("mv -f {} {}", tmp, p), None)?;
         Ok(())
     }
@@ -270,4 +291,43 @@ mod tests {
 
     // Note: Tests that require actual SSH connections are not included here.
     // Those should be integration tests or require mocking.
+
+    /// Test that write_binary uses binary stdin correctly
+    ///
+    /// This test is ignored by default because it requires SSH access to localhost.
+    /// Run with: cargo test --lib remote_fs_write_binary_localhost -- --ignored
+    ///
+    /// Prerequisites:
+    /// - SSH server running on localhost
+    /// - Current user can SSH to localhost without password (ssh-agent or key)
+    #[test]
+    #[ignore = "requires SSH access to localhost"]
+    fn remote_fs_write_binary_localhost() {
+        use crate::domain::ports::file_system::FileSystem;
+        use tempfile::tempdir;
+
+        let fs = RemoteFs::new("localhost");
+
+        // Create a temp directory to write to
+        let dir = tempdir().unwrap();
+        let test_path = dir.path().join("test_binary.bin");
+
+        // Binary content with NUL bytes
+        let binary_content: [u8; 16] = [
+            0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48,
+            0x44, 0x52,
+        ];
+
+        // Write binary content via SSH
+        let result = fs.write_binary(&test_path, &binary_content);
+        assert!(result.is_ok(), "write_binary failed: {:?}", result);
+
+        // Verify content was written correctly
+        let written_content = std::fs::read(&test_path).expect("Failed to read written file");
+        assert_eq!(
+            written_content.as_slice(),
+            &binary_content[..],
+            "Binary content should match exactly"
+        );
+    }
 }

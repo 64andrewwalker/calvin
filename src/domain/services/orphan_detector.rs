@@ -5,7 +5,7 @@
 
 use std::collections::HashSet;
 
-use crate::domain::entities::{Lockfile, OutputFile};
+use crate::domain::entities::{BinaryOutputFile, Lockfile, OutputFile};
 use crate::domain::value_objects::Scope;
 
 /// Calvin file signature patterns for safe deletion
@@ -118,11 +118,39 @@ impl OrphanDetector {
         outputs: &[OutputFile],
         scope: Scope,
     ) -> OrphanDetectionResult {
-        // Build set of current output keys
-        let current_keys: HashSet<String> = outputs
+        Self::detect_with_binaries(lockfile, outputs, &[], scope)
+    }
+
+    /// Detect orphan files including binary outputs
+    ///
+    /// # Arguments
+    /// * `lockfile` - Current lockfile with previously deployed files
+    /// * `outputs` - Current text output files that will be deployed
+    /// * `binary_outputs` - Current binary output files that will be deployed
+    /// * `scope` - The scope to filter lockfile entries (Project or User)
+    ///
+    /// # Scope Isolation
+    /// Only entries matching the given scope are considered. This ensures
+    /// that deploying to one scope doesn't affect files from another scope.
+    pub fn detect_with_binaries(
+        lockfile: &Lockfile,
+        outputs: &[OutputFile],
+        binary_outputs: &[BinaryOutputFile],
+        scope: Scope,
+    ) -> OrphanDetectionResult {
+        // Build set of current output keys (both text and binary)
+        let mut current_keys: HashSet<String> = outputs
             .iter()
             .map(|o| Lockfile::make_key(scope, &o.path().to_string_lossy()))
             .collect();
+
+        // Add binary output keys
+        for binary_output in binary_outputs {
+            current_keys.insert(Lockfile::make_key(
+                scope,
+                &binary_output.path().to_string_lossy(),
+            ));
+        }
 
         let mut result = OrphanDetectionResult::default();
 
@@ -380,5 +408,79 @@ mod tests {
         // The project version is now an orphan (scope changed)
         assert_eq!(result.orphans.len(), 1);
         assert_eq!(result.orphans[0].key, "project:.claude/commands/test.md");
+    }
+
+    // === Tests for binary file orphan detection ===
+
+    #[test]
+    fn detect_with_binaries_includes_binary_outputs() {
+        use crate::domain::entities::BinaryOutputFile;
+        use crate::domain::value_objects::Target;
+
+        let mut lockfile = Lockfile::new();
+        lockfile.set("project:.claude/skills/test/SKILL.md", "sha256:text_hash");
+        lockfile.set(
+            "project:.claude/skills/test/assets/image.png",
+            "sha256:binary_hash",
+        );
+
+        // Both text and binary outputs are present
+        let text_outputs = vec![OutputFile::new(
+            PathBuf::from(".claude/skills/test/SKILL.md"),
+            "# Skill",
+            Target::ClaudeCode,
+        )];
+        let binary_outputs = vec![BinaryOutputFile::new(
+            PathBuf::from(".claude/skills/test/assets/image.png"),
+            vec![0x89, 0x50],
+            Target::ClaudeCode,
+        )];
+
+        let result = OrphanDetector::detect_with_binaries(
+            &lockfile,
+            &text_outputs,
+            &binary_outputs,
+            Scope::Project,
+        );
+
+        // No orphans - both files are still in outputs
+        assert_eq!(result.orphans.len(), 0);
+        assert_eq!(result.retained.len(), 2);
+    }
+
+    #[test]
+    fn detect_with_binaries_finds_removed_binary_orphan() {
+        use crate::domain::entities::BinaryOutputFile;
+        use crate::domain::value_objects::Target;
+
+        let mut lockfile = Lockfile::new();
+        lockfile.set("project:.claude/skills/test/SKILL.md", "sha256:text_hash");
+        lockfile.set(
+            "project:.claude/skills/test/assets/old_image.png",
+            "sha256:binary_hash",
+        );
+
+        // Only text output present, binary was removed
+        let text_outputs = vec![OutputFile::new(
+            PathBuf::from(".claude/skills/test/SKILL.md"),
+            "# Skill",
+            Target::ClaudeCode,
+        )];
+        let binary_outputs: Vec<BinaryOutputFile> = vec![];
+
+        let result = OrphanDetector::detect_with_binaries(
+            &lockfile,
+            &text_outputs,
+            &binary_outputs,
+            Scope::Project,
+        );
+
+        // Binary file is now an orphan
+        assert_eq!(result.orphans.len(), 1);
+        assert_eq!(
+            result.orphans[0].key,
+            "project:.claude/skills/test/assets/old_image.png"
+        );
+        assert_eq!(result.retained.len(), 1);
     }
 }

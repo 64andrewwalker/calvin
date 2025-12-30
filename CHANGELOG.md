@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Features
+
+* **skills:** add binary asset support for skill directories ([binary-skill-assets-prd](docs/proposals/binary-skill-assets-prd.md))
+  - Binary files (images, PDFs, etc.) in skill directories are now detected and deployed
+  - Binary files tracked in lockfile with `is_binary = true` flag
+  - Orphan detection and cleanup includes binary files
+  - Remote deployment support via SSH stdin binary transfer
+
 ## [0.7.1](https://github.com/64andrewwalker/calvin/compare/v0.7.0...v0.7.1) (2025-12-27)
 
 
