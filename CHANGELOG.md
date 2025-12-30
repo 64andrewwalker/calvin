@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0](https://github.com/64andrewwalker/calvin/compare/v0.7.1...v0.8.0) (2025-12-30)
+
+
+### ⚠ BREAKING CHANGES
+
+* **skills:** Binary files in skills are now deployed instead of rejected. Previously caused errors, now shows informational warnings.
+
+### Features
+
+* **deploy:** enhance source layer resolution for display ([720450d](https://github.com/64andrewwalker/calvin/commit/720450db1b7a967a88c84361731066066bf08ff7))
+* **skills:** add binary asset support for skill directories ([077395b](https://github.com/64andrewwalker/calvin/commit/077395bb482a363d2371a94817ab770037bf08b8))
+
+
+### Bug Fixes
+
+* **tests:** improve Windows compatibility for user layer path ([511091c](https://github.com/64andrewwalker/calvin/commit/511091c7c3332272187d8194f39cae77dcfde332))
+
+
+### Miscellaneous Chores
+
+* override release version to 0.8.0 ([8113ea4](https://github.com/64andrewwalker/calvin/commit/8113ea45de727d970e9408c1c2fe4369ce558976))
+
 ## [Unreleased]
 
 ### Features
