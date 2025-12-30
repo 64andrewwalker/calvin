@@ -89,6 +89,8 @@ pub struct LockfileEntry {
     source_file: Option<PathBuf>,
     /// Overrides applied (if any)
     overrides: Option<String>,
+    /// Whether this is a binary file (for skills with binary assets)
+    is_binary: bool,
 }
 
 impl LockfileEntry {
@@ -101,6 +103,7 @@ impl LockfileEntry {
             source_asset: None,
             source_file: None,
             overrides: None,
+            is_binary: false,
         }
     }
 
@@ -130,7 +133,14 @@ impl LockfileEntry {
             source_asset,
             source_file,
             overrides,
+            is_binary: false,
         }
+    }
+
+    /// Mark this entry as a binary file
+    pub fn with_binary(mut self, is_binary: bool) -> Self {
+        self.is_binary = is_binary;
+        self
     }
 
     /// Get the hash
@@ -156,6 +166,11 @@ impl LockfileEntry {
 
     pub fn overrides(&self) -> Option<&str> {
         self.overrides.as_deref()
+    }
+
+    /// Check if this entry is a binary file
+    pub fn is_binary(&self) -> bool {
+        self.is_binary
     }
 }
 

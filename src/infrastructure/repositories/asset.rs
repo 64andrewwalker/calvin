@@ -202,27 +202,54 @@ impl FsAssetRepository {
             crate::models::PromptAsset::new(id, rel_source_path, frontmatter, extracted.body);
         let mut asset = Asset::from(prompt_asset);
 
-        let supplementals = Self::load_skill_supplementals_internal(skill_dir, ctx)?;
+        let (supplementals, binary_supplementals, warnings) =
+            Self::load_skill_supplementals_internal(skill_dir, id, ctx)?;
         asset = asset.with_supplementals(supplementals);
+        asset = asset.with_binary_supplementals(binary_supplementals);
+        if !warnings.is_empty() {
+            asset = asset.with_warnings(warnings);
+        }
 
         Ok(asset.with_kind(AssetKind::Skill))
     }
 
     /// Load skill supplementals from a skill directory.
+    ///
+    /// Returns (text supplemental files, binary supplemental files, warnings).
+    /// Binary files are loaded separately and a warning is emitted to inform the user.
+    #[allow(clippy::type_complexity)]
     fn load_skill_supplementals_internal(
         skill_dir: &Path,
+        skill_id: &str,
         ctx: Option<&IgnoreContext>,
-    ) -> Result<HashMap<std::path::PathBuf, String>> {
-        let mut out = HashMap::new();
-        Self::load_skill_supplementals_recursive(skill_dir, skill_dir, ctx, &mut out)?;
-        Ok(out)
+    ) -> Result<(
+        HashMap<std::path::PathBuf, String>,
+        HashMap<std::path::PathBuf, Vec<u8>>,
+        Vec<String>,
+    )> {
+        let mut text_out = HashMap::new();
+        let mut binary_out = HashMap::new();
+        let mut warnings = Vec::new();
+        Self::load_skill_supplementals_recursive(
+            skill_dir,
+            skill_dir,
+            skill_id,
+            ctx,
+            &mut text_out,
+            &mut binary_out,
+            &mut warnings,
+        )?;
+        Ok((text_out, binary_out, warnings))
     }
 
     fn load_skill_supplementals_recursive(
         skill_root: &Path,
         current: &Path,
+        skill_id: &str,
         ctx: Option<&IgnoreContext>,
-        out: &mut HashMap<std::path::PathBuf, String>,
+        text_out: &mut HashMap<std::path::PathBuf, String>,
+        binary_out: &mut HashMap<std::path::PathBuf, Vec<u8>>,
+        warnings: &mut Vec<String>,
     ) -> Result<()> {
         for entry in std::fs::read_dir(current)? {
             let entry = entry?;
@@ -254,7 +281,9 @@ impl FsAssetRepository {
                     }
                 }
 
-                Self::load_skill_supplementals_recursive(skill_root, &path, ctx, out)?;
+                Self::load_skill_supplementals_recursive(
+                    skill_root, &path, skill_id, ctx, text_out, binary_out, warnings,
+                )?;
                 continue;
             }
 
@@ -285,14 +314,21 @@ impl FsAssetRepository {
             let rel = path.strip_prefix(skill_root).unwrap_or(&path).to_path_buf();
             let bytes = std::fs::read(&path)?;
             if is_binary(&bytes) {
-                anyhow::bail!(
-                    "Binary files are not supported in skills: {}",
-                    rel.display()
-                );
+                // Store binary file and emit an informational message
+                let size_kb = bytes.len() as f64 / 1024.0;
+                warnings.push(format!(
+                    "Skill '{}': binary file '{}' will be deployed ({:.1} KB)",
+                    skill_id,
+                    rel.display(),
+                    size_kb
+                ));
+                binary_out.insert(rel, bytes);
+            } else {
+                let content = String::from_utf8(bytes).map_err(|_| {
+                    anyhow::anyhow!("Invalid UTF-8 in skill file: {}", rel.display())
+                })?;
+                text_out.insert(rel, content);
             }
-            let content = String::from_utf8(bytes)
-                .map_err(|_| anyhow::anyhow!("Invalid UTF-8 in skill file: {}", rel.display()))?;
-            out.insert(rel, content);
         }
         Ok(())
     }
@@ -614,7 +650,7 @@ Body
     }
 
     #[test]
-    fn test_load_skill_directory_binary_supplemental_rejected() {
+    fn test_load_skill_directory_binary_supplemental_copied_with_warning() {
         let dir = tempdir().unwrap();
         std::fs::create_dir_all(dir.path().join("skills/my-skill")).unwrap();
         std::fs::write(
@@ -629,13 +665,36 @@ Body
         std::fs::write(dir.path().join("skills/my-skill/binary.bin"), b"\0\x01\x02").unwrap();
 
         let repo = FsAssetRepository::new();
-        let err = repo.load_all(dir.path()).unwrap_err();
-        assert!(err.to_string().contains("Binary files are not supported"));
+        let assets = repo.load_all(dir.path()).unwrap();
+
+        // Binary file should be loaded, not cause an error
+        assert_eq!(assets.len(), 1);
+        let skill = &assets[0];
+
+        // Binary file should be in binary_supplementals (not text supplementals)
+        assert!(
+            !skill
+                .supplementals()
+                .contains_key(&std::path::PathBuf::from("binary.bin")),
+            "expected binary file to NOT be in text supplementals"
+        );
+        assert!(
+            skill
+                .binary_supplementals()
+                .contains_key(&std::path::PathBuf::from("binary.bin")),
+            "expected binary file to be in binary_supplementals"
+        );
+
+        // Should have a warning about the binary file that will be deployed
+        assert_eq!(skill.warnings().len(), 1);
+        assert!(skill.warnings()[0].contains("binary file"));
+        assert!(skill.warnings()[0].contains("binary.bin"));
+        assert!(skill.warnings()[0].contains("will be deployed"));
     }
 
     #[test]
     #[allow(non_snake_case)]
-    fn test_load_skill_directory_binary_supplemental_rejected__with_nul_in_text() {
+    fn test_load_skill_directory_binary_supplemental_copied__with_nul_in_text() {
         let dir = tempdir().unwrap();
         std::fs::create_dir_all(dir.path().join("skills/my-skill")).unwrap();
         std::fs::write(
@@ -650,9 +709,29 @@ Body
         std::fs::write(dir.path().join("skills/my-skill/notes.md"), b"hello\0world").unwrap();
 
         let repo = FsAssetRepository::new();
-        let err = repo.load_all(dir.path()).unwrap_err();
-        assert!(err.to_string().contains("Binary files are not supported"));
-        assert!(err.to_string().contains("notes.md"));
+        let assets = repo.load_all(dir.path()).unwrap();
+
+        // File with NUL byte should be treated as binary and loaded to binary_supplementals
+        assert_eq!(assets.len(), 1);
+        let skill = &assets[0];
+
+        // Binary file should be in binary_supplementals (not text supplementals)
+        assert!(
+            !skill
+                .supplementals()
+                .contains_key(&std::path::PathBuf::from("notes.md")),
+            "expected file with NUL byte to NOT be in text supplementals"
+        );
+        assert!(
+            skill
+                .binary_supplementals()
+                .contains_key(&std::path::PathBuf::from("notes.md")),
+            "expected file with NUL byte to be in binary_supplementals"
+        );
+
+        // Should have a warning about the copied file
+        assert_eq!(skill.warnings().len(), 1);
+        assert!(skill.warnings()[0].contains("notes.md"));
     }
 
     // ============== .calvinignore tests ==============

@@ -653,6 +653,14 @@ mod tests {
                 .ok_or(FsError::NotFound(path.to_path_buf()))
         }
 
+        fn write_binary(&self, path: &Path, content: &[u8]) -> FsResult<()> {
+            self.files.borrow_mut().insert(
+                path.to_path_buf(),
+                String::from_utf8_lossy(content).to_string(),
+            );
+            Ok(())
+        }
+
         fn expand_home(&self, path: &Path) -> PathBuf {
             path.to_path_buf()
         }

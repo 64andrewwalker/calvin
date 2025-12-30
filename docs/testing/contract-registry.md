@@ -366,6 +366,32 @@
 
 ---
 
+## Skill Contracts
+
+### SKILL-001: Binary Assets Deployed Intact
+
+**Promise**: Binary files (images, PDFs, etc.) in skill directories are detected as binary, deployed byte-for-byte identical to source, and tracked in the lockfile with `is_binary = true`.
+
+**Violation Example**: A PNG image in `skills/my-skill/assets/diagram.png` is corrupted during deployment, or treated as UTF-8 text causing "Invalid UTF-8" errors.
+
+**Test Location**: `tests/contracts/skills.rs::contract_skill_binary_assets_deployed_intact`
+
+**Related Issues**: Binary skill assets PRD
+
+---
+
+### SKILL-002: Binary Orphans Cleaned Up
+
+**Promise**: When a binary file is removed from a skill's source directory, `deploy --cleanup` removes the orphaned binary from the target.
+
+**Violation Example**: User removes `assets/photo.jpg` from skill source, but the deployed file remains after `deploy --cleanup`.
+
+**Test Location**: `tests/contracts/skills.rs::contract_skill_binary_orphans_cleaned_up`
+
+**Related Issues**: Binary skill assets PRD
+
+---
+
 ## Adding New Contracts
 
 When adding a new contract:
@@ -397,3 +423,4 @@ When adding a new contract:
 | Date | Change |
 |------|--------|
 | 2025-12-25 | Initial contract registry |
+| 2025-12-30 | Added SKILL-001, SKILL-002 for binary skill assets |

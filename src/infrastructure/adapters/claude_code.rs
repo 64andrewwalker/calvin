@@ -10,7 +10,7 @@
 use std::path::PathBuf;
 
 use super::skills;
-use crate::domain::entities::{Asset, AssetKind, OutputFile};
+use crate::domain::entities::{Asset, AssetKind, BinaryOutputFile, OutputFile};
 use crate::domain::ports::target_adapter::{
     AdapterDiagnostic, AdapterError, DiagnosticSeverity, TargetAdapter,
 };
@@ -55,12 +55,13 @@ impl TargetAdapter for ClaudeCodeAdapter {
     fn compile(&self, asset: &Asset) -> Result<Vec<OutputFile>, AdapterError> {
         if asset.kind() == AssetKind::Skill {
             let footer = self.footer(&asset.source_path_normalized());
-            return skills::compile_skill_outputs(
+            let result = skills::compile_skill_outputs(
                 asset,
                 self.skills_dir(asset.scope()),
                 Target::ClaudeCode,
                 &footer,
-            );
+            )?;
+            return Ok(result.outputs);
         }
 
         let mut outputs = Vec::new();
@@ -153,6 +154,22 @@ impl TargetAdapter for ClaudeCodeAdapter {
         }
 
         diagnostics
+    }
+
+    fn compile_binary(&self, asset: &Asset) -> Result<Vec<BinaryOutputFile>, AdapterError> {
+        if asset.kind() != AssetKind::Skill {
+            return Ok(vec![]);
+        }
+
+        let footer = self.footer(&asset.source_path_normalized());
+        let result = skills::compile_skill_outputs(
+            asset,
+            self.skills_dir(asset.scope()),
+            Target::ClaudeCode,
+            &footer,
+        )?;
+
+        Ok(result.binary_outputs)
     }
 }
 
@@ -420,5 +437,56 @@ mod tests {
     fn adapter_version_is_one() {
         let adapter = ClaudeCodeAdapter::new();
         assert_eq!(adapter.version(), 1);
+    }
+
+    // === TDD: Binary Outputs ===
+
+    #[test]
+    fn test_claude_code_compile_binary_returns_skill_binaries() {
+        let adapter = ClaudeCodeAdapter::new();
+
+        let mut binary_supplementals: HashMap<PathBuf, Vec<u8>> = HashMap::new();
+        binary_supplementals.insert(
+            PathBuf::from("assets/logo.png"),
+            vec![0x89, 0x50, 0x4E, 0x47], // PNG magic
+        );
+
+        let asset = Asset::new(
+            "my-skill",
+            "skills/my-skill/SKILL.md",
+            "My skill",
+            "# Skill",
+        )
+        .with_kind(AssetKind::Skill)
+        .with_binary_supplementals(binary_supplementals);
+
+        let outputs = adapter.compile_binary(&asset).unwrap();
+
+        assert_eq!(outputs.len(), 1);
+        assert_eq!(
+            outputs[0].path(),
+            &PathBuf::from(".claude/skills/my-skill/assets/logo.png")
+        );
+        assert_eq!(outputs[0].content(), &[0x89, 0x50, 0x4E, 0x47]);
+    }
+
+    #[test]
+    fn test_compile_binary_empty_for_non_skill() {
+        let adapter = ClaudeCodeAdapter::new();
+        let asset = create_action_asset("test", "desc", "content");
+
+        let outputs = adapter.compile_binary(&asset).unwrap();
+
+        assert!(outputs.is_empty());
+    }
+
+    #[test]
+    fn test_compile_binary_empty_for_skill_without_binaries() {
+        let adapter = ClaudeCodeAdapter::new();
+        let asset = create_skill_asset("my-skill", "My skill", "# Skill");
+
+        let outputs = adapter.compile_binary(&asset).unwrap();
+
+        assert!(outputs.is_empty());
     }
 }

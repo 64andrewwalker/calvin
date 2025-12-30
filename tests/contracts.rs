@@ -20,3 +20,6 @@ mod config;
 
 #[path = "contracts/calvinignore.rs"]
 mod calvinignore;
+
+#[path = "contracts/skills.rs"]
+mod skills;

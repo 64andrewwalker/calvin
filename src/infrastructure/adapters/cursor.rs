@@ -13,7 +13,7 @@
 use std::path::PathBuf;
 
 use super::skills;
-use crate::domain::entities::{Asset, AssetKind, OutputFile};
+use crate::domain::entities::{Asset, AssetKind, BinaryOutputFile, OutputFile};
 use crate::domain::ports::target_adapter::{
     AdapterDiagnostic, AdapterError, DiagnosticSeverity, TargetAdapter,
 };
@@ -68,12 +68,14 @@ impl CursorAdapter {
 
     fn compile_skill(&self, asset: &Asset) -> Result<Vec<OutputFile>, AdapterError> {
         let footer = self.footer(&asset.source_path_normalized());
-        skills::compile_skill_outputs(
+        let result = skills::compile_skill_outputs(
             asset,
             self.skills_dir(asset.scope()),
             Target::Cursor,
             &footer,
-        )
+        )?;
+        // For now, return only text outputs. Binary outputs will be handled separately.
+        Ok(result.outputs)
     }
 }
 
@@ -150,6 +152,22 @@ impl TargetAdapter for CursorAdapter {
         }
 
         diagnostics
+    }
+
+    fn compile_binary(&self, asset: &Asset) -> Result<Vec<BinaryOutputFile>, AdapterError> {
+        if asset.kind() != AssetKind::Skill {
+            return Ok(vec![]);
+        }
+
+        let footer = self.footer(&asset.source_path_normalized());
+        let result = skills::compile_skill_outputs(
+            asset,
+            self.skills_dir(asset.scope()),
+            Target::Cursor,
+            &footer,
+        )?;
+
+        Ok(result.binary_outputs)
     }
 }
 
@@ -334,5 +352,47 @@ mod tests {
         assert!(fm.starts_with("---\n"));
         assert!(fm.ends_with("---\n"));
         assert!(fm.contains("description: Test description"));
+    }
+
+    // === TDD: Binary Outputs ===
+
+    #[test]
+    fn test_cursor_compile_binary_returns_skill_binaries() {
+        let adapter = CursorAdapter::new();
+
+        let mut binary_supplementals: HashMap<PathBuf, Vec<u8>> = HashMap::new();
+        binary_supplementals.insert(
+            PathBuf::from("images/logo.png"),
+            vec![0x89, 0x50, 0x4E, 0x47], // PNG magic
+        );
+
+        let asset = Asset::new(
+            "my-skill",
+            "skills/my-skill/SKILL.md",
+            "My skill",
+            "# Skill",
+        )
+        .with_kind(AssetKind::Skill)
+        .with_binary_supplementals(binary_supplementals);
+
+        let outputs = adapter.compile_binary(&asset).unwrap();
+
+        assert_eq!(outputs.len(), 1);
+        // Cursor uses Claude's skill paths
+        assert_eq!(
+            outputs[0].path(),
+            &PathBuf::from(".claude/skills/my-skill/images/logo.png")
+        );
+        assert_eq!(outputs[0].content(), &[0x89, 0x50, 0x4E, 0x47]);
+    }
+
+    #[test]
+    fn test_cursor_compile_binary_empty_for_non_skill() {
+        let adapter = CursorAdapter::new();
+        let asset = create_action_asset("test", "desc", "content");
+
+        let outputs = adapter.compile_binary(&asset).unwrap();
+
+        assert!(outputs.is_empty());
     }
 }

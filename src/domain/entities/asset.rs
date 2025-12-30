@@ -48,10 +48,21 @@ pub struct Asset {
     /// Empty for non-skill assets.
     supplementals: HashMap<PathBuf, String>,
 
+    /// Skill binary supplemental files (path relative to skill root → binary content)
+    ///
+    /// For files like images, PDFs, etc. that cannot be stored as UTF-8 strings.
+    /// Empty for non-skill assets.
+    binary_supplementals: HashMap<PathBuf, Vec<u8>>,
+
     /// Skill allowed tools list (from `allowed-tools` frontmatter)
     ///
     /// Empty for non-skill assets.
     allowed_tools: Vec<String>,
+
+    /// Warnings generated during asset loading (e.g., skipped binary files)
+    ///
+    /// These are non-fatal issues that should be surfaced to the user.
+    warnings: Vec<String>,
 }
 
 impl Asset {
@@ -78,7 +89,9 @@ impl Asset {
             content: content.into(),
             apply: None,
             supplementals: HashMap::new(),
+            binary_supplementals: HashMap::new(),
             allowed_tools: Vec::new(),
+            warnings: Vec::new(),
         }
     }
 
@@ -112,9 +125,24 @@ impl Asset {
         self
     }
 
+    /// Builder: set binary supplemental files (skill-only)
+    pub fn with_binary_supplementals(
+        mut self,
+        binary_supplementals: HashMap<PathBuf, Vec<u8>>,
+    ) -> Self {
+        self.binary_supplementals = binary_supplementals;
+        self
+    }
+
     /// Builder: set allowed tools (skill-only)
     pub fn with_allowed_tools(mut self, allowed_tools: Vec<String>) -> Self {
         self.allowed_tools = allowed_tools;
+        self
+    }
+
+    /// Builder: set warnings encountered during loading
+    pub fn with_warnings(mut self, warnings: Vec<String>) -> Self {
+        self.warnings = warnings;
         self
     }
 
@@ -183,9 +211,19 @@ impl Asset {
         &self.supplementals
     }
 
+    /// Get skill binary supplemental files
+    pub fn binary_supplementals(&self) -> &HashMap<PathBuf, Vec<u8>> {
+        &self.binary_supplementals
+    }
+
     /// Get allowed tools list (skill-only)
     pub fn allowed_tools(&self) -> &[String] {
         &self.allowed_tools
+    }
+
+    /// Get warnings encountered during asset loading
+    pub fn warnings(&self) -> &[String] {
+        &self.warnings
     }
 }
 
@@ -354,6 +392,25 @@ mod tests {
     fn test_asset_allowed_tools_empty_by_default() {
         let asset = Asset::new("test", "test.md", "desc", "content");
         assert!(asset.allowed_tools().is_empty());
+    }
+
+    #[test]
+    fn test_asset_warnings_empty_by_default() {
+        let asset = Asset::new("test", "test.md", "desc", "content");
+        assert!(asset.warnings().is_empty());
+    }
+
+    #[test]
+    fn test_asset_with_warnings_builder() {
+        let warnings = vec![
+            "Skipped binary file: image.png".to_string(),
+            "Skipped binary file: data.bin".to_string(),
+        ];
+
+        let asset = Asset::new("my-skill", "skills/my-skill/SKILL.md", "desc", "content")
+            .with_warnings(warnings.clone());
+
+        assert_eq!(asset.warnings(), &warnings);
     }
 
     // === TDD: Effective Targets ===

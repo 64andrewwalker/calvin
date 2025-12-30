@@ -96,6 +96,21 @@ pub trait SyncDestination: Send + Sync {
     fn write_file(&self, path: &std::path::Path, content: &str)
         -> Result<(), SyncDestinationError>;
 
+    /// Write a binary file to the destination
+    ///
+    /// Default implementation returns an error. Implementations that support
+    /// binary files should override this method.
+    fn write_binary(
+        &self,
+        path: &std::path::Path,
+        _content: &[u8],
+    ) -> Result<(), SyncDestinationError> {
+        Err(SyncDestinationError::NotAvailable(format!(
+            "Binary file write not supported for this destination: {}",
+            path.display()
+        )))
+    }
+
     /// Delete a file from the destination
     fn delete_file(&self, path: &std::path::Path) -> Result<(), SyncDestinationError>;
 

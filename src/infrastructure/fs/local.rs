@@ -36,6 +36,11 @@ impl FileSystem for LocalFs {
             .map_err(|e| FsError::Other(e.to_string()))
     }
 
+    fn write_binary(&self, path: &Path, content: &[u8]) -> FsResult<()> {
+        let expanded = self.expand_home(path);
+        Self::atomic_write_internal(&expanded, content).map_err(|e| FsError::Other(e.to_string()))
+    }
+
     fn exists(&self, path: &Path) -> bool {
         let expanded = self.expand_home(path);
         expanded.exists()

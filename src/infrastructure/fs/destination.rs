@@ -34,6 +34,12 @@ impl<D: SyncDestination + 'static> FileSystem for DestinationFs<D> {
             .map_err(convert_error)
     }
 
+    fn write_binary(&self, path: &Path, content: &[u8]) -> FsResult<()> {
+        self.destination
+            .write_binary(path, content)
+            .map_err(convert_error)
+    }
+
     fn exists(&self, path: &Path) -> bool {
         self.destination.exists(path)
     }
