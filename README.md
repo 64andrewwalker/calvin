@@ -225,7 +225,7 @@ Recent additions:
 - ✅ Security health checks (`check` command)
 - ✅ Skills support (`.promptpack/skills/<id>/SKILL.md`)
 
-See [docs/architecture/todo.md](docs/architecture/todo.md) for detailed roadmap.
+See the [Architecture documentation](docs/architecture.md) for system design details.
 
 ## Philosophy
 

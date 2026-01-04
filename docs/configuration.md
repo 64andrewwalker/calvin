@@ -1,8 +1,16 @@
 # Calvin Configuration Reference
 
+> **Version**: 0.6.0
+
+---
+
+## Overview
+
+Calvin uses a hierarchical configuration system where settings can be defined at multiple levels. Higher-priority sources override lower ones.
+
 ## Configuration Hierarchy
 
-Calvin reads configuration from:
+Calvin reads configuration from (lowest to highest priority):
 
 1. **Built-in defaults** (lowest priority)
 2. **User config**: `~/.config/calvin/config.toml` (XDG, preferred) or `~/.calvin/config.toml` (legacy fallback)
@@ -153,16 +161,16 @@ Notes:
 
 Environment variables override configuration files, but can be overridden by CLI flags.
 
-Supported env vars:
+### Supported Environment Variables
 
-| Variable | Equivalent | Example |
-|----------|------------|---------|
-| `CALVIN_SECURITY_MODE` | `security.mode` | `strict` |
-| `CALVIN_TARGETS` | `targets.enabled` | `claude-code,cursor` |
-| `CALVIN_VERBOSITY` | `output.verbosity` | `debug` |
-| `CALVIN_ATOMIC_WRITES` | `sync.atomic_writes` | `false` |
-| `CALVIN_SOURCES_USE_USER_LAYER` | `sources.use_user_layer` | `false` |
-| `CALVIN_SOURCES_USER_LAYER_PATH` | `sources.user_layer_path` | `~/dotfiles/.promptpack` |
+| Variable | Config Equivalent | Type | Example |
+|----------|------------------|------|---------|
+| `CALVIN_SECURITY_MODE` | `security.mode` | string | `strict`, `balanced`, `yolo` |
+| `CALVIN_TARGETS` | `targets.enabled` | comma-list | `claude-code,cursor` |
+| `CALVIN_VERBOSITY` | `output.verbosity` | string | `quiet`, `normal`, `verbose`, `debug` |
+| `CALVIN_ATOMIC_WRITES` | `sync.atomic_writes` | bool | `true`, `false` |
+| `CALVIN_SOURCES_USE_USER_LAYER` | `sources.use_user_layer` | bool | `true`, `false` |
+| `CALVIN_SOURCES_USER_LAYER_PATH` | `sources.user_layer_path` | path | `~/dotfiles/.promptpack` |
 
 ---
 
