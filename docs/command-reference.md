@@ -446,39 +446,22 @@ calvin provenance --json        # JSON output
 
 ---
 
-### `calvin migrate`
+### `calvin init`
 
-Migrate assets or lockfile to newer versions.
+Initialize a new `.promptpack` directory.
 
 ```bash
-calvin migrate [OPTIONS]
+calvin init [OPTIONS]
 ```
-
-**Options:**
-
-| Option | Description |
-|--------|-------------|
-| `--format <VERSION>` | Target format version (e.g., "1.0") |
-| `--adapter <NAME>` | Target adapter to migrate |
-| `--dry-run` | Preview changes without applying |
 
 **Description:**
 
-Migrates the lockfile from legacy location (`.promptpack/.calvin.lock`) to the new location (`./calvin.lock`). Future versions may add adapter migrations.
+Creates a new `.promptpack` directory in the current project with a basic configuration and example assets.
 
 **Examples:**
 
 ```bash
-calvin migrate                  # Apply all pending migrations
-calvin migrate --dry-run        # Preview what would change
-calvin migrate --json           # JSON output
-```
-
-**JSON Output:**
-
-```json
-{"event":"start","command":"migrate","dry_run":false}
-{"event":"complete","command":"migrate","status":"success","message":"Migration complete.","changes":[{"type":"move_lockfile","from":".promptpack/.calvin.lock","to":"calvin.lock"}]}
+calvin init
 ```
 
 ---

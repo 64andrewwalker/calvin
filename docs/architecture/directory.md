@@ -17,9 +17,7 @@ src/
 │
 ├── commands/               # Layer 0: 命令处理器 (独立于 presentation/)
 │   ├── check/              # check 命令模块
-│   │   ├── audit.rs
-│   │   ├── doctor.rs
-│   │   ├── engine.rs
+│   │   ├── engine.rs       # 检查引擎
 │   │   └── mod.rs
 │   ├── deploy/             # deploy 命令模块
 │   │   ├── bridge.rs       # CLI → UseCase 桥接
@@ -36,6 +34,11 @@ src/
 │   ├── debug.rs
 │   ├── explain.rs
 │   ├── watch.rs
+│   ├── init.rs             # init 命令
+│   ├── clean.rs            # clean 命令
+│   ├── projects.rs         # projects 命令
+│   ├── layers.rs           # layers 命令
+│   ├── provenance.rs       # provenance 命令
 │   └── mod.rs
 │
 ├── ui/                     # Layer 0: UI 渲染 (独立模块)
@@ -43,7 +46,12 @@ src/
 │   ├── components/         # UI 组件
 │   ├── primitives/         # UI 原语
 │   ├── views/              # 视图渲染
+│   │   ├── layers.rs       # Layers 视图
+│   │   └── ...
 │   ├── widgets/            # Widget
+│   ├── json/               # JSON UI 组件
+│   ├── ci.rs               # CI 模式 UI
+│   ├── live_region.rs      # 实时区域管理
 │   ├── context.rs          # UI 上下文
 │   ├── terminal.rs         # 终端检测
 │   ├── theme.rs            # 主题
@@ -62,8 +70,13 @@ src/
 │   │   ├── use_case.rs     # 核心 UseCase
 │   │   ├── tests.rs
 │   │   └── mod.rs
+│   ├── layers/             # Layering System (New)
+│   │   ├── query.rs
+│   │   └── mod.rs
+│   ├── registry/           # Registry System
+│   │   └── mod.rs
+│   ├── skills.rs           # Skills System
 │   ├── check.rs            # CheckUseCase
-│   ├── compiler.rs         # compile_assets 服务
 │   ├── diff.rs             # DiffUseCase
 │   ├── pipeline.rs         # AssetPipeline
 │   └── mod.rs
@@ -73,6 +86,8 @@ src/
 │   │   ├── asset.rs        # Asset (核心实体)
 │   │   ├── output_file.rs  # OutputFile (编译产物)
 │   │   ├── lockfile.rs     # Lockfile (状态跟踪)
+│   │   ├── layer.rs        # Layer 实体 (New)
+│   │   ├── registry.rs     # Registry 实体 (New)
 │   │   └── mod.rs
 │   ├── value_objects/      # 值对象
 │   │   ├── scope.rs        # Scope (user/project)
@@ -80,17 +95,22 @@ src/
 │   │   ├── hash.rs         # ContentHash
 │   │   ├── path.rs         # SafePath
 │   │   ├── lockfile_namespace.rs  # LockfileNamespace
+│   │   ├── security_mode.rs # SecurityMode
 │   │   └── mod.rs
 │   ├── services/           # 领域服务
 │   │   ├── compiler.rs     # 路径生成/Footer 生成
+│   │   ├── compiler_service.rs # 核心编译服务
 │   │   ├── planner.rs      # 计划阶段 (检测变化)
 │   │   ├── differ.rs       # 差异计算
 │   │   ├── orphan_detector.rs  # 孤儿检测
+│   │   ├── layer_merger.rs # Layer 合并服务 (New)
+│   │   ├── layer_resolver.rs # Layer 解析服务 (New)
 │   │   └── mod.rs
 │   ├── policies/           # 策略
 │   │   ├── scope_policy.rs # Scope 处理策略
 │   │   ├── security.rs     # 安全策略
 │   │   ├── security_baseline.rs  # 安全基线 (从 src/security_baseline.rs 迁移)
+│   │   ├── skill_allowed_tools.rs # Skill 允许工具策略 (New)
 │   │   └── mod.rs
 │   ├── ports/              # 端口 (接口定义)
 │   │   ├── asset_repository.rs     # trait AssetRepository
@@ -111,10 +131,12 @@ src/
 │   │   ├── vscode.rs
 │   │   ├── antigravity.rs
 │   │   ├── codex.rs
+│   │   ├── skills.rs       # Skills 适配器 (New)
 │   │   └── mod.rs
 │   ├── repositories/       # 仓储实现
 │   │   ├── asset.rs        # FsAssetRepository
 │   │   ├── lockfile.rs     # TomlLockfileRepository
+│   │   ├── registry.rs     # RegistryRepository (New)
 │   │   └── mod.rs
 │   ├── fs/                 # 文件系统
 │   │   ├── local.rs        # LocalFs
@@ -124,11 +146,14 @@ src/
 │   ├── config/             # 配置实现
 │   │   ├── toml_config.rs  # TomlConfigRepository
 │   │   └── mod.rs
+│   ├── layer/              # Layer 基础设施 (New)
+│   │   ├── fs_loader.rs
+│   │   └── mod.rs
 │   ├── conflict/           # 冲突解决
 │   │   ├── interactive.rs  # InteractiveResolver
 │   │   └── mod.rs
 │   ├── events/             # 事件接收器
-│   │   ├── json.rs         # JsonEventSink
+│   │   ├── json.rs         # JsonEventSink (基础设施部分)
 │   │   └── mod.rs
 │   ├── sync/               # 同步目标
 │   │   ├── local.rs        # LocalProjectDestination, LocalHomeDestination
