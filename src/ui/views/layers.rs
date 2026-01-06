@@ -45,8 +45,13 @@ impl<'a> LayersView<'a> {
 
             let path = truncate_middle(&display_with_tilde(&layer.original_path), 40);
             b.add_line(format!(
-                "{}. [{}] {:<42} {:>3} assets {:>3} skills",
-                layer_num, layer.layer_type, path, layer.asset_count, layer.skill_count
+                "{}. [{}] {:<42} {:>3} assets {:>3} skills {:>3} agents",
+                layer_num,
+                layer.layer_type,
+                path,
+                layer.asset_count,
+                layer.skill_count,
+                layer.agent_count
             ));
         }
         out.push_str(&b.render(supports_color, supports_unicode));

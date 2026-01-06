@@ -230,3 +230,171 @@ You are a helpful agent.
         "CONTRACT: Cursor should NOT create command fallback when Claude Code is enabled"
     );
 }
+
+/// CONTRACT: Agent output files must have valid YAML frontmatter
+///
+/// Claude Code requires agents to have YAML frontmatter with name and description.
+/// Without proper frontmatter, Claude Code cannot parse agent metadata.
+#[test]
+fn contract_agent_output_has_yaml_frontmatter() {
+    let env = TestEnv::builder().build();
+
+    env.write_project_file(
+        ".promptpack/agents/test.md",
+        r#"---
+kind: agent
+description: Test agent
+targets: [claude-code]
+---
+Content
+"#,
+    );
+
+    env.run(&["deploy", "--yes", "--targets", "claude-code"]);
+
+    let content = env.read_deployed_file(".claude/agents/test.md");
+
+    assert!(
+        content.starts_with("---\n"),
+        "CONTRACT: Agent output MUST start with YAML frontmatter delimiter"
+    );
+    assert!(
+        content.contains("\n---\n"),
+        "CONTRACT: Agent output MUST have closing YAML delimiter"
+    );
+}
+
+/// CONTRACT: Agent name field must match filesystem ID
+///
+/// The `name` field in agent frontmatter must equal the asset ID (filename stem).
+/// This ensures consistency between Claude Code's internal routing and file paths.
+#[test]
+fn contract_agent_name_matches_file_id() {
+    let env = TestEnv::builder().build();
+
+    env.write_project_file(
+        ".promptpack/agents/my-agent.md",
+        r#"---
+kind: agent
+description: Test agent
+targets: [claude-code]
+---
+Content
+"#,
+    );
+
+    env.run(&["deploy", "--yes", "--targets", "claude-code"]);
+
+    let content = env.read_deployed_file(".claude/agents/my-agent.md");
+
+    assert!(
+        content.contains("name: my-agent"),
+        "CONTRACT: Agent 'name' field MUST match the file ID (kebab-case)"
+    );
+}
+
+/// CONTRACT: Agent description field must be present
+///
+/// Claude Code uses description for auto-delegation routing.
+/// Empty or missing descriptions break agent discovery.
+#[test]
+fn contract_agent_description_present() {
+    let env = TestEnv::builder().build();
+
+    env.write_project_file(
+        ".promptpack/agents/test.md",
+        r#"---
+kind: agent
+description: My agent description
+targets: [claude-code]
+---
+Content
+"#,
+    );
+
+    env.run(&["deploy", "--yes", "--targets", "claude-code"]);
+
+    let content = env.read_deployed_file(".claude/agents/test.md");
+
+    assert!(
+        content.contains("description: My agent description")
+            || content.contains("description: \"My agent description\""),
+        "CONTRACT: Agent 'description' field MUST be present in output"
+    );
+}
+
+/// CONTRACT: permission-mode transforms to permissionMode (camelCase)
+///
+/// Calvin source uses kebab-case (permission-mode) but Claude Code expects
+/// camelCase (permissionMode). This transformation is mandatory.
+#[test]
+fn contract_agent_permission_mode_camelcase() {
+    let env = TestEnv::builder().build();
+
+    env.write_project_file(
+        ".promptpack/agents/test.md",
+        "---
+kind: agent
+description: Test
+targets: [claude-code]
+permission-mode: acceptEdits
+---
+Content
+",
+    );
+
+    env.run(&["deploy", "--yes", "--targets", "claude-code"]);
+
+    let content = env.read_deployed_file(".claude/agents/test.md");
+
+    assert!(
+        content.contains("permissionMode: acceptEdits"),
+        "CONTRACT: 'permission-mode' input MUST become 'permissionMode' (camelCase) in output\nActual content:\n{}",
+        content
+    );
+    assert!(
+        !content.contains("permission-mode:"),
+        "CONTRACT: Output MUST NOT contain kebab-case 'permission-mode'"
+    );
+}
+
+/// CONTRACT: Optional fields are omitted when not set
+///
+/// Agent output should be clean - optional fields (tools, model, permissionMode, skills)
+/// should only appear when explicitly set in source.
+#[test]
+fn contract_agent_optional_fields_omitted() {
+    let env = TestEnv::builder().build();
+
+    env.write_project_file(
+        ".promptpack/agents/minimal.md",
+        r#"---
+kind: agent
+description: Minimal agent
+targets: [claude-code]
+---
+Content
+"#,
+    );
+
+    env.run(&["deploy", "--yes", "--targets", "claude-code"]);
+
+    let content = env.read_deployed_file(".claude/agents/minimal.md");
+
+    assert!(
+        !content.contains("tools:"),
+        "CONTRACT: 'tools' field MUST be omitted when not set"
+    );
+    assert!(
+        !content.contains("model:"),
+        "CONTRACT: 'model' field MUST be omitted when not set"
+    );
+    assert!(
+        !content.contains("permissionMode:"),
+        "CONTRACT: 'permissionMode' field MUST be omitted when not set"
+    );
+    assert!(
+        !content.contains("skills:"),
+        "CONTRACT: 'skills' field MUST be omitted when not set"
+    );
+}

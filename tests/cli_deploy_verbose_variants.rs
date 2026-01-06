@@ -86,14 +86,14 @@ User content
 
     // Project layer should show 0 assets
     assert!(
-        result.stdout.contains("(0 assets, 0 skills)"),
+        result.stdout.contains("(0 assets, 0 skills, 0 agents)"),
         "project layer should show 0 assets:\n{}",
         result.stdout
     );
 
     // User layer should show 1 asset
     assert!(
-        result.stdout.contains("(1 assets, 0 skills)"),
+        result.stdout.contains("(1 assets, 0 skills, 0 agents)"),
         "user layer should show 1 asset:\n{}",
         result.stdout
     );

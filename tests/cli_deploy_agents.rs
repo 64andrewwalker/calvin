@@ -37,20 +37,29 @@ fn deploy_agent_includes_description_in_output() {
 
     env.write_project_file(
         ".promptpack/agents/my-agent.md",
-        r#"---
+        "---
 kind: agent
 description: My specialized agent
 scope: project
 targets: [claude-code]
 ---
 Agent content here.
-"#,
+",
     );
 
     let result = env.run(&["deploy", "--yes", "--targets", "claude-code"]);
     assert!(result.success);
 
     let content = std::fs::read_to_string(env.project_path(".claude/agents/my-agent.md")).unwrap();
+
+    assert!(
+        content.starts_with("---\n"),
+        "expected YAML frontmatter:\n{content}"
+    );
+    assert!(
+        content.contains("name: my-agent"),
+        "expected name field in output:\n{content}"
+    );
     assert!(
         content.contains("My specialized agent"),
         "expected description in output:\n{content}"
@@ -286,5 +295,117 @@ You are a code reviewer.
     assert!(
         content.contains("Code review agent"),
         "AGENTS.md should contain the agent description:\n{content}"
+    );
+}
+
+#[test]
+fn deploy_agent_with_permission_mode_outputs_camelcase() {
+    let env = TestEnv::builder().build();
+
+    env.write_project_file(
+        ".promptpack/agents/restricted.md",
+        "---
+kind: agent
+description: Restricted agent
+scope: project
+targets: [claude-code]
+permission-mode: acceptEdits
+---
+Agent content.
+",
+    );
+
+    let result = env.run(&["deploy", "--yes", "--targets", "claude-code"]);
+    assert!(
+        result.success,
+        "deploy failed:\n{}",
+        result.combined_output()
+    );
+
+    let content =
+        std::fs::read_to_string(env.project_path(".claude/agents/restricted.md")).unwrap();
+
+    assert!(
+        content.contains("permissionMode: acceptEdits"),
+        "expected permissionMode in camelCase:\n{content}"
+    );
+    assert!(
+        !content.contains("permission-mode:"),
+        "kebab-case permission-mode should NOT appear:\n{content}"
+    );
+}
+
+#[test]
+fn deploy_agent_with_claude_code_native_format() {
+    let env = TestEnv::builder().build();
+
+    env.write_project_file(
+        ".promptpack/agents/copywriter.md",
+        r#"---
+name: content-writer
+description: Drafts marketing content
+tools: Read, Grep
+skills: style-guide
+permissionMode: acceptEdits
+---
+You draft marketing content.
+"#,
+    );
+
+    let result = env.run(&["deploy", "--yes", "--targets", "claude-code"]);
+    assert!(
+        result.success,
+        "deploy failed:\n{}",
+        result.combined_output()
+    );
+
+    let content =
+        std::fs::read_to_string(env.project_path(".claude/agents/copywriter.md")).unwrap();
+
+    assert!(
+        content.contains("name: content-writer"),
+        "expected name field with frontmatter value:\n{content}"
+    );
+    assert!(
+        content.contains("tools: Read, Grep"),
+        "expected tools as comma-separated:\n{content}"
+    );
+    assert!(
+        content.contains("skills: style-guide"),
+        "expected skills in output:\n{content}"
+    );
+    assert!(
+        content.contains("permissionMode: acceptEdits"),
+        "expected permissionMode in camelCase:\n{content}"
+    );
+}
+
+#[test]
+fn deploy_agent_infers_kind_from_directory() {
+    let env = TestEnv::builder().build();
+
+    env.write_project_file(
+        ".promptpack/agents/auto-reviewer.md",
+        r#"---
+description: Auto reviewer (no kind specified)
+scope: project
+targets: [claude-code]
+---
+You review code automatically.
+"#,
+    );
+
+    let result = env.run(&["deploy", "--yes", "--targets", "claude-code"]);
+    assert!(
+        result.success,
+        "deploy failed:\n{}",
+        result.combined_output()
+    );
+
+    assert_deployed!(&env, ".claude/agents/auto-reviewer.md");
+    assert!(
+        !env.project_path(".claude/commands/auto-reviewer.md")
+            .exists(),
+        "agent should NOT be in commands directory"
     );
 }

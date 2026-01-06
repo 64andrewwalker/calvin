@@ -184,8 +184,8 @@ pub fn select_layers_interactive(
 fn layer_display_name(layer: &LayerSummary) -> String {
     let path = truncate_middle(&layer.original_path.display().to_string(), 40);
     format!(
-        "{:<8} {} ({} assets, {} skills)",
-        layer.layer_type, path, layer.asset_count, layer.skill_count
+        "{:<8} {} ({} assets, {} skills, {} agents)",
+        layer.layer_type, path, layer.asset_count, layer.skill_count, layer.agent_count
     )
 }
 
@@ -256,6 +256,7 @@ mod tests {
             resolved_path: PathBuf::from(format!("/path/to/{}", name)),
             asset_count,
             skill_count: 0,
+            agent_count: 0,
         }
     }
 

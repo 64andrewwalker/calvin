@@ -45,27 +45,44 @@ pub struct Frontmatter {
     /// Description of the asset (REQUIRED)
     pub description: String,
 
-    /// Kind of asset (policy, action, agent)
+    #[serde(default)]
+    pub name: Option<String>,
+
     #[serde(default)]
     pub kind: AssetKind,
 
-    /// Where to install (project or user level)
     #[serde(default)]
     pub scope: Scope,
 
-    /// Target platforms (defaults to all if not specified)
     #[serde(default)]
     pub targets: Vec<Target>,
 
-    /// File glob pattern for conditional application (e.g., "*.rs")
     #[serde(default)]
     pub apply: Option<String>,
 
-    /// Skill-only: allowed tools list (validated at compile/check time)
-    ///
-    /// Ignored for non-skill assets.
     #[serde(default, rename = "allowed-tools")]
     pub allowed_tools: Vec<String>,
+
+    #[serde(default)]
+    pub tools: Option<String>,
+
+    #[serde(default, rename = "agent-tools")]
+    pub agent_tools: Vec<String>,
+
+    #[serde(default)]
+    pub model: Option<String>,
+
+    #[serde(default, rename = "permissionMode")]
+    pub permission_mode_camel: Option<String>,
+
+    #[serde(default, rename = "permission-mode")]
+    pub permission_mode: Option<String>,
+
+    #[serde(default)]
+    pub skills: Option<String>,
+
+    #[serde(default, rename = "agent-skills")]
+    pub agent_skills: Vec<String>,
 }
 
 impl Frontmatter {
@@ -73,12 +90,57 @@ impl Frontmatter {
     pub fn new(description: impl Into<String>) -> Self {
         Self {
             description: description.into(),
+            name: None,
             kind: AssetKind::default(),
             scope: Scope::default(),
             targets: Vec::new(),
             apply: None,
             allowed_tools: Vec::new(),
+            tools: None,
+            agent_tools: Vec::new(),
+            model: None,
+            permission_mode_camel: None,
+            permission_mode: None,
+            skills: None,
+            agent_skills: Vec::new(),
         }
+    }
+
+    /// Get effective tools as Vec<String>, merging `tools` (comma-sep) and `agent-tools` (list)
+    pub fn effective_tools(&self) -> Vec<String> {
+        if let Some(ref tools_str) = self.tools {
+            tools_str
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect()
+        } else if !self.agent_tools.is_empty() {
+            self.agent_tools.clone()
+        } else {
+            Vec::new()
+        }
+    }
+
+    /// Get effective skills as Vec<String>, merging `skills` (comma-sep) and `agent-skills` (list)
+    pub fn effective_skills(&self) -> Vec<String> {
+        if let Some(ref skills_str) = self.skills {
+            skills_str
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect()
+        } else if !self.agent_skills.is_empty() {
+            self.agent_skills.clone()
+        } else {
+            Vec::new()
+        }
+    }
+
+    /// Get effective permission mode, preferring camelCase `permissionMode` over kebab `permission-mode`
+    pub fn effective_permission_mode(&self) -> Option<&str> {
+        self.permission_mode_camel
+            .as_deref()
+            .or(self.permission_mode.as_deref())
     }
 
     /// Get effective targets (returns all if targets is empty or contains All)
@@ -319,5 +381,127 @@ allowed-tools:
         let yaml = "user";
         let scope: Scope = serde_yaml_ng::from_str(yaml).unwrap();
         assert_eq!(scope, Scope::User);
+    }
+
+    #[test]
+    fn test_frontmatter_deserialize_agent_tools_as_list() {
+        let yaml = r#"
+description: Test agent
+kind: agent
+agent-tools:
+  - Read
+  - Grep
+"#;
+        let fm: Frontmatter = serde_yaml_ng::from_str(yaml).unwrap();
+        assert_eq!(fm.agent_tools, vec!["Read", "Grep"]);
+    }
+
+    #[test]
+    fn test_frontmatter_deserialize_agent_model() {
+        let yaml = r#"
+description: Test agent
+kind: agent
+model: sonnet
+"#;
+        let fm: Frontmatter = serde_yaml_ng::from_str(yaml).unwrap();
+        assert_eq!(fm.model, Some("sonnet".to_string()));
+    }
+
+    #[test]
+    fn test_frontmatter_deserialize_permission_mode_kebab_case() {
+        let yaml = r#"
+description: Test agent
+kind: agent
+permission-mode: acceptEdits
+"#;
+        let fm: Frontmatter = serde_yaml_ng::from_str(yaml).unwrap();
+        assert_eq!(fm.permission_mode, Some("acceptEdits".to_string()));
+    }
+
+    #[test]
+    fn test_frontmatter_deserialize_agent_skills_as_list() {
+        let yaml = r#"
+description: Test agent
+kind: agent
+agent-skills:
+  - skill-a
+  - skill-b
+"#;
+        let fm: Frontmatter = serde_yaml_ng::from_str(yaml).unwrap();
+        assert_eq!(fm.agent_skills, vec!["skill-a", "skill-b"]);
+    }
+
+    #[test]
+    fn test_frontmatter_deserialize_claude_code_format() {
+        let yaml = r#"
+name: copywriter
+description: Drafts content
+tools: Read, Grep, Glob
+model: sonnet
+permissionMode: acceptEdits
+skills: solution-page, style-guide
+"#;
+        let fm: Frontmatter = serde_yaml_ng::from_str(yaml).unwrap();
+        assert_eq!(fm.name, Some("copywriter".to_string()));
+        assert_eq!(fm.tools, Some("Read, Grep, Glob".to_string()));
+        assert_eq!(fm.permission_mode_camel, Some("acceptEdits".to_string()));
+        assert_eq!(fm.skills, Some("solution-page, style-guide".to_string()));
+    }
+
+    #[test]
+    fn test_effective_tools_prefers_comma_sep_over_list() {
+        let yaml = r#"
+description: Test
+tools: Read, Grep
+agent-tools:
+  - Bash
+"#;
+        let fm: Frontmatter = serde_yaml_ng::from_str(yaml).unwrap();
+        assert_eq!(fm.effective_tools(), vec!["Read", "Grep"]);
+    }
+
+    #[test]
+    fn test_effective_tools_falls_back_to_list() {
+        let yaml = r#"
+description: Test
+agent-tools:
+  - Read
+  - Grep
+"#;
+        let fm: Frontmatter = serde_yaml_ng::from_str(yaml).unwrap();
+        assert_eq!(fm.effective_tools(), vec!["Read", "Grep"]);
+    }
+
+    #[test]
+    fn test_effective_skills_prefers_comma_sep_over_list() {
+        let yaml = r#"
+description: Test
+skills: skill-a, skill-b
+agent-skills:
+  - skill-c
+"#;
+        let fm: Frontmatter = serde_yaml_ng::from_str(yaml).unwrap();
+        assert_eq!(fm.effective_skills(), vec!["skill-a", "skill-b"]);
+    }
+
+    #[test]
+    fn test_effective_permission_mode_prefers_camelcase() {
+        let yaml = r#"
+description: Test
+permissionMode: acceptEdits
+permission-mode: dontAsk
+"#;
+        let fm: Frontmatter = serde_yaml_ng::from_str(yaml).unwrap();
+        assert_eq!(fm.effective_permission_mode(), Some("acceptEdits"));
+    }
+
+    #[test]
+    fn test_effective_permission_mode_falls_back_to_kebab() {
+        let yaml = r#"
+description: Test
+permission-mode: dontAsk
+"#;
+        let fm: Frontmatter = serde_yaml_ng::from_str(yaml).unwrap();
+        assert_eq!(fm.effective_permission_mode(), Some("dontAsk"));
     }
 }

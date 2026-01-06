@@ -131,6 +131,118 @@ allowed-tools:
   - cat
 ```
 
+## Agent-Specific Fields
+
+The following fields are only used for agents (`kind: agent`). They configure Claude Code subagent behavior.
+
+### `name`
+
+**Type**: `string`  
+**Default**: asset ID (filename stem)
+
+Custom name for the agent. If not specified, uses the filename (e.g., `reviewer.md` → `reviewer`).
+
+```yaml
+name: code-reviewer
+```
+
+### `tools`
+
+**Type**: `string` (comma-separated)  
+**Default**: inherit all tools
+
+Whitelist of tools this agent can use. If not specified, the agent inherits all tools from the main thread.
+
+```yaml
+tools: Read, Grep, Glob, Bash
+```
+
+Calvin also accepts the YAML list format as `agent-tools`:
+
+```yaml
+agent-tools:
+  - Read
+  - Grep
+  - Glob
+```
+
+### `model`
+
+**Type**: `"sonnet"` | `"opus"` | `"haiku"` | `"inherit"`  
+**Default**: none (uses default model)
+
+Model override for this agent.
+
+```yaml
+model: sonnet
+```
+
+### `permissionMode`
+
+**Type**: `"default"` | `"acceptEdits"` | `"dontAsk"` | `"bypassPermissions"` | `"plan"` | `"ignore"`  
+**Default**: none
+
+Controls how the agent handles permission prompts.
+
+| Mode | Behavior |
+|------|----------|
+| `default` | Standard permission prompts |
+| `acceptEdits` | Auto-accept file edits |
+| `dontAsk` | Skip all permission prompts |
+| `bypassPermissions` | Full bypass (dangerous) |
+| `plan` | Planning mode only |
+| `ignore` | Ignore permission system |
+
+```yaml
+permissionMode: acceptEdits
+```
+
+Calvin also accepts kebab-case as `permission-mode`:
+
+```yaml
+permission-mode: acceptEdits
+```
+
+### `skills`
+
+**Type**: `string` (comma-separated)  
+**Default**: none
+
+Skills to preload when this agent starts. Custom subagents do NOT inherit skills from the main thread by default.
+
+```yaml
+skills: repo-navigation, engineering-standards
+```
+
+Calvin also accepts the YAML list format as `agent-skills`:
+
+```yaml
+agent-skills:
+  - repo-navigation
+  - engineering-standards
+```
+
+## Agent Example
+
+```markdown
+---
+description: Use proactively to explore the codebase and gather evidence before planning or editing.
+tools: Read, Grep, Glob, Bash
+model: haiku
+permissionMode: default
+skills: repo-navigation
+---
+
+You are a code researcher. Your job is to explore the codebase and gather evidence.
+
+Output:
+- File paths you examined
+- Search keywords used
+- Key findings with file references
+
+Do NOT make any changes. Only gather information.
+```
+
 ## Skill Example
 
 ```markdown
@@ -168,23 +280,29 @@ These are passed through unchanged; the target platform interprets them at runti
 
 ### Claude Code
 
-- Source frontmatter is not used directly in outputs for actions/policies/agents (Calvin generates native files).
-- Skills compile to `.claude/skills/<id>/SKILL.md` (plus supplementals).
+- Actions and policies compile to `.claude/commands/<id>.md`
+- **Agents** compile to `.claude/agents/<id>.md` with YAML frontmatter (see [Agent Example](#agent-example))
+- Skills compile to `.claude/skills/<id>/SKILL.md` (plus supplementals)
+- Agent-specific fields (`tools`, `model`, `permissionMode`, `skills`) are output in Claude Code native format
 
 ### Cursor
 
 - Policies compile to `.cursor/rules/<id>/RULE.md`; `apply` is mapped to `globs`, and `alwaysApply` is derived.
-- Skills compile to `.claude/skills/<id>/SKILL.md` (Cursor reads Claude’s skills path).
+- **Agents** compile to `.cursor/commands/<id>.md` as fallback when Claude Code is not enabled
+- When both Cursor and Claude Code are enabled, agents go to `.claude/agents/` only (no Cursor fallback)
+- Skills compile to `.claude/skills/<id>/SKILL.md` (Cursor reads Claude's skills path)
 
 ### VS Code (Copilot)
 
-- Policies compile to `.github/copilot-instructions.md` and/or `.github/instructions/<id>.md`; `apply` maps to `applyTo`.
-- Skills are not supported and are skipped.
+- Policies compile to `.github/instructions/<id>.instructions.md`; `apply` maps to `applyTo`
+- **Agents** compile to `.github/instructions/<id>.instructions.md` and are listed in `AGENTS.md`
+- Skills are not supported and are skipped
 
 ### Antigravity
 
-- Policies and actions compile to `.agent/rules/` and `.agent/workflows/`.
-- Skills are not supported and are skipped.
+- Policies compile to `.agent/rules/<id>.md`
+- Actions and **agents** compile to `.agent/workflows/<id>.md` (Antigravity does not have native agent support)
+- Skills are not supported and are skipped
 
 ### Codex
 
