@@ -1,6 +1,6 @@
 # Calvin JSON Output Format
 
-> **Version**: 0.5.1+
+> **Version**: 0.6.0
 > **Last Updated**: 2025-12-26
 
 Calvin commands support a `--json` flag that outputs machine-readable NDJSON (Newline-Delimited JSON) for CI/CD pipelines and automation tools.

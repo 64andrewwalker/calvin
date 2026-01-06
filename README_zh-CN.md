@@ -225,7 +225,7 @@ calvin deploy --remote user@host:/path/to/project
 - ✅ 安全健康检查（`check` 命令）
 - ✅ Skills 支持（`.promptpack/skills/<id>/SKILL.md`）
 
-详细路线图请参阅 [docs/architecture/todo.md](docs/architecture/todo.md)。
+系统设计详情请参阅[架构文档](docs/architecture.md)。
 
 ## 设计哲学
 

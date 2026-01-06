@@ -111,6 +111,15 @@ docs/
 
 | Date | Change | Files Affected |
 |------|--------|----------------|
+| 2025-01-05 | **Archived completed plan docs** | archive/ |
+| 2025-01-05 | Moved implementation-plan.md → archive/implementation-plan-v1.md | archive/ |
+| 2025-01-05 | Moved architecture/todo.md → archive/architecture-todo-completed-2025-12.md | archive/ |
+| 2025-01-05 | Moved architecture-redesign.md → archive/architecture-redesign-skills.md | archive/ |
+| 2025-01-05 | Moved analysis-report.md → archive/analysis-report-v0.2.md | archive/ |
+| 2025-01-05 | Updated version refs 0.5.1 → 0.6.0 | command-reference.md, api/json-output.md |
+| 2025-01-05 | Created docs/index.md navigation page | index.md |
+| 2025-01-05 | Improved configuration.md formatting | configuration.md |
+| 2025-01-05 | Updated README roadmap links | README.md, README_zh-CN.md |
 | 2025-12-30 | Created reorganization plan | This file |
 | 2025-12-30 | Phase 1: Renamed architecture/README.md → index.md | architecture/index.md |
 | 2025-12-30 | Phase 1: Renamed architecture/TODO.md → todo.md | architecture/todo.md |

@@ -1,6 +1,6 @@
 # Calvin Command Reference
 
-> Reference for Calvin CLI commands (v0.5.1+)
+> Reference for Calvin CLI commands (v0.6.0)
 
 ## Synopsis
 
@@ -55,7 +55,7 @@ calvin deploy [OPTIONS]
 | `--dry-run` | - | Preview changes without writing |
 | `--cleanup` | - | Remove orphan files (files previously deployed but no longer generated) |
 
-**Multi-Layer System (v0.5.1+):**
+**Multi-Layer System:**
 
 Calvin automatically loads assets from multiple layers in priority order:
 
@@ -231,7 +231,7 @@ calvin clean [OPTIONS]
 | `--source <PATH>` | `-s` | Path to `.promptpack` directory (default: `.promptpack`) |
 | `--home` | - | Clean only home directory deployments (~/) |
 | `--project` | - | Clean only project directory deployments (./) |
-| `--all` | - | **Registry-wide clean**: clean all registered projects (v0.5.1+) |
+| `--all` | - | **Registry-wide clean**: clean all registered projects |
 | `--dry-run` | - | Preview what would be deleted without deleting |
 | `--yes` | `-y` | Non-interactive; skip confirmation prompt |
 | `--force` | `-f` | Force delete even if files were modified |
@@ -252,7 +252,7 @@ calvin clean [OPTIONS]
 | `--all` | **All registered projects** in the global registry |
 | (none) | Interactive mode with tree menu |
 
-> **Breaking Change (v0.5.1):** `--all` now means "all projects" (registry-wide), not "all scopes" (home + project). To clean both scopes in the current project, use interactive mode or run `--home` and `--project` separately.
+> **Note:** `--all` means "all projects" (registry-wide), not "all scopes" (home + project). To clean both scopes in the current project, use interactive mode or run `--home` and `--project` separately.
 
 **Examples:**
 
@@ -446,39 +446,22 @@ calvin provenance --json        # JSON output
 
 ---
 
-### `calvin migrate`
+### `calvin init`
 
-Migrate assets or lockfile to newer versions.
+Initialize a new `.promptpack` directory.
 
 ```bash
-calvin migrate [OPTIONS]
+calvin init [OPTIONS]
 ```
-
-**Options:**
-
-| Option | Description |
-|--------|-------------|
-| `--format <VERSION>` | Target format version (e.g., "1.0") |
-| `--adapter <NAME>` | Target adapter to migrate |
-| `--dry-run` | Preview changes without applying |
 
 **Description:**
 
-Migrates the lockfile from legacy location (`.promptpack/.calvin.lock`) to the new location (`./calvin.lock`). Future versions may add adapter migrations.
+Creates a new `.promptpack` directory in the current project with a basic configuration and example assets.
 
 **Examples:**
 
 ```bash
-calvin migrate                  # Apply all pending migrations
-calvin migrate --dry-run        # Preview what would change
-calvin migrate --json           # JSON output
-```
-
-**JSON Output:**
-
-```json
-{"event":"start","command":"migrate","dry_run":false}
-{"event":"complete","command":"migrate","status":"success","message":"Migration complete.","changes":[{"type":"move_lockfile","from":".promptpack/.calvin.lock","to":"calvin.lock"}]}
+calvin init
 ```
 
 ---
