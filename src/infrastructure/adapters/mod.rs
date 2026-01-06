@@ -3,6 +3,7 @@
 //! These adapters implement the TargetAdapter port from the domain layer.
 //! They transform domain Assets into platform-specific OutputFiles.
 
+mod agents;
 pub mod antigravity;
 pub mod claude_code;
 pub mod codex;

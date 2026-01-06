@@ -59,6 +59,12 @@ pub struct Asset {
     /// Empty for non-skill assets.
     allowed_tools: Vec<String>,
 
+    agent_name: Option<String>,
+    agent_tools: Vec<String>,
+    agent_model: Option<String>,
+    agent_permission_mode: Option<String>,
+    agent_skills: Vec<String>,
+
     /// Warnings generated during asset loading (e.g., skipped binary files)
     ///
     /// These are non-fatal issues that should be surfaced to the user.
@@ -91,6 +97,11 @@ impl Asset {
             supplementals: HashMap::new(),
             binary_supplementals: HashMap::new(),
             allowed_tools: Vec::new(),
+            agent_name: None,
+            agent_tools: Vec::new(),
+            agent_model: None,
+            agent_permission_mode: None,
+            agent_skills: Vec::new(),
             warnings: Vec::new(),
         }
     }
@@ -143,6 +154,31 @@ impl Asset {
     /// Builder: set warnings encountered during loading
     pub fn with_warnings(mut self, warnings: Vec<String>) -> Self {
         self.warnings = warnings;
+        self
+    }
+
+    pub fn with_agent_name(mut self, name: Option<String>) -> Self {
+        self.agent_name = name;
+        self
+    }
+
+    pub fn with_agent_tools(mut self, tools: Vec<String>) -> Self {
+        self.agent_tools = tools;
+        self
+    }
+
+    pub fn with_agent_model(mut self, model: Option<String>) -> Self {
+        self.agent_model = model;
+        self
+    }
+
+    pub fn with_agent_permission_mode(mut self, mode: Option<String>) -> Self {
+        self.agent_permission_mode = mode;
+        self
+    }
+
+    pub fn with_agent_skills(mut self, skills: Vec<String>) -> Self {
+        self.agent_skills = skills;
         self
     }
 
@@ -225,13 +261,32 @@ impl Asset {
     pub fn warnings(&self) -> &[String] {
         &self.warnings
     }
+
+    pub fn agent_name(&self) -> Option<&str> {
+        self.agent_name.as_deref()
+    }
+
+    pub fn agent_tools(&self) -> &[String] {
+        &self.agent_tools
+    }
+
+    pub fn agent_model(&self) -> Option<&str> {
+        self.agent_model.as_deref()
+    }
+
+    pub fn agent_permission_mode(&self) -> Option<&str> {
+        self.agent_permission_mode.as_deref()
+    }
+
+    pub fn agent_skills(&self) -> &[String] {
+        &self.agent_skills
+    }
 }
 
 // === From implementations ===
 
 impl From<crate::models::PromptAsset> for Asset {
     fn from(pa: crate::models::PromptAsset) -> Self {
-        // Convert AssetKind
         let kind = match pa.frontmatter.kind {
             crate::models::AssetKind::Policy => AssetKind::Policy,
             crate::models::AssetKind::Action => AssetKind::Action,
@@ -239,13 +294,11 @@ impl From<crate::models::PromptAsset> for Asset {
             crate::models::AssetKind::Skill => AssetKind::Skill,
         };
 
-        // Convert Scope
         let scope = match pa.frontmatter.scope {
             crate::models::Scope::Project => Scope::Project,
             crate::models::Scope::User => Scope::User,
         };
 
-        // Convert Targets
         let targets: Vec<Target> = pa
             .frontmatter
             .targets
@@ -259,6 +312,13 @@ impl From<crate::models::PromptAsset> for Asset {
                 crate::models::Target::All => Target::All,
             })
             .collect();
+
+        let effective_tools = pa.frontmatter.effective_tools();
+        let effective_skills = pa.frontmatter.effective_skills();
+        let effective_perm = pa
+            .frontmatter
+            .effective_permission_mode()
+            .map(|s| s.to_string());
 
         let mut asset = Asset::new(
             &pa.id,
@@ -274,9 +334,23 @@ impl From<crate::models::PromptAsset> for Asset {
             asset = asset.with_apply(apply);
         }
 
-        // allowed-tools is ignored for non-skill assets; stored for skills (or future use).
         if !pa.frontmatter.allowed_tools.is_empty() {
             asset = asset.with_allowed_tools(pa.frontmatter.allowed_tools);
+        }
+
+        asset = asset.with_agent_name(pa.frontmatter.name);
+
+        if !effective_tools.is_empty() {
+            asset = asset.with_agent_tools(effective_tools);
+        }
+        if pa.frontmatter.model.is_some() {
+            asset = asset.with_agent_model(pa.frontmatter.model);
+        }
+        if effective_perm.is_some() {
+            asset = asset.with_agent_permission_mode(effective_perm);
+        }
+        if !effective_skills.is_empty() {
+            asset = asset.with_agent_skills(effective_skills);
         }
 
         asset
@@ -465,11 +539,19 @@ mod tests {
 
         let frontmatter = Frontmatter {
             description: "Test description".to_string(),
+            name: None,
             kind: ModelKind::Policy,
             scope: ModelScope::User,
             targets: vec![crate::models::Target::Cursor],
             apply: Some("*.rs".to_string()),
             allowed_tools: vec![],
+            tools: None,
+            agent_tools: vec![],
+            model: None,
+            permission_mode_camel: None,
+            permission_mode: None,
+            skills: None,
+            agent_skills: vec![],
         };
         let prompt_asset = PromptAsset::new("test-id", "test.md", frontmatter, "Test content");
 
@@ -482,5 +564,40 @@ mod tests {
         assert_eq!(asset.targets(), &[Target::Cursor]);
         assert_eq!(asset.apply(), Some("*.rs"));
         assert_eq!(asset.content(), "Test content");
+    }
+
+    #[test]
+    fn asset_from_prompt_asset_with_agent_fields() {
+        use crate::models::{
+            AssetKind as ModelKind, Frontmatter, PromptAsset, Scope as ModelScope,
+        };
+
+        let frontmatter = Frontmatter {
+            description: "Agent description".to_string(),
+            name: Some("test-agent".to_string()),
+            kind: ModelKind::Agent,
+            scope: ModelScope::Project,
+            targets: vec![crate::models::Target::ClaudeCode],
+            apply: None,
+            allowed_tools: vec![],
+            tools: None,
+            agent_tools: vec!["Read".to_string(), "Grep".to_string()],
+            model: Some("sonnet".to_string()),
+            permission_mode_camel: Some("acceptEdits".to_string()),
+            permission_mode: None,
+            skills: None,
+            agent_skills: vec!["skill-a".to_string()],
+        };
+        let prompt_asset =
+            PromptAsset::new("test-agent", "agents/test.md", frontmatter, "Agent content");
+
+        let asset = Asset::from(prompt_asset);
+
+        assert_eq!(asset.id(), "test-agent");
+        assert_eq!(asset.kind(), AssetKind::Agent);
+        assert_eq!(asset.agent_tools(), &["Read", "Grep"]);
+        assert_eq!(asset.agent_model(), Some("sonnet"));
+        assert_eq!(asset.agent_permission_mode(), Some("acceptEdits"));
+        assert_eq!(asset.agent_skills(), &["skill-a"]);
     }
 }

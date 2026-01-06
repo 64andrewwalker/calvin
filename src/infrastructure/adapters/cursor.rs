@@ -194,6 +194,11 @@ mod tests {
             .with_supplementals(supplementals)
     }
 
+    fn create_agent_asset(id: &str, description: &str, content: &str) -> Asset {
+        Asset::new(id, format!("agents/{}.md", id), description, content)
+            .with_kind(AssetKind::Agent)
+    }
+
     // === TDD: Compile Tests ===
 
     #[test]
@@ -250,6 +255,16 @@ mod tests {
     fn compile_action_generates_nothing() {
         let adapter = CursorAdapter::new();
         let asset = create_action_asset("gen-tests", "Generate tests", "# Generate");
+
+        let outputs = adapter.compile(&asset).unwrap();
+
+        assert!(outputs.is_empty());
+    }
+
+    #[test]
+    fn compile_agent_generates_nothing() {
+        let adapter = CursorAdapter::new();
+        let asset = create_agent_asset("reviewer", "Code reviewer", "You are a reviewer.");
 
         let outputs = adapter.compile(&asset).unwrap();
 

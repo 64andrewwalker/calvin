@@ -424,3 +424,45 @@ When adding a new contract:
 |------|--------|
 | 2025-12-25 | Initial contract registry |
 | 2025-12-30 | Added SKILL-001, SKILL-002 for binary skill assets |
+
+---
+
+## Agent Contracts
+
+### AGENT-001: Agent Deployed to Agents Directory
+
+**Promise**: Agents with `scope: project` are deployed to `.claude/agents/<id>.md`, not `.claude/commands/`. Agents with `scope: user` are deployed to `~/.claude/agents/<id>.md`.
+
+**Violation Example**: An agent `reviewer.md` appears in `.claude/commands/reviewer.md` instead of `.claude/agents/reviewer.md`.
+
+**Test Location**: `tests/contracts/agents.rs::contract_agent_deployed_to_agents_directory`
+
+---
+
+### AGENT-002: Agent and Action Same ID Conflict
+
+**Promise**: When an agent and action have the same ID in the same layer, Calvin rejects with a clear "duplicate asset ID" error message.
+
+**Violation Example**: Both `agents/reviewer.md` and `actions/reviewer.md` exist with the same ID, and Calvin silently deploys only one without warning.
+
+**Test Location**: `tests/contracts/agents.rs::contract_agent_action_same_id_conflicts`
+
+---
+
+### AGENT-003: Cursor Agent Fallback to Commands
+
+**Promise**: When deploying agents to Cursor without Claude Code enabled, agents are treated as commands and deployed to `.cursor/commands/<id>.md`.
+
+**Violation Example**: User deploys agent with `targets: [cursor]` only, and no file is created (agent lost).
+
+**Test Location**: `tests/contracts/agents.rs::contract_cursor_agent_fallback_to_commands`
+
+---
+
+### AGENT-004: Cursor Skips Fallback When Claude Code Enabled
+
+**Promise**: When deploying agents to both Cursor and Claude Code, the agent goes to `.claude/agents/` only. No `.cursor/commands/` fallback is created.
+
+**Violation Example**: Agent appears in both `.claude/agents/helper.md` AND `.cursor/commands/helper.md`, causing duplication.
+
+**Test Location**: `tests/contracts/agents.rs::contract_cursor_skips_agent_fallback_when_claude_enabled`

@@ -23,3 +23,6 @@ mod calvinignore;
 
 #[path = "contracts/skills.rs"]
 mod skills;
+
+#[path = "contracts/agents.rs"]
+mod agents;

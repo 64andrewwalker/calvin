@@ -154,15 +154,31 @@ fn parse_directory_recursive(
             }
 
             let mut asset = parse_file(&path)?;
-            // Make source_path relative to root
             if let Ok(relative) = path.strip_prefix(root) {
                 asset.source_path = relative.to_path_buf();
+                if let Some(inferred_kind) = infer_kind_from_directory(relative) {
+                    asset.frontmatter.kind = inferred_kind;
+                }
             }
             assets.push(asset);
         }
     }
 
     Ok(())
+}
+
+fn infer_kind_from_directory(relative_path: &Path) -> Option<crate::models::AssetKind> {
+    let first_component = relative_path.components().next()?;
+    let dir_name = match first_component {
+        Component::Normal(name) => name.to_str()?,
+        _ => return None,
+    };
+    match dir_name {
+        "agents" => Some(crate::models::AssetKind::Agent),
+        "policies" => Some(crate::models::AssetKind::Policy),
+        "actions" => Some(crate::models::AssetKind::Action),
+        _ => None,
+    }
 }
 
 fn format_yaml_frontmatter_error(yaml: &str, err: &serde_yaml_ng::Error) -> String {
@@ -425,5 +441,104 @@ description: A skill
             derive_id(Path::new("0-discovery/0-disc-analyze-project.md")),
             "0-disc-analyze-project"
         );
+    }
+
+    #[test]
+    fn test_parse_file_preserves_agent_permission_mode() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("test-agent.md");
+        fs::write(
+            &path,
+            "---
+kind: agent
+description: Test agent
+targets: [claude-code]
+permission-mode: acceptEdits
+---
+Agent content
+",
+        )
+        .unwrap();
+
+        let asset = parse_file(&path).unwrap();
+        assert_eq!(
+            asset.frontmatter.permission_mode,
+            Some("acceptEdits".to_string())
+        );
+    }
+
+    #[test]
+    fn test_infer_kind_from_directory_agents() {
+        let path = Path::new("agents/reviewer.md");
+        assert_eq!(
+            infer_kind_from_directory(path),
+            Some(crate::models::AssetKind::Agent)
+        );
+    }
+
+    #[test]
+    fn test_infer_kind_from_directory_policies() {
+        let path = Path::new("policies/security.md");
+        assert_eq!(
+            infer_kind_from_directory(path),
+            Some(crate::models::AssetKind::Policy)
+        );
+    }
+
+    #[test]
+    fn test_infer_kind_from_directory_actions() {
+        let path = Path::new("actions/review.md");
+        assert_eq!(
+            infer_kind_from_directory(path),
+            Some(crate::models::AssetKind::Action)
+        );
+    }
+
+    #[test]
+    fn test_infer_kind_from_directory_unknown() {
+        let path = Path::new("other/something.md");
+        assert_eq!(infer_kind_from_directory(path), None);
+    }
+
+    #[test]
+    fn test_parse_directory_infers_kind_from_agents_dir() {
+        let dir = tempdir().unwrap();
+        let promptpack = dir.path().join(".promptpack");
+        fs::create_dir_all(promptpack.join("agents")).unwrap();
+
+        fs::write(
+            promptpack.join("agents/reviewer.md"),
+            r#"---
+description: Code reviewer
+---
+You review code.
+"#,
+        )
+        .unwrap();
+
+        let assets = parse_directory(&promptpack).unwrap();
+        assert_eq!(assets.len(), 1);
+        assert_eq!(assets[0].frontmatter.kind, crate::models::AssetKind::Agent);
+    }
+
+    #[test]
+    fn test_parse_directory_infers_kind_from_policies_dir() {
+        let dir = tempdir().unwrap();
+        let promptpack = dir.path().join(".promptpack");
+        fs::create_dir_all(promptpack.join("policies")).unwrap();
+
+        fs::write(
+            promptpack.join("policies/security.md"),
+            r#"---
+description: Security rules
+---
+Follow security rules.
+"#,
+        )
+        .unwrap();
+
+        let assets = parse_directory(&promptpack).unwrap();
+        assert_eq!(assets.len(), 1);
+        assert_eq!(assets[0].frontmatter.kind, crate::models::AssetKind::Policy);
     }
 }

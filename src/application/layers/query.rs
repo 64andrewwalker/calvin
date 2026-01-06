@@ -15,6 +15,7 @@ pub struct LayerSummary {
     pub resolved_path: PathBuf,
     pub asset_count: usize,
     pub skill_count: usize,
+    pub agent_count: usize,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -117,6 +118,11 @@ impl LayerQueryUseCase {
                         .iter()
                         .filter(|a| a.kind() == AssetKind::Skill)
                         .count(),
+                    agent_count: l
+                        .assets
+                        .iter()
+                        .filter(|a| a.kind() == AssetKind::Agent)
+                        .count(),
                     name: l.name.clone(),
                     layer_type: layer_type_str(l.layer_type).to_string(),
                     original_path: l.path.original().clone(),
@@ -124,7 +130,7 @@ impl LayerQueryUseCase {
                     asset_count: l
                         .assets
                         .iter()
-                        .filter(|a| a.kind() != AssetKind::Skill)
+                        .filter(|a| a.kind() != AssetKind::Skill && a.kind() != AssetKind::Agent)
                         .count(),
                 })
                 .collect(),

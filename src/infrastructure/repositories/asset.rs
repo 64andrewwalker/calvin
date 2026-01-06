@@ -94,7 +94,30 @@ impl FsAssetRepository {
         }
 
         if !pa.frontmatter.allowed_tools.is_empty() {
-            asset = asset.with_allowed_tools(pa.frontmatter.allowed_tools);
+            asset = asset.with_allowed_tools(pa.frontmatter.allowed_tools.clone());
+        }
+
+        // Agent fields - use effective_* methods to support both Claude Code native format
+        // and legacy Calvin format
+        asset = asset.with_agent_name(pa.frontmatter.name.clone());
+
+        let effective_tools = pa.frontmatter.effective_tools();
+        if !effective_tools.is_empty() {
+            asset = asset.with_agent_tools(effective_tools);
+        }
+        if pa.frontmatter.model.is_some() {
+            asset = asset.with_agent_model(pa.frontmatter.model.clone());
+        }
+        let effective_perm = pa
+            .frontmatter
+            .effective_permission_mode()
+            .map(|s| s.to_string());
+        if effective_perm.is_some() {
+            asset = asset.with_agent_permission_mode(effective_perm);
+        }
+        let effective_skills = pa.frontmatter.effective_skills();
+        if !effective_skills.is_empty() {
+            asset = asset.with_agent_skills(effective_skills);
         }
 
         asset

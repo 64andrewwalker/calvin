@@ -285,14 +285,20 @@ pub fn cmd_deploy_with_explicit_target(
                         .iter()
                         .filter(|a| a.kind() == calvin::domain::entities::AssetKind::Skill)
                         .count();
-                    let asset_count = layer.assets.len().saturating_sub(skill_count);
+                    let agent_count = layer
+                        .assets
+                        .iter()
+                        .filter(|a| a.kind() == calvin::domain::entities::AssetKind::Agent)
+                        .count();
+                    let asset_count = layer.assets.len().saturating_sub(skill_count + agent_count);
                     println!(
-                        "  {}. [{}] {} ({} assets, {} skills)",
+                        "  {}. [{}] {} ({} assets, {} skills, {} agents)",
                         layer_num,
                         layer.name,
                         display_with_tilde(layer.path.original()),
                         asset_count,
-                        skill_count
+                        skill_count,
+                        agent_count
                     );
                 }
 
