@@ -8,6 +8,7 @@ pub mod antigravity;
 pub mod claude_code;
 pub mod codex;
 pub mod cursor;
+pub mod opencode;
 mod skills;
 pub mod vscode;
 
@@ -15,6 +16,7 @@ pub use antigravity::AntigravityAdapter;
 pub use claude_code::ClaudeCodeAdapter;
 pub use codex::CodexAdapter;
 pub use cursor::CursorAdapter;
+pub use opencode::OpenCodeAdapter;
 pub use vscode::VSCodeAdapter;
 
 use crate::domain::ports::TargetAdapter;
@@ -28,6 +30,7 @@ pub fn all_adapters() -> Vec<Box<dyn TargetAdapter>> {
         Box::new(VSCodeAdapter::new()),
         Box::new(AntigravityAdapter::new()),
         Box::new(CodexAdapter::new()),
+        Box::new(OpenCodeAdapter::new()),
     ]
 }
 
@@ -39,6 +42,7 @@ pub fn get_adapter(target: Target) -> Option<Box<dyn TargetAdapter>> {
         Target::VSCode => Some(Box::new(VSCodeAdapter::new())),
         Target::Antigravity => Some(Box::new(AntigravityAdapter::new())),
         Target::Codex => Some(Box::new(CodexAdapter::new())),
+        Target::OpenCode => Some(Box::new(OpenCodeAdapter::new())),
         Target::All => None, // Use all_adapters() instead
     }
 }
@@ -50,7 +54,7 @@ mod tests {
     #[test]
     fn all_adapters_returns_expected_count() {
         let adapters = all_adapters();
-        assert_eq!(adapters.len(), 5); // All 5 adapters
+        assert_eq!(adapters.len(), 6); // All concrete adapters
     }
 
     #[test]
@@ -86,6 +90,13 @@ mod tests {
         let adapter = get_adapter(Target::Codex);
         assert!(adapter.is_some());
         assert_eq!(adapter.unwrap().target(), Target::Codex);
+    }
+
+    #[test]
+    fn get_adapter_returns_opencode() {
+        let adapter = get_adapter(Target::OpenCode);
+        assert!(adapter.is_some());
+        assert_eq!(adapter.unwrap().target(), Target::OpenCode);
     }
 
     #[test]

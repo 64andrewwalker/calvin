@@ -141,7 +141,9 @@ pub fn create_adapters_for_targets(
     targets: &[crate::domain::value_objects::Target],
 ) -> Vec<Box<dyn TargetAdapter>> {
     use crate::domain::value_objects::Target;
-    use crate::infrastructure::adapters::{AntigravityAdapter, CodexAdapter, VSCodeAdapter};
+    use crate::infrastructure::adapters::{
+        AntigravityAdapter, CodexAdapter, OpenCodeAdapter, VSCodeAdapter,
+    };
 
     // Empty list means "no targets" - return empty adapter list
     if targets.is_empty() {
@@ -162,6 +164,7 @@ pub fn create_adapters_for_targets(
             Target::VSCode => adapters.push(Box::new(VSCodeAdapter::new())),
             Target::Antigravity => adapters.push(Box::new(AntigravityAdapter::new())),
             Target::Codex => adapters.push(Box::new(CodexAdapter::new())),
+            Target::OpenCode => adapters.push(Box::new(OpenCodeAdapter::new())),
             Target::All => {
                 // Handled above
                 return all_adapters();
@@ -211,6 +214,6 @@ mod tests {
     #[test]
     fn create_adapters_for_all_returns_all() {
         let adapters = create_adapters_for_targets(&[Target::All]);
-        assert_eq!(adapters.len(), 5); // All 5 adapters migrated
+        assert_eq!(adapters.len(), 6); // All concrete adapters
     }
 }

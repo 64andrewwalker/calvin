@@ -33,6 +33,7 @@ fn compile_assets_with_adapters(
             Target::VSCode => DomainTarget::VSCode,
             Target::Antigravity => DomainTarget::Antigravity,
             Target::Codex => DomainTarget::Codex,
+            Target::OpenCode => DomainTarget::OpenCode,
             Target::All => DomainTarget::All,
         })
         .collect();

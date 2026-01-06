@@ -94,6 +94,7 @@ List of platforms to compile for:
 - `vscode`
 - `antigravity`
 - `codex`
+- `opencode`
 - `all` (meta-target that expands to all concrete targets)
 
 ```yaml
@@ -148,7 +149,7 @@ name: code-reviewer
 
 ### `tools`
 
-**Type**: `string` (comma-separated)  
+**Type**: `string` (comma-separated) or `string[]` (YAML list)  
 **Default**: inherit all tools
 
 Whitelist of tools this agent can use. If not specified, the agent inherits all tools from the main thread.
@@ -157,7 +158,16 @@ Whitelist of tools this agent can use. If not specified, the agent inherits all 
 tools: Read, Grep, Glob, Bash
 ```
 
-Calvin also accepts the YAML list format as `agent-tools`:
+Calvin also accepts the YAML list format:
+
+```yaml
+tools:
+  - Read
+  - Grep
+  - Glob
+```
+
+For backward compatibility, the YAML list format is also accepted as `agent-tools`:
 
 ```yaml
 agent-tools:
@@ -220,6 +230,65 @@ Calvin also accepts the YAML list format as `agent-skills`:
 agent-skills:
   - repo-navigation
   - engineering-standards
+```
+
+## OpenCode-Specific Fields
+
+These fields are only used when compiling for the `opencode` target.
+
+### `mode` (agent-only)
+
+**Type**: `"primary"` | `"subagent"`  
+**Default**: `"subagent"` (for `opencode`)
+
+OpenCode agent execution mode.
+
+```yaml
+mode: subagent
+```
+
+### `temperature` (agent-only)
+
+**Type**: `float` (0.0-1.0)  
+**Default**: none
+
+Model temperature for OpenCode agents.
+
+```yaml
+temperature: 0.3
+```
+
+### `opencode-model` (agent/command)
+
+**Type**: `string`  
+**Default**: none
+
+Full OpenCode model ID override. When set, it takes precedence over `model` for OpenCode outputs.
+
+```yaml
+opencode-model: anthropic/claude-sonnet-4-5
+```
+
+### `agent` (action-only)
+
+**Type**: `string`  
+**Default**: none
+
+For OpenCode commands: which agent to execute the command.
+
+```yaml
+agent: build
+```
+
+### `subtask` (action-only)
+
+**Type**: `boolean`  
+**Default**: none
+
+For OpenCode commands: run in an isolated sub-session.
+
+```yaml
+subtask: false
 ```
 
 ## Agent Example
@@ -308,6 +377,13 @@ These are passed through unchanged; the target platform interprets them at runti
 
 - Prompts compile to `.codex/prompts/` (project scope) or `~/.codex/prompts/` (user scope).
 - Skills compile to `.codex/skills/<id>/SKILL.md` (project scope) or `~/.codex/skills/<id>/SKILL.md` (user scope).
+
+### OpenCode
+
+- Agents compile to `.opencode/agent/<id>.md` (project scope) or `~/.config/opencode/agent/<id>.md` (user scope).
+- Actions compile to `.opencode/command/<id>.md` (project scope) or `~/.config/opencode/command/<id>.md` (user scope).
+- Policies compile to `AGENTS.md` (project scope) or `~/.config/opencode/AGENTS.md` (user scope).
+- Skills compile to `.opencode/skill/<id>/SKILL.md` unless Claude Code is also enabled, in which case `.claude/skills/<id>/SKILL.md` is reused.
 
 ## Validation
 

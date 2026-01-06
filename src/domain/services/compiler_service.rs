@@ -165,6 +165,9 @@ impl CompilerService {
 
         // Check if Cursor needs to generate its own commands
         let cursor_needs_commands = self.should_cursor_generate_commands(targets);
+        let has_claude_code = targets.is_empty()
+            || targets.iter().any(|t| t.is_all())
+            || targets.contains(&Target::ClaudeCode);
 
         // Compile each asset with each adapter
         for asset in assets {
@@ -174,6 +177,16 @@ impl CompilerService {
             for adapter in &active_adapters {
                 // Skip if this adapter's target is not enabled for this asset
                 if !asset_targets.contains(&adapter.target()) {
+                    continue;
+                }
+
+                // OpenCode reads Claude Code skills from `.claude/skills`, so avoid duplicate skill
+                // outputs when Claude Code is also enabled for this compile + this skill.
+                if adapter.target() == Target::OpenCode
+                    && asset.kind() == AssetKind::Skill
+                    && has_claude_code
+                    && asset_targets.contains(&Target::ClaudeCode)
+                {
                     continue;
                 }
 

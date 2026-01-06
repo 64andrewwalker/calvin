@@ -74,6 +74,7 @@ impl FsAssetRepository {
                 crate::models::Target::VSCode => Target::VSCode,
                 crate::models::Target::Antigravity => Target::Antigravity,
                 crate::models::Target::Codex => Target::Codex,
+                crate::models::Target::OpenCode => Target::OpenCode,
                 crate::models::Target::All => Target::All,
             })
             .collect();
@@ -119,6 +120,13 @@ impl FsAssetRepository {
         if !effective_skills.is_empty() {
             asset = asset.with_agent_skills(effective_skills);
         }
+
+        asset = asset
+            .with_opencode_mode(pa.frontmatter.mode.clone())
+            .with_temperature(pa.frontmatter.temperature)
+            .with_opencode_model(pa.frontmatter.opencode_model.clone())
+            .with_command_agent(pa.frontmatter.agent.clone())
+            .with_command_subtask(pa.frontmatter.subtask);
 
         asset
     }

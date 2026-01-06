@@ -70,7 +70,7 @@ additional_allowlist = ["my-internal-mcp"]
 [targets]
 # Specify which platforms to deploy to. Default: all platforms.
 # Valid values: claude-code (or "claude"), cursor, vscode, antigravity, codex, all
-enabled = ["claude-code", "cursor", "vscode", "antigravity", "codex"]
+enabled = ["claude-code", "cursor", "vscode", "antigravity", "codex", "opencode"]
 
 # Semantic notes:
 # - enabled = ["claude"]       → Deploy only to Claude Code (alias supported)
@@ -233,7 +233,7 @@ allow_naked = false
 
 [targets]
 # When 'enabled' field is missing, deploys to all platforms
-enabled = ["claude-code", "cursor", "vscode", "antigravity", "codex"]
+enabled = ["claude-code", "cursor", "vscode", "antigravity", "codex", "opencode"]
 
 [sync]
 atomic_writes = true

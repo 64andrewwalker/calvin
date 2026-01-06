@@ -18,18 +18,23 @@ pub enum Target {
     Antigravity,
     /// OpenAI Codex CLI
     Codex,
+    /// OpenCode (SST) terminal agent
+    #[serde(rename = "opencode", alias = "open-code")]
+    #[value(name = "opencode", alias = "open-code")]
+    OpenCode,
     /// All platforms (meta-target, expands to all specific targets)
     All,
 }
 
 impl Target {
     /// All concrete targets (excluding `All`)
-    pub const ALL_CONCRETE: [Target; 5] = [
+    pub const ALL_CONCRETE: [Target; 6] = [
         Target::ClaudeCode,
         Target::Cursor,
         Target::VSCode,
         Target::Antigravity,
         Target::Codex,
+        Target::OpenCode,
     ];
 
     /// Returns true if this is the `All` meta-target
@@ -39,7 +44,10 @@ impl Target {
 
     /// Returns true if this target supports directory-based skills (`SKILL.md` folders).
     pub fn supports_skills(&self) -> bool {
-        matches!(self, Target::ClaudeCode | Target::Cursor | Target::Codex)
+        matches!(
+            self,
+            Target::ClaudeCode | Target::Cursor | Target::Codex | Target::OpenCode
+        )
     }
 
     /// Expand `All` to concrete targets, or return self if already concrete
@@ -59,6 +67,7 @@ impl Target {
             Target::VSCode => ".vscode",
             Target::Antigravity => ".gemini",
             Target::Codex => ".codex",
+            Target::OpenCode => ".opencode",
             Target::All => ".all", // Should not be used directly
         }
     }
@@ -71,6 +80,7 @@ impl Target {
             Target::VSCode => "VS Code",
             Target::Antigravity => "Antigravity",
             Target::Codex => "Codex",
+            Target::OpenCode => "OpenCode",
             Target::All => "All",
         }
     }
@@ -93,6 +103,8 @@ impl Target {
         "vs-code", // alias for vscode
         "antigravity",
         "codex",
+        "opencode",
+        "open-code", // alias for opencode
         "all",
     ];
 
@@ -103,6 +115,7 @@ impl Target {
         "vscode",
         "antigravity",
         "codex",
+        "opencode",
         "all",
     ];
 
@@ -118,6 +131,7 @@ impl Target {
             "vscode" | "vs-code" => Ok(Target::VSCode),
             "antigravity" => Ok(Target::Antigravity),
             "codex" => Ok(Target::Codex),
+            "opencode" | "open-code" | "open_code" => Ok(Target::OpenCode),
             "all" => Ok(Target::All),
             _ => {
                 let suggestion = Self::suggest_target(s);
@@ -142,6 +156,8 @@ impl Target {
             ("anti", "antigravity"),
             ("gravity", "antigravity"),
             ("gemini", "antigravity"),
+            ("open code", "opencode"),
+            ("open", "opencode"),
         ];
 
         for (typo, correct) in aliases {
@@ -219,8 +235,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn target_all_concrete_has_5_targets() {
-        assert_eq!(Target::ALL_CONCRETE.len(), 5);
+    fn target_all_concrete_has_6_targets() {
+        assert_eq!(Target::ALL_CONCRETE.len(), 6);
     }
 
     #[test]
@@ -232,7 +248,7 @@ mod tests {
     #[test]
     fn target_expand_all() {
         let expanded = Target::All.expand();
-        assert_eq!(expanded.len(), 5);
+        assert_eq!(expanded.len(), 6);
     }
 
     #[test]
@@ -295,6 +311,10 @@ mod tests {
             Target::Codex
         );
         assert_eq!(
+            Target::from_str_with_suggestion("opencode").unwrap(),
+            Target::OpenCode
+        );
+        assert_eq!(
             Target::from_str_with_suggestion("all").unwrap(),
             Target::All
         );
@@ -333,6 +353,7 @@ mod tests {
         assert!(Target::ClaudeCode.supports_skills());
         assert!(Target::Cursor.supports_skills());
         assert!(Target::Codex.supports_skills());
+        assert!(Target::OpenCode.supports_skills());
         assert!(!Target::VSCode.supports_skills());
         assert!(!Target::Antigravity.supports_skills());
     }

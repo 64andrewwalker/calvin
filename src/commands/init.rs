@@ -296,7 +296,7 @@ id: my-policy
 title: My Policy
 kind: policy  # policy, action, or agent
 scope: project  # project or user
-targets: all  # all, claude, cursor, vscode, antigravity, codex
+targets: all  # all, claude, cursor, vscode, antigravity, codex, opencode
 ---
 ```
 

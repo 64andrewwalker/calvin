@@ -239,6 +239,7 @@ fn target_kebab(target: calvin::Target) -> &'static str {
         calvin::Target::VSCode => "vscode",
         calvin::Target::Antigravity => "antigravity",
         calvin::Target::Codex => "codex",
+        calvin::Target::OpenCode => "opencode",
         calvin::Target::All => "all",
     }
 }
