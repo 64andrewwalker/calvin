@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0](https://github.com/64andrewwalker/calvin/compare/v0.8.0...v0.9.0) (2026-01-06)
+
+
+### Features
+
+* **agents:** implement Claude Code native agent format with YAML frontmatter ([328ac5a](https://github.com/64andrewwalker/calvin/commit/328ac5a6b7eece375fc5e57686a2504b9f5da6ec))
+* **agents:** improve agent support with case-insensitive IDs and comprehensive tests ([d30a70a](https://github.com/64andrewwalker/calvin/commit/d30a70a8e37ec67a9017c070cbe1fb803c79ac6f))
+* **agents:** improve agent support with case-insensitive IDs and comprehensive tests ([d61e2f5](https://github.com/64andrewwalker/calvin/commit/d61e2f5e29d7c2e7e0fdcea2178f2296c7bbc185))
+* **opencode:** add OpenCode target support ([9311b07](https://github.com/64andrewwalker/calvin/commit/9311b072466bc8761c9a15dd839682756018daf0))
+* **opencode:** add OpenCode target support ([eaef74e](https://github.com/64andrewwalker/calvin/commit/eaef74e28acd16d8ee38016491478e3a254685a6))
+
 ## [0.8.0](https://github.com/64andrewwalker/calvin/compare/v0.7.1...v0.8.0) (2025-12-30)
 
 
