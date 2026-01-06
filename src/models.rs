@@ -37,6 +37,17 @@ pub enum Scope {
 // Re-export Target from domain layer for backward compatibility
 pub use crate::domain::value_objects::Target;
 
+/// Agent tools specification.
+///
+/// Historically Calvin accepted `tools` as a comma-separated string (Claude Code format).
+/// Some platforms/specs (e.g., OpenCode) also represent tools as a YAML list.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ToolsField {
+    String(String),
+    List(Vec<String>),
+}
+
 /// YAML frontmatter extracted from source files
 ///
 /// Only `description` is required. All other fields have sensible defaults.
@@ -64,13 +75,34 @@ pub struct Frontmatter {
     pub allowed_tools: Vec<String>,
 
     #[serde(default)]
-    pub tools: Option<String>,
+    pub tools: Option<ToolsField>,
 
     #[serde(default, rename = "agent-tools")]
     pub agent_tools: Vec<String>,
 
     #[serde(default)]
     pub model: Option<String>,
+
+    // === OpenCode fields (optional) ===
+    /// OpenCode agent execution mode (`primary` or `subagent`)
+    #[serde(default)]
+    pub mode: Option<String>,
+
+    /// OpenCode model temperature (0.0-1.0)
+    #[serde(default)]
+    pub temperature: Option<f32>,
+
+    /// OpenCode full model ID override (OpenCode target only)
+    #[serde(default, rename = "opencode-model")]
+    pub opencode_model: Option<String>,
+
+    /// OpenCode command: which agent to execute the command
+    #[serde(default)]
+    pub agent: Option<String>,
+
+    /// OpenCode command: run in isolated subtask session
+    #[serde(default)]
+    pub subtask: Option<bool>,
 
     #[serde(default, rename = "permissionMode")]
     pub permission_mode_camel: Option<String>,
@@ -99,6 +131,11 @@ impl Frontmatter {
             tools: None,
             agent_tools: Vec::new(),
             model: None,
+            mode: None,
+            temperature: None,
+            opencode_model: None,
+            agent: None,
+            subtask: None,
             permission_mode_camel: None,
             permission_mode: None,
             skills: None,
@@ -108,12 +145,19 @@ impl Frontmatter {
 
     /// Get effective tools as Vec<String>, merging `tools` (comma-sep) and `agent-tools` (list)
     pub fn effective_tools(&self) -> Vec<String> {
-        if let Some(ref tools_str) = self.tools {
-            tools_str
-                .split(',')
-                .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty())
-                .collect()
+        if let Some(ref tools) = self.tools {
+            match tools {
+                ToolsField::String(tools_str) => tools_str
+                    .split(',')
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect(),
+                ToolsField::List(list) => list
+                    .iter()
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect(),
+            }
         } else if !self.agent_tools.is_empty() {
             self.agent_tools.clone()
         } else {
@@ -152,6 +196,7 @@ impl Frontmatter {
                 Target::VSCode,
                 Target::Antigravity,
                 Target::Codex,
+                Target::OpenCode,
             ]
         } else {
             self.targets.clone()
@@ -297,12 +342,13 @@ allowed-tools:
         let fm = Frontmatter::new("Test");
         let targets = fm.effective_targets();
 
-        assert_eq!(targets.len(), 5);
+        assert_eq!(targets.len(), 6);
         assert!(targets.contains(&Target::ClaudeCode));
         assert!(targets.contains(&Target::Cursor));
         assert!(targets.contains(&Target::VSCode));
         assert!(targets.contains(&Target::Antigravity));
         assert!(targets.contains(&Target::Codex));
+        assert!(targets.contains(&Target::OpenCode));
     }
 
     #[test]
@@ -311,7 +357,7 @@ allowed-tools:
         fm.targets = vec![Target::All];
         let targets = fm.effective_targets();
 
-        assert_eq!(targets.len(), 5);
+        assert_eq!(targets.len(), 6);
     }
 
     #[test]
@@ -443,9 +489,29 @@ skills: solution-page, style-guide
 "#;
         let fm: Frontmatter = serde_yaml_ng::from_str(yaml).unwrap();
         assert_eq!(fm.name, Some("copywriter".to_string()));
-        assert_eq!(fm.tools, Some("Read, Grep, Glob".to_string()));
+        assert_eq!(
+            fm.tools,
+            Some(ToolsField::String("Read, Grep, Glob".to_string()))
+        );
         assert_eq!(fm.permission_mode_camel, Some("acceptEdits".to_string()));
         assert_eq!(fm.skills, Some("solution-page, style-guide".to_string()));
+    }
+
+    #[test]
+    fn test_frontmatter_deserialize_tools_as_list() {
+        let yaml = r#"
+description: Test agent
+kind: agent
+tools:
+  - Read
+  - Grep
+"#;
+        let fm: Frontmatter = serde_yaml_ng::from_str(yaml).unwrap();
+        assert_eq!(
+            fm.tools,
+            Some(ToolsField::List(vec!["Read".into(), "Grep".into()]))
+        );
+        assert_eq!(fm.effective_tools(), vec!["Read", "Grep"]);
     }
 
     #[test]

@@ -26,3 +26,6 @@ mod skills;
 
 #[path = "contracts/agents.rs"]
 mod agents;
+
+#[path = "contracts/opencode.rs"]
+mod opencode;

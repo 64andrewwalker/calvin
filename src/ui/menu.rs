@@ -6,11 +6,12 @@ use is_terminal::IsTerminal;
 use std::path::Path;
 
 /// All available targets for interactive selection (excludes Target::All)
-pub const ALL_TARGETS: [Target; 5] = [
+pub const ALL_TARGETS: [Target; 6] = [
     Target::ClaudeCode,
     Target::Cursor,
     Target::VSCode,
     Target::Codex,
+    Target::OpenCode,
     Target::Antigravity,
 ];
 
@@ -21,6 +22,7 @@ fn target_display_name(t: &Target) -> &'static str {
         Target::Cursor => "Cursor (.cursor/)",
         Target::VSCode => "VS Code (.vscode/)",
         Target::Codex => "Codex (.codex/)",
+        Target::OpenCode => "OpenCode (.opencode/)",
         Target::Antigravity => "Antigravity/Gemini (.gemini/)",
         Target::All => "All platforms",
     }
@@ -33,6 +35,7 @@ fn target_kebab(t: &Target) -> &'static str {
         Target::Cursor => "cursor",
         Target::VSCode => "vscode",
         Target::Codex => "codex",
+        Target::OpenCode => "opencode",
         Target::Antigravity => "antigravity",
         Target::All => "all",
     }

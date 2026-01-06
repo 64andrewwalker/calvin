@@ -65,6 +65,21 @@ pub struct Asset {
     agent_permission_mode: Option<String>,
     agent_skills: Vec<String>,
 
+    /// OpenCode agent mode (`primary` or `subagent`)
+    opencode_mode: Option<String>,
+
+    /// OpenCode temperature (0.0-1.0)
+    temperature: Option<f32>,
+
+    /// OpenCode full model ID override (OpenCode target only)
+    opencode_model: Option<String>,
+
+    /// OpenCode command: which agent to execute the command
+    command_agent: Option<String>,
+
+    /// OpenCode command: run in isolated subtask session
+    command_subtask: Option<bool>,
+
     /// Warnings generated during asset loading (e.g., skipped binary files)
     ///
     /// These are non-fatal issues that should be surfaced to the user.
@@ -102,6 +117,11 @@ impl Asset {
             agent_model: None,
             agent_permission_mode: None,
             agent_skills: Vec::new(),
+            opencode_mode: None,
+            temperature: None,
+            opencode_model: None,
+            command_agent: None,
+            command_subtask: None,
             warnings: Vec::new(),
         }
     }
@@ -179,6 +199,31 @@ impl Asset {
 
     pub fn with_agent_skills(mut self, skills: Vec<String>) -> Self {
         self.agent_skills = skills;
+        self
+    }
+
+    pub fn with_opencode_mode(mut self, mode: Option<String>) -> Self {
+        self.opencode_mode = mode;
+        self
+    }
+
+    pub fn with_temperature(mut self, temperature: Option<f32>) -> Self {
+        self.temperature = temperature;
+        self
+    }
+
+    pub fn with_opencode_model(mut self, model: Option<String>) -> Self {
+        self.opencode_model = model;
+        self
+    }
+
+    pub fn with_command_agent(mut self, agent: Option<String>) -> Self {
+        self.command_agent = agent;
+        self
+    }
+
+    pub fn with_command_subtask(mut self, subtask: Option<bool>) -> Self {
+        self.command_subtask = subtask;
         self
     }
 
@@ -281,6 +326,26 @@ impl Asset {
     pub fn agent_skills(&self) -> &[String] {
         &self.agent_skills
     }
+
+    pub fn opencode_mode(&self) -> Option<&str> {
+        self.opencode_mode.as_deref()
+    }
+
+    pub fn temperature(&self) -> Option<f32> {
+        self.temperature
+    }
+
+    pub fn opencode_model(&self) -> Option<&str> {
+        self.opencode_model.as_deref()
+    }
+
+    pub fn command_agent(&self) -> Option<&str> {
+        self.command_agent.as_deref()
+    }
+
+    pub fn command_subtask(&self) -> Option<bool> {
+        self.command_subtask
+    }
 }
 
 // === From implementations ===
@@ -309,6 +374,7 @@ impl From<crate::models::PromptAsset> for Asset {
                 crate::models::Target::VSCode => Target::VSCode,
                 crate::models::Target::Antigravity => Target::Antigravity,
                 crate::models::Target::Codex => Target::Codex,
+                crate::models::Target::OpenCode => Target::OpenCode,
                 crate::models::Target::All => Target::All,
             })
             .collect();
@@ -352,6 +418,13 @@ impl From<crate::models::PromptAsset> for Asset {
         if !effective_skills.is_empty() {
             asset = asset.with_agent_skills(effective_skills);
         }
+
+        asset = asset
+            .with_opencode_mode(pa.frontmatter.mode)
+            .with_temperature(pa.frontmatter.temperature)
+            .with_opencode_model(pa.frontmatter.opencode_model)
+            .with_command_agent(pa.frontmatter.agent)
+            .with_command_subtask(pa.frontmatter.subtask);
 
         asset
     }
@@ -494,7 +567,7 @@ mod tests {
         let asset = Asset::new("test", "test.md", "desc", "content");
 
         let targets = asset.effective_targets();
-        assert_eq!(targets.len(), 5);
+        assert_eq!(targets.len(), 6);
     }
 
     #[test]
@@ -503,7 +576,7 @@ mod tests {
             Asset::new("test", "test.md", "desc", "content").with_targets(vec![Target::All]);
 
         let targets = asset.effective_targets();
-        assert_eq!(targets.len(), 5);
+        assert_eq!(targets.len(), 6);
     }
 
     #[test]
@@ -548,6 +621,11 @@ mod tests {
             tools: None,
             agent_tools: vec![],
             model: None,
+            mode: None,
+            temperature: None,
+            opencode_model: None,
+            agent: None,
+            subtask: None,
             permission_mode_camel: None,
             permission_mode: None,
             skills: None,
@@ -583,6 +661,11 @@ mod tests {
             tools: None,
             agent_tools: vec!["Read".to_string(), "Grep".to_string()],
             model: Some("sonnet".to_string()),
+            mode: None,
+            temperature: None,
+            opencode_model: None,
+            agent: None,
+            subtask: None,
             permission_mode_camel: Some("acceptEdits".to_string()),
             permission_mode: None,
             skills: None,

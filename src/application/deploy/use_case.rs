@@ -326,6 +326,11 @@ where
             result.add_warning(warning);
         }
 
+        // Step 1.9: Validate OpenCode-specific fields (never fail silently).
+        for warning in validate_opencode_assets(&assets, &options.targets) {
+            result.add_warning(warning);
+        }
+
         // Emit started event
         event_sink.on_event(DeployEvent::Started {
             source: options.source.clone(),
@@ -645,6 +650,8 @@ where
         // Check if Cursor needs to generate its own commands
         // (when Cursor is selected but Claude Code is not)
         let cursor_needs_commands = CompilerService::cursor_needs_commands(targets);
+        let has_claude_code =
+            targets.iter().any(|t| t.is_all()) || targets.contains(&Target::ClaudeCode);
 
         // Compile each asset with each adapter
         for asset in assets {
@@ -654,6 +661,16 @@ where
             for adapter in &active_adapters {
                 // Skip if this adapter's target is not enabled for this asset
                 if !asset_targets.contains(&adapter.target()) {
+                    continue;
+                }
+
+                // OpenCode reads Claude Code skills from `.claude/skills`, so avoid duplicate skill
+                // outputs when Claude Code is also enabled for this deploy + this skill.
+                if adapter.target() == Target::OpenCode
+                    && asset.kind() == AssetKind::Skill
+                    && has_claude_code
+                    && asset_targets.contains(&Target::ClaudeCode)
+                {
                     continue;
                 }
 
@@ -1408,7 +1425,7 @@ fn validate_skill_targets(assets: &[Asset]) -> Result<Vec<String>, String> {
 
         if !has_supported {
             return Err(format!(
-                "Skill '{}' has no supported targets (supported: claude-code, codex, cursor).",
+                "Skill '{}' has no supported targets (supported: claude-code, codex, cursor, opencode).",
                 asset.id()
             ));
         }
@@ -1466,4 +1483,193 @@ fn warn_skills_skipped_for_unsupported_deploy_targets(
         "Skills skipped for: {} (skills are not supported on these platforms).",
         targets
     )]
+}
+
+fn validate_opencode_assets(
+    assets: &[Asset],
+    deploy_targets: &[crate::domain::value_objects::Target],
+) -> Vec<String> {
+    use crate::domain::entities::AssetKind;
+    use crate::domain::value_objects::Target;
+
+    let deploy_includes_opencode = deploy_targets
+        .iter()
+        .any(|t| t.is_all() || *t == Target::OpenCode);
+    if !deploy_includes_opencode {
+        return Vec::new();
+    }
+
+    fn is_likely_opencode_model(value: &str) -> bool {
+        let model = value.trim();
+        if model.is_empty() {
+            return false;
+        }
+        if model.contains('/') {
+            return true;
+        }
+        // Allow common short names + common prefixes (best-effort).
+        matches!(model, "sonnet" | "opus" | "haiku" | "inherit")
+            || model.starts_with("anthropic/")
+            || model.starts_with("openai/")
+            || model.starts_with("google/")
+            || model.starts_with("gpt")
+            || model.starts_with("claude")
+            || model.starts_with("gemini")
+    }
+
+    fn opencode_tool_key(tool: &str) -> Option<&'static str> {
+        let normalized = tool.trim().to_lowercase();
+        match normalized.as_str() {
+            "read" => Some("read"),
+            "write" => Some("write"),
+            "edit" => Some("edit"),
+            "bash" => Some("bash"),
+            "grep" => Some("grep"),
+            "glob" => Some("glob"),
+            "webfetch" | "web-fetch" | "web_fetch" => Some("webfetch"),
+            "task" => Some("task"),
+            "skill" => Some("skill"),
+            _ => None,
+        }
+    }
+
+    let mut warnings = Vec::new();
+
+    for asset in assets {
+        if !asset.effective_targets().contains(&Target::OpenCode) {
+            continue;
+        }
+
+        // mode (agent-only)
+        if let Some(mode) = asset.opencode_mode() {
+            if asset.kind() != AssetKind::Agent {
+                warnings.push(format!(
+                    "Asset '{}' sets 'mode', but this field is only used for OpenCode agents; it will be ignored.",
+                    asset.id()
+                ));
+            } else if !matches!(mode, "primary" | "subagent") {
+                warnings.push(format!(
+                    "Agent '{}' has invalid OpenCode mode '{}'; defaulting to 'subagent'.",
+                    asset.id(),
+                    mode
+                ));
+            }
+        }
+
+        // temperature (agent-only)
+        if let Some(temp) = asset.temperature() {
+            if asset.kind() != AssetKind::Agent {
+                warnings.push(format!(
+                    "Asset '{}' sets 'temperature', but this field is only used for OpenCode agents; it will be ignored.",
+                    asset.id()
+                ));
+            } else if !temp.is_finite() || !(0.0..=1.0).contains(&temp) {
+                warnings.push(format!(
+                    "Agent '{}' has invalid temperature {} (expected 0.0-1.0); omitting from OpenCode output.",
+                    asset.id(),
+                    temp
+                ));
+            }
+        }
+
+        // opencode-model (agents + commands)
+        if let Some(model) = asset.opencode_model() {
+            if !matches!(asset.kind(), AssetKind::Agent | AssetKind::Action) {
+                warnings.push(format!(
+                    "Asset '{}' sets 'opencode-model', but this field is only used for OpenCode agents/commands; it will be ignored.",
+                    asset.id()
+                ));
+            } else if model.trim().is_empty() {
+                warnings.push(format!(
+                    "Asset '{}' has empty 'opencode-model'; omitting from OpenCode output.",
+                    asset.id()
+                ));
+            } else if !is_likely_opencode_model(model) {
+                warnings.push(format!(
+                    "Model '{}' for OpenCode output may not be a standard provider/model ID; using as-is.",
+                    model
+                ));
+            }
+        } else if let Some(model) = asset.agent_model() {
+            // Only warn about model values when compiling agents/commands for OpenCode.
+            if matches!(asset.kind(), AssetKind::Agent | AssetKind::Action)
+                && !is_likely_opencode_model(model)
+            {
+                warnings.push(format!(
+                    "Model '{}' for OpenCode output may not be a standard provider/model ID; using as-is.",
+                    model
+                ));
+            }
+        }
+
+        // command fields (action-only)
+        if !matches!(asset.kind(), AssetKind::Action) {
+            if asset.command_agent().is_some() {
+                warnings.push(format!(
+                    "Asset '{}' sets 'agent', but this field is only used for OpenCode commands; it will be ignored.",
+                    asset.id()
+                ));
+            }
+            if asset.command_subtask().is_some() {
+                warnings.push(format!(
+                    "Asset '{}' sets 'subtask', but this field is only used for OpenCode commands; it will be ignored.",
+                    asset.id()
+                ));
+            }
+        } else if let Some(agent) = asset.command_agent() {
+            if agent.trim().is_empty() {
+                warnings.push(format!(
+                    "Action '{}' has empty 'agent' value; omitting from OpenCode output.",
+                    asset.id()
+                ));
+            }
+        }
+
+        // tools (agent-only): warn on unknown tool names
+        if asset.kind() == AssetKind::Agent && !asset.agent_tools().is_empty() {
+            let mut unknown: Vec<String> = asset
+                .agent_tools()
+                .iter()
+                .filter(|t| opencode_tool_key(t).is_none())
+                .cloned()
+                .collect();
+            unknown.sort();
+            unknown.dedup();
+            for tool in unknown {
+                warnings.push(format!(
+                    "Unknown tool '{}' for OpenCode target (agent '{}'). Valid tools: read, write, edit, bash, grep, glob, webfetch, task, skill. Hint: This tool will be omitted from the OpenCode output.",
+                    tool,
+                    asset.id()
+                ));
+            }
+        }
+
+        // permission-mode mapping (agent-only): warn when unmappable
+        if asset.kind() == AssetKind::Agent {
+            if let Some(mode) = asset.agent_permission_mode() {
+                let valid = [
+                    "default",
+                    "acceptEdits",
+                    "dontAsk",
+                    "bypassPermissions",
+                    "plan",
+                    "ignore",
+                ];
+                if !valid.contains(&mode) {
+                    warnings.push(format!(
+                        "permission-mode '{}' is not recognized; permission settings will be omitted from OpenCode output (agent '{}').",
+                        mode,
+                        asset.id()
+                    ));
+                } else if mode == "ignore" {
+                    warnings.push(format!(
+                        "permission-mode 'ignore' has no OpenCode equivalent; permission settings will be omitted (agent '{}').",
+                        asset.id()
+                    ));
+                }
+            }
+        }
+    }
+
+    warnings
 }

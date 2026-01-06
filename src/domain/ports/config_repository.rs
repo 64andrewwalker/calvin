@@ -109,6 +109,7 @@ mod tests {
                 Target::VSCode,
                 Target::Antigravity,
                 Target::Codex,
+                Target::OpenCode,
             ]
         }
 
@@ -237,6 +238,6 @@ mod tests {
         assert_eq!(config.format_version(), "1.0");
         assert!(config.atomic_writes());
         assert!(config.respect_lockfile());
-        assert_eq!(config.enabled_targets().len(), 5);
+        assert_eq!(config.enabled_targets().len(), 6);
     }
 }

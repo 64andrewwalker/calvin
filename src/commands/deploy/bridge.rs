@@ -63,6 +63,7 @@ pub fn convert_options(
             calvin::Target::VSCode => DomainTarget::VSCode,
             calvin::Target::Antigravity => DomainTarget::Antigravity,
             calvin::Target::Codex => DomainTarget::Codex,
+            calvin::Target::OpenCode => DomainTarget::OpenCode,
             calvin::Target::All => DomainTarget::All,
         })
         .collect();
@@ -119,6 +120,7 @@ fn create_adapters_for_legacy_targets(
             calvin::Target::VSCode => DomainTarget::VSCode,
             calvin::Target::Antigravity => DomainTarget::Antigravity,
             calvin::Target::Codex => DomainTarget::Codex,
+            calvin::Target::OpenCode => DomainTarget::OpenCode,
             calvin::Target::All => DomainTarget::All,
         })
         .collect();

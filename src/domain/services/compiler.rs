@@ -155,6 +155,10 @@ impl PathGenerator {
                 };
                 Some(base.join(format!("{}.md", asset_id)))
             }
+            Target::OpenCode => {
+                // OpenCode policies are aggregated to AGENTS.md (not per-policy files).
+                None
+            }
             Target::All => None, // All is expanded before this
         }
     }
@@ -185,6 +189,17 @@ impl PathGenerator {
                     PathBuf::from("~").join(".cursor").join("commands")
                 } else {
                     PathBuf::from(".cursor").join("commands")
+                };
+                Some(base.join(format!("{}.md", asset_id)))
+            }
+            Target::OpenCode => {
+                let base = if is_user_scope {
+                    PathBuf::from("~")
+                        .join(".config")
+                        .join("opencode")
+                        .join("command")
+                } else {
+                    PathBuf::from(".opencode").join("command")
                 };
                 Some(base.join(format!("{}.md", asset_id)))
             }

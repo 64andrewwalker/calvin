@@ -63,7 +63,7 @@ fn test_enabled_targets_default() {
     let config = Config::default();
     let targets = config.enabled_targets();
 
-    assert_eq!(targets.len(), 5);
+    assert_eq!(targets.len(), 6);
 }
 
 #[test]
@@ -238,8 +238,8 @@ fn test_enabled_targets_field_missing_means_all() {
     // Missing field should mean "all targets"
     assert_eq!(
         targets.len(),
-        5,
-        "missing enabled field should return all 5 targets"
+        6,
+        "missing enabled field should return all 6 targets"
     );
 }
 
@@ -255,8 +255,8 @@ version = "1.0"
     let targets = config.enabled_targets();
     assert_eq!(
         targets.len(),
-        5,
-        "missing [targets] section should return all 5 targets"
+        6,
+        "missing [targets] section should return all 6 targets"
     );
 }
 

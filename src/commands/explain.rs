@@ -80,7 +80,7 @@ pub fn cmd_explain(brief: bool, json: bool, verbose: u8) -> Result<()> {
     println!("  ---");
     println!("  description: Required. What this prompt does.");
     println!("  scope: project | user (default: project)");
-    println!("  targets: [claude-code, cursor, vscode, antigravity, codex] (optional)");
+    println!("  targets: [claude-code, cursor, vscode, antigravity, codex, opencode] (optional)");
     println!("  apply: \"*.rs\" (optional)");
     println!("  ---\n");
 
