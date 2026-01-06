@@ -204,6 +204,11 @@ mod tests {
             .with_supplementals(supplementals)
     }
 
+    fn create_agent_asset(id: &str, description: &str, content: &str) -> Asset {
+        Asset::new(id, format!("agents/{}.md", id), description, content)
+            .with_kind(AssetKind::Agent)
+    }
+
     // === TDD: Compile Tests ===
 
     #[test]
@@ -387,5 +392,87 @@ mod tests {
         let fm = adapter.generate_instruction_frontmatter(&asset);
 
         assert!(fm.contains("applyTo: \"*.ts\""));
+    }
+
+    // === TDD: Agent Tests ===
+
+    #[test]
+    fn test_agents_md_includes_agents_section() {
+        // Create array with: 1 policy, 1 action, 1 agent
+        let assets = vec![
+            create_policy_asset("code-style", "Code style guidelines", "# Style"),
+            create_action_asset("gen-tests", "Generate tests", "# Generate"),
+            create_agent_asset("reviewer", "Code review agent", "# Review code"),
+        ];
+
+        let result = generate_agents_md(&assets);
+
+        // Assert result contains "## Agents"
+        assert!(
+            result.contains("## Agents"),
+            "AGENTS.md should contain '## Agents' section"
+        );
+        // Assert result contains the agent ID and description
+        assert!(
+            result.contains("**reviewer**"),
+            "AGENTS.md should contain the agent ID 'reviewer'"
+        );
+        assert!(
+            result.contains("Code review agent"),
+            "AGENTS.md should contain the agent description"
+        );
+    }
+
+    #[test]
+    fn compile_agent_generates_instruction_file() {
+        let adapter = VSCodeAdapter::new();
+        let asset = create_agent_asset("reviewer", "Code review agent", "# Review code");
+
+        let outputs = adapter.compile(&asset).unwrap();
+
+        // Assert output path is `.github/instructions/<id>.instructions.md`
+        assert_eq!(outputs.len(), 1);
+        assert_eq!(
+            outputs[0].path(),
+            &PathBuf::from(".github/instructions/reviewer.instructions.md")
+        );
+        // Assert content includes agent description
+        assert!(
+            outputs[0].content().contains("Code review agent"),
+            "Output should contain the agent description"
+        );
+    }
+
+    #[test]
+    fn post_compile_with_agents_includes_agents_section() {
+        let adapter = VSCodeAdapter::new();
+        // Create assets array with an agent
+        let assets = vec![
+            create_policy_asset("code-style", "Code style guidelines", "# Style"),
+            create_agent_asset("reviewer", "Code review agent", "# Review code"),
+        ];
+
+        let outputs = adapter.post_compile(&assets).unwrap();
+
+        // Find AGENTS.md in outputs
+        let agents_md = outputs
+            .iter()
+            .find(|o| o.path().to_string_lossy().contains("AGENTS.md"))
+            .expect("post_compile should generate AGENTS.md");
+
+        // Assert it contains "## Agents" section
+        assert!(
+            agents_md.content().contains("## Agents"),
+            "AGENTS.md should contain '## Agents' section"
+        );
+        // Assert it contains the agent's ID and description
+        assert!(
+            agents_md.content().contains("**reviewer**"),
+            "AGENTS.md should contain the agent ID 'reviewer'"
+        );
+        assert!(
+            agents_md.content().contains("Code review agent"),
+            "AGENTS.md should contain the agent description"
+        );
     }
 }

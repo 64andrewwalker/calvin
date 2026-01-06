@@ -73,8 +73,8 @@ fn asset_key(asset: &Asset) -> String {
     use crate::domain::entities::AssetKind;
 
     match asset.kind() {
-        AssetKind::Skill => format!("skill:{}", asset.id()),
-        _ => asset.id().to_string(),
+        AssetKind::Skill => format!("skill:{}", asset.id().to_lowercase()),
+        _ => asset.id().to_lowercase(),
     }
 }
 

@@ -58,6 +58,16 @@ scope: project
 Execute this action to test functionality.
 "#;
 
+/// An agent asset for testing agent compilation
+pub const SIMPLE_AGENT: &str = r#"---
+kind: agent
+description: Test code reviewer agent
+scope: project
+targets: [claude-code]
+---
+You are a code reviewer. Review code for best practices and provide actionable feedback.
+"#;
+
 /// Policy content that identifies its source layer (for merge testing)
 pub const POLICY_FROM_USER: &str = r#"---
 kind: policy
