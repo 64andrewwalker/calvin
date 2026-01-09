@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.1](https://github.com/64andrewwalker/calvin/compare/v0.9.0...v0.9.1) (2026-01-09)
+
+
+### Bug Fixes
+
+* **antigravity:** skip Agent assets (unsupported platform) ([b63ebae](https://github.com/64andrewwalker/calvin/commit/b63ebae2a3b5db5b37cbd97571e5a3e5bf32b4e8))
+* **antigravity:** skip Agent assets (unsupported platform) ([2e96332](https://github.com/64andrewwalker/calvin/commit/2e96332d0a9d7a86e91b15e4f70aeec355c18b32))
+
 ## [0.9.0](https://github.com/64andrewwalker/calvin/compare/v0.8.0...v0.9.0) (2026-01-06)
 
 
