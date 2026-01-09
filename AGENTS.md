@@ -62,8 +62,8 @@ Each implements `TargetAdapter` trait from `domain/ports/`.
 
 1. Create `src/infrastructure/adapters/<platform>.rs`
 2. Implement `TargetAdapter` trait
-3. Register in `infrastructure/adapters/mod.rs`
-4. Add `Target` variant in `domain/value_objects/target.rs`
+3. Register in `src/infrastructure/adapters/mod.rs`
+4. Add `Target` variant in `src/domain/value_objects/target.rs`
 5. Add tests
 
 See `docs/target-platforms.md` for format specifications.
@@ -71,8 +71,8 @@ See `docs/target-platforms.md` for format specifications.
 ### Modifying deploy behavior
 
 1. Read `src/application/deploy/use_case.rs`
-2. Check `domain/services/planner.rs` for conflict detection
-3. Check `domain/services/compiler.rs` for output generation
+2. Check `src/domain/services/planner.rs` for conflict detection
+3. Check `src/domain/services/compiler.rs` for output generation
 4. Run `cargo test deploy` after changes
 
 ## Key Documents
@@ -84,7 +84,6 @@ See `docs/target-platforms.md` for format specifications.
 | `docs/architecture/ports.md` | Port (trait) definitions |
 | `docs/testing/testing-philosophy.md` | **Contract-first testing principles** |
 | `docs/testing/contract-registry.md` | **All contracts Calvin guarantees** |
-| `docs/api/frontmatter.md` | Source file format spec |
 | `docs/target-platforms.md` | Platform output formats |
 | `docs/configuration.md` | Config file options |
 | `docs/command-reference.md` | CLI commands |
@@ -103,4 +102,3 @@ See `docs/target-platforms.md` for format specifications.
 | Config | `docs/configuration.md` |
 | Adapter | `docs/target-platforms.md` |
 | Architecture | `docs/architecture/*.md` |
-| API | `docs/api/changelog.md` |
