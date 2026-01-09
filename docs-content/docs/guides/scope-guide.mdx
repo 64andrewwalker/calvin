@@ -47,9 +47,17 @@ scope: user       # Deploy to user home directory (~/)
 
 ---
 
-## Deploy Target
+## Deployment Destination (Target)
 
-The deploy target determines the base directory for deployment:
+The **Deployment Destination** (configured as `target`) determines the base directory where Calvin writes files:
+- **Project**: The root of your current repository (default)
+- **Home**: The user's home directory (`~/`)
+
+<Callout type="info">
+**Note on Terminology:**
+- **Targets** (plural): The platforms you are generating for (Claude, Cursor, VS Code).
+- **Deploy Target** (singular): The *destination directory* where those files are written.
+</Callout>
 
 ### Configuration
 
