@@ -75,8 +75,9 @@ impl TargetAdapter for AntigravityAdapter {
     }
 
     fn compile(&self, asset: &Asset) -> Result<Vec<OutputFile>, AdapterError> {
-        // Skills are not supported on Antigravity (PRD: no fallback compilation).
-        if asset.kind() == AssetKind::Skill {
+        // Skills and Agents are not supported on Antigravity.
+        // Antigravity has no sub-agent delegation system like Claude Code.
+        if matches!(asset.kind(), AssetKind::Skill | AssetKind::Agent) {
             return Ok(Vec::new());
         }
 
@@ -173,19 +174,6 @@ mod tests {
     }
 
     #[test]
-    fn compile_agent_to_workflows_dir() {
-        let adapter = AntigravityAdapter::new();
-        let asset = create_agent_asset("reviewer", "Code reviewer", "You are a reviewer.");
-
-        let outputs = adapter.compile(&asset).unwrap();
-
-        assert_eq!(
-            outputs[0].path(),
-            &PathBuf::from(".agent/workflows/reviewer.md")
-        );
-    }
-
-    #[test]
     fn compile_policy_user_scope() {
         let adapter = AntigravityAdapter::new();
         let asset =
@@ -248,9 +236,18 @@ mod tests {
     }
 
     #[test]
-    fn test_antigravity_compile_skill_returns_empty() {
+    fn compile_skill_returns_empty() {
         let adapter = AntigravityAdapter::new();
         let asset = create_skill_asset("my-skill", "My skill", "# Instructions");
+
+        let outputs = adapter.compile(&asset).unwrap();
+        assert!(outputs.is_empty());
+    }
+
+    #[test]
+    fn compile_agent_returns_empty() {
+        let adapter = AntigravityAdapter::new();
+        let asset = create_agent_asset("reviewer", "Code reviewer", "You are a reviewer.");
 
         let outputs = adapter.compile(&asset).unwrap();
         assert!(outputs.is_empty());
