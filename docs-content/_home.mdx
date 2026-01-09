@@ -8,10 +8,10 @@
 
 {/* Image paths - use absolute paths, not imports */}
 
-<Hero 
-  title="Calvin" 
-  subtitle="The universal PromptPack compiler. Write prompts once, deploy everywhere — Claude Code, Cursor, VS Code, Antigravity, and Codex."
->
+  <Hero 
+    title="Calvin" 
+    subtitle="The universal compiler for AI instructions. Turn your .promptpack directory into configuration files for Claude Code, Cursor, VS Code, Antigravity, and Codex."
+  >
   <Button href="/docs" variant="primary">Get Started</Button>
   <Button href="/docs/api" variant="outline">API Reference</Button>
   <GitHubButton href="https://github.com/64andrewwalker/calvin" />
@@ -69,8 +69,11 @@
   </Center>
   
   ```bash
-  # Install Calvin
+  # macOS/Linux
   brew install 64andrewwalker/tap/calvin
+
+  # Windows (PowerShell)
+  irm https://raw.githubusercontent.com/64andrewwalker/calvin/main/scripts/install-windows.ps1 | iex
 
   # Initialize in your project
   calvin init

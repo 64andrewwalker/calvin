@@ -55,8 +55,9 @@ graph TD
 calvin deploy           # Deploy to project
 calvin deploy --home    # Deploy to home directory
 calvin deploy --remote  # Deploy to remote server
+calvin init             # Initialize .promptpack (project or user)
 calvin clean            # Remove deployed files (interactive)
-calvin clean --all -y   # Remove all deployments
+calvin clean --all -y   # Remove all deployments (global registry cleanup)
 calvin check            # Validate configuration
 calvin check --all      # Validate all registered projects
 calvin check --all-layers # Check all resolved layers
@@ -68,6 +69,8 @@ calvin provenance       # Show output file sources
 calvin projects         # List registered projects
 calvin explain          # Show usage information
 calvin version          # Show version info
+calvin migrate          # (Internal) Migrate assets/adapters
+calvin parse            # (Internal) Debug frontmatter parsing
 ```
 
 ### Library Usage

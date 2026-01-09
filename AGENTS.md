@@ -4,226 +4,104 @@
 
 ## What is Calvin?
 
-Calvin is a PromptOps compiler. It takes a `.promptpack/` directory of Markdown files and compiles them into platform-specific outputs for Claude Code, Cursor, VSCode, Antigravity, and Codex.
+Calvin is a PromptOps compiler. It takes a `.promptpack/` directory of Markdown files and compiles them into platform-specific outputs for Claude Code, Cursor, VSCode, Antigravity, Codex, and OpenCode.
 
 **Core command**: `calvin deploy` - compiles and writes outputs to project.
 
 **Documentation**: https://64andrewwalker.github.io/calvin/
 
-## Quick Start for Developers
+## Quick Reference
 
 ```bash
-# Build
-cargo build
-
-# Test (must pass before committing)
-cargo test
-
-# Format (required)
-cargo fmt
-
-# Lint
-cargo clippy
+cargo build          # Build
+cargo test           # Test (must pass before committing)
+cargo fmt            # Format (required)
+cargo clippy         # Lint
 ```
 
 ## Architecture
 
-Calvin uses **Clean Architecture** with 4 layers:
+Calvin uses **Clean Architecture** with 4 layers. See `docs/architecture/layers.md` for details.
 
 ```
-Presentation → Application → Domain ← Infrastructure
+Layer 0: Presentation  →  Layer 1: Application  →  Layer 2: Domain  ←  Layer 3: Infrastructure
 ```
 
-### Directory Structure
+**Key principle**: Domain defines traits (ports); Infrastructure implements them.
 
-```
-src/
-├── main.rs              # CLI entry point
-├── lib.rs               # Library exports
-├── domain/              # Core business logic (no I/O)
-│   ├── entities/        # Asset, OutputFile, Lockfile
-│   ├── services/        # Compiler, Planner, OrphanDetector
-│   ├── policies/        # ScopePolicy, SecurityPolicy
-│   ├── value_objects/   # Scope, Target, Hash
-│   └── ports/           # Trait definitions
-├── application/         # Use cases (orchestration)
-│   ├── deploy/          # DeployUseCase
-│   ├── watch/           # WatchUseCase, file watching
-│   ├── check.rs         # CheckUseCase
-│   └── diff.rs          # DiffUseCase
-├── infrastructure/      # External integrations
-│   ├── adapters/        # Claude, Cursor, VSCode, etc.
-│   ├── sync/            # Local/Remote file sync
-│   └── fs/              # FileSystem implementations
-├── commands/            # CLI command handlers
-├── ui/                  # Terminal UI components
-├── presentation/        # CLI definitions, factories
-├── config/              # Config loading
-├── security/            # Security checks
-├── models.rs            # PromptAsset, Frontmatter
-└── parser.rs            # YAML frontmatter parsing
-```
+### Where to Find Things
 
-## Key Documents
+| Task | Location | Reference |
+|------|----------|-----------|
+| Add CLI command | `src/commands/`, `src/presentation/cli.rs` | |
+| Add platform adapter | `src/infrastructure/adapters/` | `docs/target-platforms.md` |
+| Modify deploy logic | `src/application/deploy/use_case.rs` | |
+| Change business rules | `src/domain/services/`, `src/domain/policies/` | |
+| Add new port/trait | `src/domain/ports/` | `docs/architecture/ports.md` |
 
-| Document | When to Read |
-|----------|--------------|
-| `docs/architecture.md` | Understanding design goals |
-| `docs/architecture/layers.md` | Understanding layer responsibilities |
-| `docs/architecture/directory.md` | Finding where code lives |
-| `docs/api/frontmatter.md` | Working with source file format |
-| `docs/target-platforms.md` | Adding new platform adapters |
-| `spec.md` | Original product specification |
+For complete directory structure, see `docs/architecture/directory.md`.
 
-## Development Principles
+### Platform Adapters
 
-1. **TDD always** - Write tests first, then implement. All features must have tests before merging.
+5 adapters in `infrastructure/adapters/`: Antigravity, Claude Code, Codex, Cursor, VS Code.
 
-2. **No god objects** - Keep files under 400 lines. Large files require `calvin-no-split` justification.
+Each implements `TargetAdapter` trait from `domain/ports/`.
 
-3. **Domain purity** - `domain/` never imports `infrastructure/` or `application/`. It defines traits; others implement.
+## Development Rules
 
-4. **Update docs** - When changing behavior, update relevant docs in `docs/`. Architecture changes → `docs/architecture/`. API changes → `docs/api/`.
-
-5. **Suggest refactoring** - If a change would benefit from restructuring, say so. Don't silently accumulate debt.
-
-6. **Minimal changes** - Solve the problem at hand. Don't add features that weren't requested.
-
-7. **Security by default** - Never weaken security. Deny lists are mandatory, not optional.
-
-8. **Never fail silently** - Invalid input should warn users, not silently fall back to defaults. A typo like `strct` vs `strict` should produce a helpful message, not silent misbehavior.
+1. **TDD always** - Write tests first. All features need tests before merging.
+2. **No god objects** - Keep files under 400 lines.
+3. **Domain purity** - `domain/` never imports `infrastructure/` or `application/`.
+4. **Security by default** - Never weaken security. Deny lists are mandatory.
+5. **Never fail silently** - Invalid input should warn, not silently misbehave.
+6. **Minimal changes** - Solve the problem at hand. Don't add unrequested features.
 
 ## Common Tasks
-
-### Adding a new CLI command
-
-1. Add enum variant to `src/presentation/cli.rs`
-2. Add handler in `src/commands/`
-3. Add match arm in `src/main.rs`
-4. Add tests
 
 ### Adding a new platform adapter
 
 1. Create `src/infrastructure/adapters/<platform>.rs`
-2. Implement `TargetAdapter` trait from `domain/ports/`
-3. Register in `infrastructure/adapters/mod.rs`
-4. Add `Target` variant in `domain/value_objects/target.rs`
+2. Implement `TargetAdapter` trait
+3. Register in `src/infrastructure/adapters/mod.rs`
+4. Add `Target` variant in `src/domain/value_objects/target.rs`
 5. Add tests
+
+See `docs/target-platforms.md` for format specifications.
 
 ### Modifying deploy behavior
 
-1. Read `src/application/deploy/use_case.rs` (main orchestration)
-2. Check `domain/services/planner.rs` for conflict detection
-3. Check `domain/services/compiler.rs` for output generation
+1. Read `src/application/deploy/use_case.rs`
+2. Check `src/domain/services/planner.rs` for conflict detection
+3. Check `src/domain/services/compiler.rs` for output generation
 4. Run `cargo test deploy` after changes
 
-## Testing
+## Key Documents
 
-```bash
-# All tests
-cargo test
-
-# Specific module
-cargo test domain::services::compiler
-
-# With output
-cargo test -- --nocapture
-
-# Integration tests
-cargo test --test cli_deploy_cleanup
-```
+| Document | Content |
+|----------|---------|
+| `docs/architecture/layers.md` | Layer responsibilities and dependencies |
+| `docs/architecture/directory.md` | Complete directory structure |
+| `docs/architecture/ports.md` | Port (trait) definitions |
+| `docs/testing/testing-philosophy.md` | **Contract-first testing principles** |
+| `docs/testing/contract-registry.md` | **All contracts Calvin guarantees** |
+| `docs/target-platforms.md` | Platform output formats |
+| `docs/configuration.md` | Config file options |
+| `docs/command-reference.md` | CLI commands |
 
 ## Pre-commit Checklist
 
 1. `cargo fmt`
 2. `cargo clippy` - no warnings
 3. `cargo test` - all pass
-4. Files under 400 lines (or marked with `calvin-no-split`)
-
-## Code Style
-
-- Use `PathBuf` for file paths, not strings
-- Error handling: `anyhow::Result` for CLI, custom errors for domain
-- Prefer iterators over loops
-- Document public APIs with `///`
-
-## TDD Workflow
-
-```bash
-# 1. Write failing test
-cargo test my_new_feature -- --nocapture
-# Expected: FAIL
-
-# 2. Implement minimum code to pass
-# ...edit code...
-
-# 3. Run test again
-cargo test my_new_feature
-# Expected: PASS
-
-# 4. Refactor if needed, keep tests green
-```
-
-For TDD session examples, see `docs/archive/tdd-session-*.md`.
 
 ## Documentation Sync
 
-When you change code, update corresponding docs:
+> **RULE**: If you add a feature or introduce a breaking change, you MUST update the documentation in the same PR.
 
-| Change Type | Update |
-|-------------|--------|
-| New CLI option | `docs/command-reference.md` |
-| Config change | `docs/configuration.md` |
-| New adapter | `docs/target-platforms.md` |
+| Change Type | Update Locations (Dev & User) |
+|-------------|-------------------------------|
+| CLI option | `docs/command-reference.md` AND `docs-content/docs/api/index.mdx` |
+| Config | `docs/configuration.md` AND `docs-content/docs/guides/configuration.mdx` |
+| Adapter | `docs/target-platforms.md` AND `docs-content/docs/api/frontmatter.mdx` |
 | Architecture | `docs/architecture/*.md` |
-| API change | `docs/api/changelog.md` |
-
-## Critical Files
-
-Files that affect the whole system - change with extra care:
-
-- `src/lib.rs` - Public API exports
-- `src/main.rs` - CLI entry point
-- `domain/ports/*.rs` - Trait contracts
-- `Cargo.toml` - Dependencies
-
-## Asking for Help
-
-If stuck, check:
-
-1. `docs/architecture/` for design decisions
-2. `docs/archive/` for historical context
-3. `docs/guides/pitfall-mitigations.md` for known issues
-4. Existing tests for usage examples
-
-<skills_system priority="1">
-
-## Available Skills
-
-<!-- SKILLS_TABLE_START -->
-<usage>
-When users ask you to perform tasks, check if any of the available skills below can help complete the task more effectively. Skills provide specialized capabilities and domain knowledge.
-
-How to use skills:
-- Invoke: Bash("openskills read <skill-name>")
-- The skill content will load with detailed instructions on how to complete the task
-- Base directory provided in output for resolving bundled resources (references/, scripts/, assets/)
-
-Usage notes:
-- Only use skills listed in <available_skills> below
-- Do not invoke a skill that is already loaded in your context
-- Each skill invocation is stateless
-</usage>
-
-<available_skills>
-
-<skill>
-<name>self-critique</name>
-<description>Progressive self-questioning for agents before claiming work is complete.</description>
-<location>project</location>
-</skill>
-
-</available_skills>
-<!-- SKILLS_TABLE_END -->
-
-</skills_system>
+| New Feature | Relevant guide in `docs-content/docs/guides/` |

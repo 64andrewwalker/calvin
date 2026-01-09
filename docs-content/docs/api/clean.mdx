@@ -65,6 +65,8 @@ Emitted at the start of the operation.
 
 ```json
 {
+  "event": "start",
+  "command": "clean",
   "type": "clean_start",
   "scope": "User" | "Project" | "all",
   "file_count": 5
@@ -77,6 +79,8 @@ Emitted for each successfully deleted file.
 
 ```json
 {
+  "event": "file_deleted",
+  "command": "clean",
   "type": "file_deleted",
   "path": "~/.claude/commands/workflow.md",
   "key": "home:~/.claude/commands/workflow.md"
@@ -89,6 +93,8 @@ Emitted for each skipped file.
 
 ```json
 {
+  "event": "file_skipped",
+  "command": "clean",
   "type": "file_skipped",
   "path": "~/.cursor/rules/style.mdc",
   "key": "home:~/.cursor/rules/style.mdc",
@@ -102,6 +108,8 @@ Emitted at the end of the operation.
 
 ```json
 {
+  "event": "complete",
+  "command": "clean",
   "type": "clean_complete",
   "deleted": 3,
   "skipped": 2,

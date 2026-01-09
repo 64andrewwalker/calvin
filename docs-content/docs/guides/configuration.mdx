@@ -72,6 +72,18 @@ allow_naked = false
 # Security deny list
 [security.deny]
 patterns = ["*.secret", "*.key"]
+exclude = [".env.example"] # Patterns to exclude from denial
+
+# MCP Server Configuration
+[mcp]
+# Define MCP servers with command and arguments
+[mcp.servers.github]
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-github"]
+
+[mcp.servers.filesystem]
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-filesystem", "/Users/me/projects"]
 
 # Target platforms
 [targets]
@@ -86,11 +98,14 @@ use_user_layer = true              # Enable ~/.calvin/.promptpack
 # Sync settings
 [sync]
 atomic_writes = true
+respect_lockfile = true # Respect manual edits tracked in lockfile
 
 # Output settings
 [output]
 verbosity = "normal"  # quiet | normal | verbose | debug
 color = "auto"        # auto | always | never
+animation = "auto"    # auto | always | never | minimal
+unicode = true        # Use unicode characters in output
 
 # Deploy settings
 [deploy]
