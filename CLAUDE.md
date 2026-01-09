@@ -96,9 +96,12 @@ See `docs/target-platforms.md` for format specifications.
 
 ## Documentation Sync
 
-| Change Type | Update |
-|-------------|--------|
-| CLI option | `docs/command-reference.md` |
-| Config | `docs/configuration.md` |
-| Adapter | `docs/target-platforms.md` |
+> **RULE**: If you add a feature or introduce a breaking change, you MUST update the documentation in the same PR.
+
+| Change Type | Update Locations (Dev & User) |
+|-------------|-------------------------------|
+| CLI option | `docs/command-reference.md` AND `docs-content/docs/api/index.mdx` |
+| Config | `docs/configuration.md` AND `docs-content/docs/guides/configuration.mdx` |
+| Adapter | `docs/target-platforms.md` AND `docs-content/docs/api/frontmatter.mdx` |
 | Architecture | `docs/architecture/*.md` |
+| New Feature | Relevant guide in `docs-content/docs/guides/` |
