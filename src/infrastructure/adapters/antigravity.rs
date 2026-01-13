@@ -58,6 +58,9 @@ impl AntigravityAdapter {
             fm.push_str(&format!("globs: \"{}\"\n", apply));
         }
 
+        // Preserve extra frontmatter fields (e.g., version, version_date, changelog)
+        fm.push_str(&super::format_extra_frontmatter(asset.extra_frontmatter()));
+
         fm.push_str("---\n");
         fm
     }
@@ -304,5 +307,25 @@ mod tests {
     fn adapter_version_is_one() {
         let adapter = AntigravityAdapter::new();
         assert_eq!(adapter.version(), 1);
+    }
+
+    #[test]
+    fn compile_preserves_extra_frontmatter_fields() {
+        let adapter = AntigravityAdapter::new();
+        let mut extra: HashMap<String, serde_yaml_ng::Value> = HashMap::new();
+        extra.insert(
+            "version".to_string(),
+            serde_yaml_ng::Value::String("1.0.0".to_string()),
+        );
+        extra.insert(
+            "version_date".to_string(),
+            serde_yaml_ng::Value::String("2026-01-07".to_string()),
+        );
+        let asset = create_policy_asset("test", "Test", "Content").with_extra_frontmatter(extra);
+
+        let outputs = adapter.compile(&asset).unwrap();
+
+        assert!(outputs[0].content().contains("version: 1.0.0"));
+        assert!(outputs[0].content().contains("version_date: 2026-01-07"));
     }
 }

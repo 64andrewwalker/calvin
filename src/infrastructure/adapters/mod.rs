@@ -21,6 +21,55 @@ pub use vscode::VSCodeAdapter;
 
 use crate::domain::ports::TargetAdapter;
 use crate::domain::value_objects::Target;
+use std::collections::HashMap;
+
+/// Format extra frontmatter fields as YAML string.
+///
+/// Returns empty string if no extra fields, otherwise returns each field on its own line.
+pub fn format_extra_frontmatter(extra: &HashMap<String, serde_yaml_ng::Value>) -> String {
+    if extra.is_empty() {
+        return String::new();
+    }
+
+    let mut result = String::new();
+    let mut keys: Vec<_> = extra.keys().collect();
+    keys.sort();
+
+    for key in keys {
+        if let Some(value) = extra.get(key) {
+            let value_str = format_yaml_value(value);
+            result.push_str(&format!("{}: {}\n", key, value_str));
+        }
+    }
+    result
+}
+
+fn format_yaml_value(value: &serde_yaml_ng::Value) -> String {
+    match value {
+        serde_yaml_ng::Value::Null => "null".to_string(),
+        serde_yaml_ng::Value::Bool(b) => b.to_string(),
+        serde_yaml_ng::Value::Number(n) => n.to_string(),
+        serde_yaml_ng::Value::String(s) => {
+            if s.contains(':') || s.contains('#') || s.starts_with(' ') || s.ends_with(' ') {
+                format!("\"{}\"", s.replace('\"', "\\\""))
+            } else {
+                s.clone()
+            }
+        }
+        serde_yaml_ng::Value::Sequence(seq) => {
+            let items: Vec<String> = seq.iter().map(format_yaml_value).collect();
+            format!("[{}]", items.join(", "))
+        }
+        serde_yaml_ng::Value::Mapping(map) => {
+            let pairs: Vec<String> = map
+                .iter()
+                .map(|(k, v)| format!("{}: {}", format_yaml_value(k), format_yaml_value(v)))
+                .collect();
+            format!("{{{}}}", pairs.join(", "))
+        }
+        serde_yaml_ng::Value::Tagged(tagged) => format_yaml_value(&tagged.value),
+    }
+}
 
 /// Get all available adapters
 pub fn all_adapters() -> Vec<Box<dyn TargetAdapter>> {

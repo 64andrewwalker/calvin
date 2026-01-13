@@ -6,6 +6,7 @@
 //! - Supporting enums: `AssetKind`, `Scope`, `Target`
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 /// Kind of prompt asset
@@ -115,6 +116,13 @@ pub struct Frontmatter {
 
     #[serde(default, rename = "agent-skills")]
     pub agent_skills: Vec<String>,
+
+    /// Extra frontmatter fields not recognized by Calvin.
+    ///
+    /// These are preserved and passed through to adapters so platforms
+    /// can receive custom fields like `version`, `version_date`, `changelog`, etc.
+    #[serde(flatten)]
+    pub extra: HashMap<String, serde_yaml_ng::Value>,
 }
 
 impl Frontmatter {
@@ -140,6 +148,7 @@ impl Frontmatter {
             permission_mode: None,
             skills: None,
             agent_skills: Vec::new(),
+            extra: HashMap::new(),
         }
     }
 
@@ -569,5 +578,33 @@ permission-mode: dontAsk
 "#;
         let fm: Frontmatter = serde_yaml_ng::from_str(yaml).unwrap();
         assert_eq!(fm.effective_permission_mode(), Some("dontAsk"));
+    }
+
+    #[test]
+    fn test_frontmatter_captures_extra_fields() {
+        let yaml = r#"
+description: Test workflow
+version: "1.0.0"
+version_date: 2026-01-07
+changelog:
+  - Initial release
+custom_field: some_value
+"#;
+        let fm: Frontmatter = serde_yaml_ng::from_str(yaml).unwrap();
+        assert_eq!(fm.description, "Test workflow");
+        assert!(fm.extra.contains_key("version"));
+        assert!(fm.extra.contains_key("version_date"));
+        assert!(fm.extra.contains_key("changelog"));
+        assert!(fm.extra.contains_key("custom_field"));
+    }
+
+    #[test]
+    fn test_frontmatter_extra_fields_are_empty_when_none() {
+        let yaml = r#"
+description: Test
+kind: policy
+"#;
+        let fm: Frontmatter = serde_yaml_ng::from_str(yaml).unwrap();
+        assert!(fm.extra.is_empty());
     }
 }

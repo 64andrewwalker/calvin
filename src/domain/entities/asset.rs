@@ -84,6 +84,9 @@ pub struct Asset {
     ///
     /// These are non-fatal issues that should be surfaced to the user.
     warnings: Vec<String>,
+
+    /// Extra frontmatter fields not recognized by Calvin (e.g., version, version_date, changelog)
+    extra_frontmatter: HashMap<String, serde_yaml_ng::Value>,
 }
 
 impl Asset {
@@ -123,6 +126,7 @@ impl Asset {
             command_agent: None,
             command_subtask: None,
             warnings: Vec::new(),
+            extra_frontmatter: HashMap::new(),
         }
     }
 
@@ -224,6 +228,11 @@ impl Asset {
 
     pub fn with_command_subtask(mut self, subtask: Option<bool>) -> Self {
         self.command_subtask = subtask;
+        self
+    }
+
+    pub fn with_extra_frontmatter(mut self, extra: HashMap<String, serde_yaml_ng::Value>) -> Self {
+        self.extra_frontmatter = extra;
         self
     }
 
@@ -346,6 +355,10 @@ impl Asset {
     pub fn command_subtask(&self) -> Option<bool> {
         self.command_subtask
     }
+
+    pub fn extra_frontmatter(&self) -> &HashMap<String, serde_yaml_ng::Value> {
+        &self.extra_frontmatter
+    }
 }
 
 // === From implementations ===
@@ -424,7 +437,8 @@ impl From<crate::models::PromptAsset> for Asset {
             .with_temperature(pa.frontmatter.temperature)
             .with_opencode_model(pa.frontmatter.opencode_model)
             .with_command_agent(pa.frontmatter.agent)
-            .with_command_subtask(pa.frontmatter.subtask);
+            .with_command_subtask(pa.frontmatter.subtask)
+            .with_extra_frontmatter(pa.frontmatter.extra);
 
         asset
     }
@@ -630,6 +644,7 @@ mod tests {
             permission_mode: None,
             skills: None,
             agent_skills: vec![],
+            extra: std::collections::HashMap::new(),
         };
         let prompt_asset = PromptAsset::new("test-id", "test.md", frontmatter, "Test content");
 
@@ -670,6 +685,7 @@ mod tests {
             permission_mode: None,
             skills: None,
             agent_skills: vec!["skill-a".to_string()],
+            extra: std::collections::HashMap::new(),
         };
         let prompt_asset =
             PromptAsset::new("test-agent", "agents/test.md", frontmatter, "Agent content");
