@@ -1131,6 +1131,18 @@ where
         for binary_file in binary_outputs {
             let resolved_path = self.resolve_fs_path(project_root, binary_file.path(), remote_mode);
 
+            // If the target already matches the desired content, treat as skipped.
+            // This keeps deploy idempotent and prevents confusing "files written" counts.
+            if self.file_system.exists(&resolved_path) {
+                let desired_hash = binary_file.content_hash();
+                if let Ok(existing_hash) = self.file_system.hash(&resolved_path) {
+                    if existing_hash == desired_hash {
+                        result.skipped.push(binary_file.path().clone());
+                        continue;
+                    }
+                }
+            }
+
             // Ensure parent directory exists
             if let Some(parent) = resolved_path.parent() {
                 if let Err(e) = self.file_system.create_dir_all(parent) {
@@ -1356,7 +1368,8 @@ where
 
         // Update entries for binary files
         for binary_file in binary_outputs {
-            if written_set.contains(binary_file.path()) {
+            if written_set.contains(binary_file.path()) || skipped_set.contains(binary_file.path())
+            {
                 let key = Lockfile::make_key(scope, &binary_file.path().display().to_string());
                 let entry = LockfileEntry::new(binary_file.content_hash()).with_binary(true);
                 lockfile.set_entry(&key, entry);

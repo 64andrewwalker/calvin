@@ -392,6 +392,18 @@
 
 ---
 
+### SKILL-003: Unchanged Binary Assets Not Counted As Written
+
+**Promise**: Re-running `calvin deploy` with no changes does not report unchanged binary skill assets as "files written"; they are treated as up-to-date (skipped).
+
+**Violation Example**: A second deploy shows `1 files written` even though the only difference is an unchanged PNG/PDF in a skill's supplemental files.
+
+**Test Location**: `tests/contracts/skills.rs::contract_skill_binary_assets_not_counted_as_written_when_unchanged`
+
+**Related Issues**: Regression where binary outputs were always written
+
+---
+
 ## Adding New Contracts
 
 When adding a new contract:
