@@ -61,6 +61,8 @@ impl CodexAdapter {
             }
         }
 
+        fm.push_str(&super::format_extra_frontmatter(asset.extra_frontmatter()));
+
         fm.push_str("---\n");
         fm
     }

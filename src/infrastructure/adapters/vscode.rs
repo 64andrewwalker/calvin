@@ -42,6 +42,8 @@ impl VSCodeAdapter {
             fm.push_str(&format!("applyTo: \"{}\"\n", apply));
         }
 
+        fm.push_str(&super::format_extra_frontmatter(asset.extra_frontmatter()));
+
         fm.push_str("---\n");
         fm
     }
