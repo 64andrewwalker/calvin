@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.3](https://github.com/64andrewwalker/calvin/compare/v0.9.2...v0.9.3) (2026-01-13)
+
+
+### Bug Fixes
+
+* preserve extra frontmatter fields in adapters ([15be0d4](https://github.com/64andrewwalker/calvin/commit/15be0d49053b336f7d19ee98471879b641d31181))
+* preserve extra frontmatter fields in adapters ([a00b9f1](https://github.com/64andrewwalker/calvin/commit/a00b9f135e4bd45e1e68b0938293e37558fa0825))
+
 ## [0.9.2](https://github.com/64andrewwalker/calvin/compare/v0.9.1...v0.9.2) (2026-01-13)
 
 
